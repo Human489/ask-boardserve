@@ -286,6 +286,35 @@ function inferArgs(tool: ToolDefinition, q: string): Record<string, unknown> {
   return args
 }
 
+/**
+ * The model returns arguments as JSON with loose types — a numeric parameter
+ * commonly comes back as the string "10", and a boolean as "true". Coerce each
+ * value to the type the tool declared, and drop anything the tool does not
+ * declare at all, so a hallucinated argument cannot reach a tool.
+ */
+function coerceArgs(
+  tool: ToolDefinition,
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [name, value] of Object.entries(raw)) {
+    const param = tool.parameters[name]
+    if (!param) continue
+    if (param.type === 'number') {
+      const n = typeof value === 'number' ? value : Number(String(value).trim())
+      if (Number.isFinite(n)) out[name] = n
+    } else if (param.type === 'boolean') {
+      out[name] = typeof value === 'boolean' ? value : String(value).trim() === 'true'
+    } else {
+      const str = String(value)
+      // Reject an enum value the tool does not offer rather than passing it on.
+      if (param.enum && !param.enum.includes(str)) continue
+      out[name] = str
+    }
+  }
+  return out
+}
+
 export function fallbackRoute(question: string, tools: ToolDefinition[]): Route {
   const q = ` ${question.toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ')} `
 
@@ -368,7 +397,13 @@ async function modelRoute(
   history: HistoryTurn[],
 ): Promise<Route | null> {
   const cfg = getConfig()
-  const url = `https://gateway.ai.cloudflare.com/v1/${cfg.cloudflareAccountId}/${cfg.aiGatewayId}/workers-ai/v1/chat/completions`
+  // The Workers AI REST endpoint, with the gateway applied via the
+  // cf-aig-gateway-id header. The gateway.ai.cloudflare.com/{account}/{gateway}
+  // URL form was tried first and returns 401 on this account: it requires a
+  // gateway to already exist under that exact name. The header form routes
+  // through the gateway without depending on that, and is what the brief asks
+  // for.
+  const url = `https://api.cloudflare.com/client/v4/accounts/${cfg.cloudflareAccountId}/ai/run/${cfg.model}`
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
@@ -383,7 +418,6 @@ async function modelRoute(
         'cf-aig-gateway-id': cfg.aiGatewayId,
       },
       body: JSON.stringify({
-        model: cfg.model,
         temperature: 0,
         messages: [
           { role: 'system', content: systemPrompt(tools) },
@@ -406,11 +440,21 @@ async function modelRoute(
       return null
     }
 
+    // This endpoint wraps everything in `result`, and returns tool calls in two
+    // shapes: an OpenAI-style one under choices[], and a flatter one at the top
+    // level whose `arguments` is already an object rather than a JSON string.
+    // Read either.
     const body = (await res.json()) as {
-      choices?: { message?: { tool_calls?: { function?: { name?: string; arguments?: unknown } }[] } }[]
+      result?: {
+        tool_calls?: { name?: string; arguments?: unknown }[]
+        choices?: {
+          message?: { tool_calls?: { function?: { name?: string; arguments?: unknown } }[] }
+        }[]
+      }
     }
-    const call = body.choices?.[0]?.message?.tool_calls?.[0]
-    const fn = call?.function
+    const result = body.result
+    const fn =
+      result?.choices?.[0]?.message?.tool_calls?.[0]?.function ?? result?.tool_calls?.[0]
     if (!fn?.name) return null
 
     let args: Record<string, unknown> = {}
@@ -436,7 +480,7 @@ async function modelRoute(
     if (!chosen) return null
 
     // Fill any argument the model omitted, so a tool never runs under-specified.
-    const filled = { ...inferArgs(chosen, ` ${question.toLowerCase()} `), ...args }
+    const filled = { ...inferArgs(chosen, ` ${question.toLowerCase()} `), ...coerceArgs(chosen, args) }
     return { kind: 'tool', name: chosen.name, args: filled, routedBy: 'model' }
   } catch (e) {
     const reason = (e as Error)?.name === 'AbortError' ? 'timed out' : String(e)

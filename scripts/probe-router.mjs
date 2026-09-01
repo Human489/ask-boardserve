@@ -168,7 +168,10 @@ const cases = [
 
 // ---------------------------------------------------------------- run
 
-const url = `https://gateway.ai.cloudflare.com/v1/${ACCOUNT}/${GATEWAY}/workers-ai/v1/chat/completions`
+// Workers AI REST endpoint with the gateway applied by header. The
+// gateway.ai.cloudflare.com/{account}/{gateway} URL form returns 401 unless a
+// gateway already exists under that exact name.
+const url = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/ai/run/${MODEL}`
 
 async function route(question) {
   const res = await fetch(url, {
@@ -179,7 +182,6 @@ async function route(question) {
       'cf-aig-gateway-id': GATEWAY,
     },
     body: JSON.stringify({
-      model: MODEL,
       temperature: 0,
       messages: [
         { role: 'system', content: SYSTEM },
@@ -198,9 +200,12 @@ async function route(question) {
     return { error: `unparseable response: ${text.slice(0, 200)}` }
   }
 
-  const msg = body.choices?.[0]?.message ?? {}
-  const call = msg.tool_calls?.[0]
-  if (!call) return { tool: null, prose: (msg.content || '').slice(0, 120) }
+  // This endpoint nests everything under `result` and offers the tool call in
+  // two shapes; take whichever is present.
+  const result = body.result ?? body
+  const msg = result.choices?.[0]?.message ?? {}
+  const call = msg.tool_calls?.[0] ?? result.tool_calls?.[0]
+  if (!call) return { tool: null, prose: String(msg.content || result.response || '').slice(0, 120) }
 
   const fn = call.function ?? call
   let args = fn.arguments
