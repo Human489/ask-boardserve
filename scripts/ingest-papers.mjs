@@ -148,6 +148,17 @@ async function main() {
     if (i.processedUpToMutation === mutationId) {
       caughtUp = true
       console.log(`\ncaught up after ${Math.round((Date.now() - started) / 1000)}s — ${i.vectorCount} vectors`)
+      // Chunk ids are positional, so a re-ingest producing FEWER chunks for a
+      // paper leaves the surplus behind: still searchable, now stale. The count
+      // is the cheap way to notice.
+      if (i.vectorCount !== chunks.length) {
+        console.warn(
+          `
+WARNING: the index holds ${i.vectorCount} vectors but this ingest produced ` +
+            `${chunks.length}. The surplus is stale chunks from an earlier run and will ` +
+            `still be returned by searches. Delete and recreate the index.`,
+        )
+      }
       break
     }
     process.stdout.write('.')
