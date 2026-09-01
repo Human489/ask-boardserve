@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { TOOLS } from '../src/lib/analytics/registry.ts'
-import { routeQuestion } from '../src/lib/router.ts'
+import { TOOLS } from '../src/lib/analytics/registry'
+import { routeQuestion } from '../src/lib/router'
 
 // The questions EXACTLY as they appear in the specification document.
 //
