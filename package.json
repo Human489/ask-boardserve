@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "smoke": "node scripts/smoke-api.mjs"
   },
   "dependencies": {
     "next": "15.5.2",
