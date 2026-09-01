@@ -194,6 +194,25 @@ shareable read-only dashboard links; second dataset loading with no code changes
   because retrieval is not built, not because no paper covers CQC. When RAG
   lands it will keep passing while no longer testing what it claims to.
 
+### Recorded, not fixed
+
+Found by audit, judged not worth fixing yet. None affects a user today.
+
+- `unresolvedByCommittee` and `actionsDistribution` compute percentages inline
+  with `Math.round(...)` rather than the canonical `pct()` in the loader. Every
+  other percentage in the codebase goes through `pct()`, so tightening it later
+  would silently leave these two behind.
+- `list()`, `num()` and `str()` are copy-pasted across all three analytics
+  modules. They are exactly the shared helpers this file says belong in
+  `loader.ts`.
+- `Chat.tsx`'s `run()` does not enforce single-flight itself. The `inFlight`
+  guards on the UI paths prevent overlap today, but a second caller of `run`
+  would break the invariant, since its `finally` clears `inFlight`
+  unconditionally.
+- `bearerToken`'s regex accepts alphanumerics only, coupling it to the current
+  hex token format. A base64url token would be rejected as a silent 401 that
+  the UI shows as an unexplained sign-out.
+
 ### Open decisions
 
 - **No attendance threshold exists in the data.** Currently defaults to 80% and is
