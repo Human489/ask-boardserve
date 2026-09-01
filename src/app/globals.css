@@ -1,0 +1,664 @@
+/* Ask BoardServe — design tokens and layout.
+   Tokens come from the validated data-viz palette. The chart series/highlight
+   colours are declared here (not in the chart component) so BoardChart can read
+   them back at runtime and stay correct in both themes. */
+
+:root {
+  color-scheme: light;
+
+  --plane: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-sunken: #f2f1ed;
+
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --ink-muted: #898781;
+
+  --hairline: rgba(11, 11, 11, 0.1);
+  --hairline-strong: #c3c2b7;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+
+  --series-1: #2a78d6;
+  --series-2: #1baf7a;
+  --highlight: #d03b3b;
+  --reference: #898781;
+
+  --accent: #2a78d6;
+  --accent-ink: #ffffff;
+
+  --refusal-bg: #f3f5fa;
+  --refusal-edge: #cdd8ea;
+  --refusal-ink: #1c5cab;
+
+  --error-bg: #fbf3f3;
+  --error-edge: #ecd0d0;
+  --error-ink: #a63030;
+
+  --notice-bg: #f5f4f0;
+  --notice-edge: #e1e0d9;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  --measure: 780px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --plane: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-sunken: #131312;
+
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --ink-muted: #898781;
+
+    --hairline: rgba(255, 255, 255, 0.12);
+    --hairline-strong: #383835;
+    --grid: #2c2c2a;
+    --axis: #383835;
+
+    --series-1: #3987e5;
+    --series-2: #199e70;
+    --highlight: #d03b3b;
+    --reference: #898781;
+
+    --accent: #3987e5;
+    --accent-ink: #0d0d0d;
+
+    --refusal-bg: #161c26;
+    --refusal-edge: #27374d;
+    --refusal-ink: #86b6ef;
+
+    --error-bg: #241616;
+    --error-edge: #472525;
+    --error-ink: #e88f8f;
+
+    --notice-bg: #1f1f1d;
+    --notice-edge: #2c2c2a;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+/* ------------------------------------------------------------------ shell */
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.masthead {
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+  padding: 18px 24px;
+}
+
+.masthead-inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+.wordmark {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.positioning {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.transcript {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 24px 8px;
+}
+
+.transcript-inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* ------------------------------------------------------------ empty state */
+
+.empty {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 40px 0 8px;
+}
+
+.empty-lede {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.empty-sub {
+  margin: 0 0 28px;
+  color: var(--ink-2);
+  max-width: 56ch;
+}
+
+.empty-label {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.examples {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.example {
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  cursor: pointer;
+  color: var(--ink-2);
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.example:hover:not(:disabled) {
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+}
+
+.example:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* -------------------------------------------------------------- messages */
+
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.question {
+  align-self: flex-end;
+  max-width: 88%;
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------------ answer card */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+}
+
+.headline {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.4;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+
+.chart-block {
+  margin-top: 22px;
+}
+
+.chart-title {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.chart-axis-note {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.chart-frame {
+  width: 100%;
+}
+
+/* Recharts injects focus outlines on the surface wrapper; keep it quiet. */
+.chart-frame .recharts-wrapper:focus {
+  outline: none;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.legend-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.tooltip {
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 8px 11px;
+  font-size: 12px;
+  max-width: 260px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+
+.tooltip-label {
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+
+.tooltip-row {
+  margin: 0;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltip-detail {
+  margin: 5px 0 0;
+  color: var(--ink-muted);
+}
+
+/* ------------------------------------------------------------------ table */
+
+.table-block {
+  margin-top: 22px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+}
+
+table.answer-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.answer-table th,
+.answer-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hairline);
+  white-space: nowrap;
+}
+
+.answer-table th {
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  background: var(--surface-sunken);
+}
+
+.answer-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.answer-table td.numeric {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------- notes & provenance */
+
+.notes {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.note-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin: 0 0 3px;
+}
+
+.note-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.note-list li + li {
+  margin-top: 3px;
+}
+
+.provenance {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+.provenance dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 12px;
+  row-gap: 2px;
+}
+
+.provenance dt {
+  font-weight: 600;
+}
+
+.provenance dd {
+  margin: 0;
+}
+
+.routing-notice {
+  margin-top: 18px;
+  background: var(--notice-bg);
+  border: 1px solid var(--notice-edge);
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ------------------------------------------------------ refusal & error */
+
+.card-refusal {
+  background: var(--refusal-bg);
+  border-color: var(--refusal-edge);
+}
+
+.refusal-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--refusal-ink);
+  margin: 0 0 8px;
+}
+
+.refusal-body {
+  margin: 12px 0 0;
+  color: var(--ink-2);
+}
+
+.refusal-alt {
+  margin: 10px 0 0;
+  color: var(--ink-2);
+}
+
+.card-error {
+  background: var(--error-bg);
+  border-color: var(--error-edge);
+}
+
+.error-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--error-ink);
+  margin: 0 0 8px;
+}
+
+.error-body {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.retry {
+  margin-top: 14px;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.retry:hover {
+  border-color: var(--ink-2);
+}
+
+/* --------------------------------------------------------------- loading */
+
+.skeleton-line,
+.skeleton-chart {
+  background: var(--surface-sunken);
+  border-radius: var(--radius-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton-line {
+  height: 15px;
+}
+
+.skeleton-line.tall {
+  height: 21px;
+}
+
+.skeleton-line.w-90 {
+  width: 90%;
+}
+
+.skeleton-line.w-60 {
+  width: 60%;
+}
+
+.skeleton-line.w-40 {
+  width: 40%;
+}
+
+.skeleton-chart {
+  height: 240px;
+  margin-top: 22px;
+}
+
+.skeleton-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.skeleton-line::after,
+.skeleton-chart::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--surface),
+    transparent
+  );
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line::after,
+  .skeleton-chart::after {
+    animation: none;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------- composer */
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  background: var(--plane);
+  border-top: 1px solid var(--hairline);
+  padding: 14px 24px 20px;
+}
+
+.composer-inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.composer textarea {
+  flex: 1;
+  resize: none;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius);
+  padding: 10px 13px;
+  max-height: 160px;
+  min-height: 44px;
+}
+
+.composer textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.composer textarea:disabled {
+  opacity: 0.6;
+}
+
+.send {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: none;
+  border-radius: var(--radius);
+  padding: 0 18px;
+  height: 44px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.composer-hint {
+  max-width: var(--measure);
+  margin: 8px auto 0;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+}
+
+@media (max-width: 640px) {
+  .transcript {
+    padding: 20px 16px 8px;
+  }
+
+  .composer {
+    padding: 12px 16px 16px;
+  }
+
+  .masthead {
+    padding: 14px 16px;
+  }
+
+  .card {
+    padding: 18px 16px;
+  }
+
+  .headline {
+    font-size: 17px;
+  }
+
+  .examples {
+    grid-template-columns: 1fr;
+  }
+}
