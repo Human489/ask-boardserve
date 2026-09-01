@@ -38,6 +38,17 @@ export async function middleware(req: NextRequest) {
 
   const passcode = process.env.APP_PASSCODE?.trim()
   if (!passcode) {
+    // Fail CLOSED in production. A missing or misspelled env var on the
+    // deployment would otherwise publish the whole app, and the only signal
+    // would be a server log nobody reads. Refusing to serve is loud, and the
+    // fix is obvious from the message.
+    if (process.env.NODE_ENV === 'production') {
+      return new NextResponse(
+        'This deployment is not configured. APP_PASSCODE is not set, so access ' +
+          'cannot be checked and the application will not serve any page.',
+        { status: 503, headers: { 'content-type': 'text/plain; charset=utf-8' } },
+      )
+    }
     if (!warned) {
       warned = true
       console.warn(

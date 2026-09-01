@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { AUTH_COOKIE, signPasscode, timingSafeEqual } from '../../../../middleware'
+import { AUTH_COOKIE, signPasscode, timingSafeEqual } from '@/middleware'
 
 export const runtime = 'nodejs'
 

@@ -394,7 +394,17 @@ async function modelRoute(
         tools: toOpenAiTools(tools),
       }),
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      // Log loudly. Falling back silently means a broken gateway looks exactly
+      // like no credentials at all, and the only visible symptom is that every
+      // answer says it was routed by the offline classifier.
+      const detail = await res.text().catch(() => '')
+      console.error(
+        `[router] AI Gateway returned ${res.status}. Falling back to the offline ` +
+          `classifier. ${detail.slice(0, 300)}`,
+      )
+      return null
+    }
 
     const body = (await res.json()) as {
       choices?: { message?: { tool_calls?: { function?: { name?: string; arguments?: unknown } }[] } }[]
@@ -428,7 +438,9 @@ async function modelRoute(
     // Fill any argument the model omitted, so a tool never runs under-specified.
     const filled = { ...inferArgs(chosen, ` ${question.toLowerCase()} `), ...args }
     return { kind: 'tool', name: chosen.name, args: filled, routedBy: 'model' }
-  } catch {
+  } catch (e) {
+    const reason = (e as Error)?.name === 'AbortError' ? 'timed out' : String(e)
+    console.error(`[router] model routing failed (${reason}); using the offline classifier.`)
     return null
   } finally {
     clearTimeout(timer)
