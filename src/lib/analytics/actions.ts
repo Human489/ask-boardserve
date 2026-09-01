@@ -1,0 +1,666 @@
+import type {
+  BoardAction,
+  DataPoint,
+  Dataset,
+  ToolDefinition,
+  ToolResult,
+} from '@/lib/types'
+import { daysBetween } from '@/lib/dataset/loader'
+
+// Action-log tools.
+//
+// The governing rule here: `status` is hand-typed by the secretariat and is not
+// always right. Overdue is DERIVED from the dates (due_date < as_at and not
+// complete) and reported alongside the recorded count, with the disagreement
+// described from the actual numbers — it can run in either direction.
+
+const SOURCES = ['actions.json']
+
+function num(v: unknown, fallback: number): number {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : fallback
+}
+
+function choice<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
+  return allowed.includes(v as T) ? (v as T) : fallback
+}
+
+function list(items: string[]): string {
+  if (items.length === 0) return 'none'
+  if (items.length === 1) return items[0]
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+}
+
+/** due_date < as_at AND not complete. The honest definition. */
+function isDerivedOverdue(a: BoardAction, asAt: string): boolean {
+  return a.due_date < asAt && a.status !== 'complete'
+}
+
+function isUnresolved(a: BoardAction): boolean {
+  return a.status !== 'complete'
+}
+
+/**
+ * `owner` is a JOB TITLE, not a director. The only join available is against
+ * the `role` column of the skills audit, and it usually misses. Returns the
+ * director name only on an exact, case-insensitive role match.
+ */
+function resolveOwner(dataset: Dataset, owner: string): string | null {
+  const want = owner.trim().toLowerCase()
+  const hit = dataset.skills.find((s) => s.role.trim().toLowerCase() === want)
+  return hit ? hit.director_name : null
+}
+
+function ownerCaveat(dataset: Dataset, actions: BoardAction[]): string {
+  const owners = [...new Set(actions.map((a) => a.owner))]
+  const unresolved = owners.filter((o) => resolveOwner(dataset, o) === null)
+  return (
+    `"owner" is a job title, not a director: ${unresolved.length} of ${owners.length} ` +
+    'distinct owners in this answer cannot be resolved to a named director, so these ' +
+    'bars are roles, not people.'
+  )
+}
+
+function groupKey(a: BoardAction, groupBy: string): string {
+  if (groupBy === 'committee') return a.committee_or_board
+  if (groupBy === 'owner_type') return a.owner_type
+  return a.owner
+}
+
+// ------------------------------------------------------------ Q5
+
+export const overdueActions: ToolDefinition = {
+  name: 'overdue_actions',
+  description:
+    'Overdue actions derived from due dates against the as-at date, compared with the ' +
+    'count the log records as overdue, grouped by owner or committee. Use for "what is ' +
+    'overdue and who owns it".',
+  parameters: {
+    group_by: {
+      type: 'string',
+      description: 'Group the bars by action owner or by the body that raised the action.',
+      enum: ['owner', 'committee'],
+      default: 'owner',
+    },
+  },
+  required: [],
+  run(dataset, args): ToolResult {
+    const groupBy = choice(args.group_by, ['owner', 'committee'] as const, 'owner')
+    const all = dataset.actions.actions
+    const asAt = dataset.asAt
+
+    const derived = all.filter((a) => isDerivedOverdue(a, asAt))
+    const recorded = all.filter((a) => a.status === 'overdue')
+    const derivedIds = new Set(derived.map((a) => a.action_id))
+    const recordedIds = new Set(recorded.map((a) => a.action_id))
+    const onlyDerived = derived.filter((a) => !recordedIds.has(a.action_id))
+    const onlyRecorded = recorded.filter((a) => !derivedIds.has(a.action_id))
+
+    const groups = new Map<string, { derived: number; recorded: number }>()
+    for (const a of derived) {
+      const k = groupKey(a, groupBy)
+      const cur = groups.get(k) ?? { derived: 0, recorded: 0 }
+      cur.derived += 1
+      groups.set(k, cur)
+    }
+    for (const a of recorded) {
+      const k = groupKey(a, groupBy)
+      const cur = groups.get(k) ?? { derived: 0, recorded: 0 }
+      cur.recorded += 1
+      groups.set(k, cur)
+    }
+
+    const points: DataPoint[] = [...groups.entries()]
+      .map(([label, v]) => ({
+        label,
+        value: v.derived,
+        value2: v.recorded,
+        highlight: v.derived > v.recorded,
+        detail: `${v.derived} overdue by date, ${v.recorded} recorded as overdue in the log`,
+      }))
+      .sort((a, b) => b.value - a.value || a.label.localeCompare(b.label))
+
+    // Generated from the comparison, never templated: the log can be short OR long.
+    let disagreement: string
+    if (derived.length === recorded.length && onlyDerived.length === 0) {
+      disagreement = 'the log agrees exactly'
+    } else {
+      const parts: string[] = []
+      if (onlyDerived.length > 0) {
+        parts.push(
+          `${onlyDerived.length} past their due date but still logged as ${list(
+            [...new Set(onlyDerived.map((a) => `"${a.status}"`))],
+          )} (${list(onlyDerived.map((a) => a.action_id))})`,
+        )
+      }
+      if (onlyRecorded.length > 0) {
+        parts.push(
+          `${onlyRecorded.length} recorded as overdue but not past due by ${asAt} (${list(
+            onlyRecorded.map((a) => a.action_id),
+          )})`,
+        )
+      }
+      disagreement = `the two disagree on ${list(parts)}`
+    }
+
+    const owners = [...new Set(derived.map((a) => a.owner))]
+    const unresolvable = owners.filter((o) => resolveOwner(dataset, o) === null).length
+
+    const topGroup = points[0]
+
+    return {
+      tool: 'overdue_actions',
+      headline:
+        `${derived.length} action${derived.length === 1 ? ' is' : 's are'} overdue when derived from due dates against ${asAt}, ` +
+        `against ${recorded.length} the log records as overdue, and ${disagreement}` +
+        (topGroup ? `; the heaviest ${groupBy} is ${topGroup.label} with ${topGroup.value}.` : '.'),
+      chart: {
+        kind: 'bar',
+        title: `Overdue actions by ${groupBy}`,
+        xLabel: groupBy === 'owner' ? 'Owner (job title)' : 'Body that raised it',
+        yLabel: 'Actions',
+        unit: 'count',
+        points,
+        seriesLabel: 'Derived from due dates',
+        series2Label: 'Recorded as overdue in the log',
+      },
+      table: {
+        columns: [
+          'Action',
+          'Description',
+          'Owner (job title)',
+          'Body',
+          'Due',
+          'Days past due',
+          'Recorded status',
+        ],
+        rows: derived
+          .slice()
+          .sort((a, b) => a.due_date.localeCompare(b.due_date))
+          .map((a) => [
+            a.action_id,
+            a.description,
+            a.owner,
+            a.committee_or_board,
+            a.due_date,
+            daysBetween(a.due_date, asAt),
+            a.status,
+          ]),
+      },
+      assumptions: [
+        `Overdue is derived as due_date earlier than the as-at date of ${asAt} and status not "complete".`,
+        'The recorded count is the raw status field as typed into the log, shown for comparison rather than used as the answer.',
+      ],
+      caveats: [
+        ownerCaveat(dataset, derived),
+        `${unresolvable} of the ${owners.length} owners holding a derived-overdue action cannot be matched to a person, so no individual can be named from this data alone.`,
+        ...(derived.length < 5
+          ? [`Only ${derived.length} rows are in scope, so single actions dominate the shape of the chart.`]
+          : []),
+      ],
+      provenance: {
+        asAt,
+        sources: SOURCES,
+        rowsConsidered: all.length,
+        derivation:
+          `Of ${all.length} actions, ${derived.length} have a due date before ${asAt} and a status other than ` +
+          `"complete"; separately, ${recorded.length} carry the literal status "overdue".`,
+      },
+    }
+  },
+}
+
+// ------------------------------------------------------------ Q6
+
+export const longestOverdue: ToolDefinition = {
+  name: 'longest_overdue',
+  description:
+    'Overdue actions ranked by days past their due date, measured against the dataset ' +
+    'as-at date. Use for "what has been outstanding the longest".',
+  parameters: {
+    limit: {
+      type: 'number',
+      description: 'How many actions to show. Ties at the cut-off are all included.',
+      default: 10,
+    },
+  },
+  required: [],
+  run(dataset, args): ToolResult {
+    const limit = Math.max(1, Math.round(num(args.limit, 10)))
+    const asAt = dataset.asAt
+    const all = dataset.actions.actions
+
+    const ranked = all
+      .filter((a) => isDerivedOverdue(a, asAt))
+      .map((a) => ({ action: a, days: daysBetween(a.due_date, asAt) }))
+      .sort(
+        (x, y) => y.days - x.days || x.action.action_id.localeCompare(y.action.action_id),
+      )
+
+    // A tie at the cut-off is not a licence to pick arbitrarily. Everything level
+    // with the last included row is shown too, and the headline says so.
+    let shown = ranked
+    let truncated = false
+    if (ranked.length > limit) {
+      const cutoff = ranked[limit - 1].days
+      shown = ranked.filter((r) => r.days >= cutoff)
+      truncated = true
+    }
+    const tieAtCut = truncated
+      ? shown.filter((r) => r.days === shown[shown.length - 1].days)
+      : []
+
+    const points: DataPoint[] = shown.map((r) => ({
+      label: r.action.action_id,
+      value: r.days,
+      highlight: r.action.times_deferred > 0,
+      detail: `${r.action.description} — owner ${r.action.owner}, due ${r.action.due_date}, logged "${r.action.status}"`,
+    }))
+
+    let headline: string
+    if (shown.length === 0) {
+      headline = `Nothing is past its due date as at ${asAt}.`
+    } else {
+      const top = shown[0]
+      const tieClause =
+        tieAtCut.length > 1
+          ? ` ${tieAtCut.length} actions tie on ${tieAtCut[0].days} days at the cut-off (${list(
+              tieAtCut.map((r) => r.action.action_id),
+            )}), so all of them are shown rather than one being picked arbitrarily.`
+          : ''
+      headline =
+        `${top.action.action_id} is the longest outstanding at ${top.days} days past due as at ${asAt}` +
+        `, owned by ${top.action.owner} and still logged "${top.action.status}".${tieClause}`
+    }
+
+    return {
+      tool: 'longest_overdue',
+      headline,
+      chart: {
+        kind: 'bar',
+        title: 'Days past due',
+        xLabel: 'Action',
+        yLabel: 'Days past due',
+        unit: 'days',
+        points,
+        seriesLabel: 'Days past due',
+      },
+      table: {
+        columns: [
+          'Action',
+          'Description',
+          'Owner (job title)',
+          'Body',
+          'Due',
+          'Days past due',
+          'Deferrals',
+          'Recorded status',
+        ],
+        rows: shown.map((r) => [
+          r.action.action_id,
+          r.action.description,
+          r.action.owner,
+          r.action.committee_or_board,
+          r.action.due_date,
+          r.days,
+          r.action.times_deferred,
+          r.action.status,
+        ]),
+      },
+      assumptions: [
+        `Days past due are measured against the dataset as-at date of ${asAt}, not the system clock, so these figures do not drift.`,
+        `Overdue means due_date before ${asAt} and status not "complete", so items the log has not caught up with are included.`,
+        `A limit of ${limit} was requested; ties at the cut-off are all shown.`,
+      ],
+      caveats: [
+        ownerCaveat(dataset, shown.map((r) => r.action)),
+        'Age past due says nothing about effort spent; a deferred due date resets the clock the log measures.',
+      ],
+      provenance: {
+        asAt,
+        sources: SOURCES,
+        rowsConsidered: all.length,
+        derivation:
+          `${ranked.length} actions are past due as at ${asAt}; each bar is the whole-day gap ` +
+          'between its due date and the as-at date.',
+      },
+    }
+  },
+}
+
+// ------------------------------------------------------------ Q7
+
+export const unresolvedByCommittee: ToolDefinition = {
+  name: 'unresolved_by_committee',
+  description:
+    'Unresolved actions per body, as both a raw count and an unresolved rate against ' +
+    'what that body raised. Use for "which committee is carrying the most unresolved work".',
+  parameters: {},
+  required: [],
+  run(dataset): ToolResult {
+    const all = dataset.actions.actions
+    const totalUnresolved = all.filter(isUnresolved).length
+
+    const bodies = [...new Set(all.map((a) => a.committee_or_board))].sort()
+    const stats = bodies.map((b) => {
+      const own = all.filter((a) => a.committee_or_board === b)
+      const unresolved = own.filter(isUnresolved).length
+      return {
+        body: b,
+        raised: own.length,
+        unresolved,
+        rate: own.length > 0 ? Math.round((unresolved / own.length) * 100) : 0,
+        shareOfAll: totalUnresolved > 0 ? Math.round((unresolved / totalUnresolved) * 100) : 0,
+      }
+    })
+
+    const byCount = [...stats].sort((a, b) => b.unresolved - a.unresolved || a.body.localeCompare(b.body))
+    const byRate = [...stats].sort((a, b) => b.rate - a.rate || a.body.localeCompare(b.body))
+    const topCount = byCount[0]
+    const topRate = byRate[0]
+
+    const points: DataPoint[] = byCount.map((s) => ({
+      label: s.body,
+      value: s.unresolved,
+      value2: s.rate,
+      highlight: s.body === topCount.body || s.body === topRate.body,
+      detail: `${s.unresolved} unresolved of ${s.raised} raised (${s.rate}% of its own work, ${s.shareOfAll}% of all unresolved items)`,
+    }))
+
+    const headline =
+      topCount.body === topRate.body
+        ? `${topCount.body} leads on both measures: ${topCount.unresolved} unresolved actions, ${topCount.shareOfAll}% of all ${totalUnresolved} unresolved items, and the highest unresolved rate at ${topCount.rate}% of the ${topCount.raised} it raised.`
+        : `Count and rate disagree: ${topCount.body} carries the most unresolved actions at ${topCount.unresolved} of ${totalUnresolved} (${topCount.rate}% of the ${topCount.raised} it raised), but ${topRate.body} has the worst rate at ${topRate.rate}% — ${topRate.unresolved} of only ${topRate.raised} raised.`
+
+    const caveats: string[] = [
+      'Unresolved means any status other than "complete", which pools not started, in progress and overdue.',
+    ]
+    for (const s of stats) {
+      if (s.raised < 5) {
+        caveats.push(
+          `${s.body} raised only ${s.raised} action${
+            s.raised === 1 ? '' : 's'
+          }, so one more completion would move its rate by ${
+            Math.round((100 / Math.max(s.raised, 1)) * 10) / 10
+          } percentage points.`,
+        )
+      }
+    }
+
+    return {
+      tool: 'unresolved_by_committee',
+      headline,
+      chart: {
+        kind: 'bar',
+        title: 'Unresolved actions by body: count against rate',
+        xLabel: 'Body that raised the action',
+        yLabel: 'Unresolved actions',
+        unit: 'count',
+        points,
+        seriesLabel: 'Unresolved actions (count)',
+        series2Label: 'Unresolved rate, % of that body\'s own actions',
+      },
+      table: {
+        columns: [
+          'Body',
+          'Raised',
+          'Unresolved',
+          'Unresolved rate % (of its own actions)',
+          'Share % of all unresolved',
+        ],
+        rows: byCount.map((s) => [s.body, s.raised, s.unresolved, s.rate, s.shareOfAll]),
+      },
+      assumptions: [
+        'Two denominators are reported because they answer different questions: the rate divides by what that body raised, the share divides by all unresolved work.',
+        'Actions are attributed to the body that raised them, which is not necessarily the body now overseeing them.',
+      ],
+      caveats,
+      provenance: {
+        asAt: dataset.asAt,
+        sources: SOURCES,
+        rowsConsidered: all.length,
+        derivation:
+          `Of ${all.length} actions, ${totalUnresolved} have a status other than "complete". ` +
+          'Each body is shown both as a count and as a percentage of the actions it raised.',
+      },
+    }
+  },
+}
+
+// ------------------------------------------------------------ Q8
+
+export const actionsDistribution: ToolDefinition = {
+  name: 'actions_distribution',
+  description:
+    'How unresolved work is distributed across owners, bodies or owner types, and whether ' +
+    'it is concentrated. Use for "is outstanding work concentrated in one owner" or ' +
+    '"is it on the board or the executive".',
+  parameters: {
+    group_by: {
+      type: 'string',
+      description: 'Dimension to distribute across.',
+      enum: ['owner', 'committee', 'owner_type'],
+      default: 'owner',
+    },
+  },
+  required: [],
+  run(dataset, args): ToolResult {
+    const groupBy = choice(args.group_by, ['owner', 'committee', 'owner_type'] as const, 'owner')
+    const asAt = dataset.asAt
+    const all = dataset.actions.actions
+    const unresolved = all.filter(isUnresolved)
+
+    const groups = new Map<string, { total: number; overdue: number }>()
+    for (const a of unresolved) {
+      const k = groupKey(a, groupBy)
+      const cur = groups.get(k) ?? { total: 0, overdue: 0 }
+      cur.total += 1
+      if (isDerivedOverdue(a, asAt)) cur.overdue += 1
+      groups.set(k, cur)
+    }
+
+    const stats = [...groups.entries()]
+      .map(([label, v]) => ({
+        label,
+        total: v.total,
+        overdue: v.overdue,
+        notYetDue: v.total - v.overdue,
+        share: unresolved.length > 0 ? Math.round((v.total / unresolved.length) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
+
+    const points: DataPoint[] = stats.map((s) => ({
+      label: s.label,
+      value: s.total,
+      value2: s.overdue,
+      highlight: s.total === (stats[0]?.total ?? 0),
+      detail: `${s.total} unresolved (${s.share}% of all unresolved) — ${s.overdue} already past due, ${s.notYetDue} not yet due`,
+    }))
+
+    const top = stats[0]
+    const tiedTop = stats.filter((s) => s.total === (top?.total ?? -1))
+
+    // The board/executive split only exists when owner_type distinguishes them.
+    const typeCounts = new Map<string, number>()
+    for (const a of all) typeCounts.set(a.owner_type, (typeCounts.get(a.owner_type) ?? 0) + 1)
+    const nonExec = [...typeCounts.entries()].filter(([t]) => t !== 'executive')
+    const nonExecTotal = nonExec.reduce((acc, [, n]) => acc + n, 0)
+
+    let headline: string
+    if (stats.length === 0) {
+      headline = 'No unresolved actions remain in the log.'
+    } else if (tiedTop.length > 1) {
+      headline = `Unresolved work is spread rather than concentrated: ${tiedTop.length} ${groupBy}s tie at the top with ${top.total} of ${unresolved.length} each (${list(
+        tiedTop.map((s) => s.label),
+      )}), and ${nonExecTotal} of all ${all.length} actions sit with someone other than an executive.`
+    } else {
+      headline = `${top.label} holds ${top.total} of the ${unresolved.length} unresolved actions — ${top.share}% of the outstanding work, ${top.overdue} of it already past due — while only ${nonExecTotal} of all ${all.length} actions are owned outside the executive.`
+    }
+
+    const caveats: string[] = [
+      ownerCaveat(dataset, unresolved),
+      'Counts treat every action as equal weight; the log records priority but not effort or size.',
+    ]
+    for (const s of stats) {
+      if (s.total < 5) {
+        caveats.push(
+          `${s.label} has only ${s.total} unresolved row${
+            s.total === 1 ? '' : 's'
+          }, so one completion would move its share by ${
+            unresolved.length > 0 ? Math.round((100 / unresolved.length) * 10) / 10 : 0
+          } percentage points.`,
+        )
+        break
+      }
+    }
+
+    return {
+      tool: 'actions_distribution',
+      headline,
+      chart: {
+        kind: 'bar',
+        title: `Unresolved actions by ${groupBy.replace('_', ' ')}`,
+        xLabel: groupBy === 'owner' ? 'Owner (job title)' : groupBy.replace('_', ' '),
+        yLabel: 'Unresolved actions',
+        unit: 'count',
+        points,
+        seriesLabel: 'Unresolved',
+        series2Label: 'Of which already past due',
+      },
+      table: {
+        columns: ['Group', 'Unresolved', 'Past due', 'Not yet due', 'Share % of unresolved'],
+        rows: stats.map((s) => [s.label, s.total, s.overdue, s.notYetDue, s.share]),
+      },
+      assumptions: [
+        'Unresolved means any status other than "complete".',
+        `Owner types present in this dataset are ${list([...typeCounts.keys()])}; the board/executive split is read from those values, not assumed.`,
+      ],
+      caveats,
+      provenance: {
+        asAt,
+        sources: SOURCES,
+        rowsConsidered: all.length,
+        derivation:
+          `${unresolved.length} of ${all.length} actions are not complete; each is attributed to its ${groupBy} ` +
+          `and split by whether its due date has already passed ${asAt}.`,
+      },
+    }
+  },
+}
+
+// ------------------------------------------------------------ Q9
+
+export const deferredMoreThanOnce: ToolDefinition = {
+  name: 'deferred_more_than_once',
+  description:
+    'Actions whose due date has been formally moved more than once. Use for "what keeps ' +
+    'slipping" or "what has been deferred repeatedly".',
+  parameters: {
+    min_deferrals: {
+      type: 'number',
+      description: 'Minimum number of recorded deferrals to include.',
+      default: 2,
+    },
+  },
+  required: [],
+  run(dataset, args): ToolResult {
+    const min = Math.max(1, Math.round(num(args.min_deferrals, 2)))
+    const asAt = dataset.asAt
+    const all = dataset.actions.actions
+
+    const hits = all
+      .filter((a) => a.times_deferred >= min)
+      .sort(
+        (a, b) => b.times_deferred - a.times_deferred || a.action_id.localeCompare(b.action_id),
+      )
+
+    const maxDeferrals = all.reduce((m, a) => Math.max(m, a.times_deferred), 0)
+    const stillOpen = hits.filter(isUnresolved).length
+
+    let headline: string
+    if (hits.length === 0) {
+      headline = `Nothing has been deferred ${min} or more times; the most any action has slipped is ${maxDeferrals}.`
+    } else if (hits.length === 1) {
+      const a = hits[0]
+      headline = `One action has been deferred ${a.times_deferred} times — ${a.action_id}, ${a.description} — owned by ${a.owner} and still logged "${a.status}".`
+    } else {
+      headline = `${hits.length} actions have been deferred ${min} or more times (${list(
+        hits.map((a) => `${a.action_id} at ${a.times_deferred}`),
+      )}), ${stillOpen} of them still unresolved, and nothing in the log has slipped more than ${maxDeferrals} times.`
+    }
+
+    // Two rows is a list, not a chart. Charting it would be padding.
+    const chartWorthwhile = hits.length >= 5
+
+    return {
+      tool: 'deferred_more_than_once',
+      headline,
+      chart: chartWorthwhile
+        ? {
+            kind: 'bar',
+            title: `Actions deferred ${min} or more times`,
+            xLabel: 'Action',
+            yLabel: 'Deferrals',
+            unit: 'count',
+            points: hits.map((a) => ({
+              label: a.action_id,
+              value: a.times_deferred,
+              highlight: isUnresolved(a),
+              detail: `${a.description} — owner ${a.owner}, due ${a.due_date}, logged "${a.status}"`,
+            })),
+            seriesLabel: 'Times deferred',
+          }
+        : null,
+      table: {
+        columns: [
+          'Action',
+          'Description',
+          'Owner (job title)',
+          'Body',
+          'Deferrals',
+          'Due',
+          'Status',
+          'Linked risk',
+        ],
+        rows: hits.map((a) => [
+          a.action_id,
+          a.description,
+          a.owner,
+          a.committee_or_board,
+          a.times_deferred,
+          a.due_date,
+          a.status,
+          a.linked_risk,
+        ]),
+      },
+      assumptions: [
+        `"Deferred more than once" is read as times_deferred of ${min} or more.`,
+        'The log records how often a due date moved, but not who agreed to move it or why.',
+      ],
+      caveats: [
+        ...(hits.length > 0 && hits.length < 5
+          ? [
+              `Only ${hits.length} action${
+                hits.length === 1 ? '' : 's'
+              } meet the threshold, which is a list rather than a distribution, so it is shown as a table.`,
+            ]
+          : []),
+        ...(hits.length > 0 ? [ownerCaveat(dataset, hits)] : []),
+      ],
+      provenance: {
+        asAt,
+        sources: SOURCES,
+        rowsConsidered: all.length,
+        derivation: `Of ${all.length} actions, ${hits.length} record times_deferred of ${min} or more.`,
+      },
+    }
+  },
+}
+
+export const ACTION_TOOLS: ToolDefinition[] = [
+  overdueActions,
+  longestOverdue,
+  unresolvedByCommittee,
+  actionsDistribution,
+  deferredMoreThanOnce,
+]
