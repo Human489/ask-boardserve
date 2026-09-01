@@ -405,7 +405,7 @@ export const committeeSkillsGaps: ToolDefinition = {
         rows,
       },
       assumptions: [
-        'A body\'s gap is judged on its single weakest skill mean, with the mean across all skills shown alongside.',
+        "A body's gap is ranked on its mean across all skills, with its single weakest skill shown alongside. Ranking on the weakest skill alone puts a different body first, so the choice of metric changes the answer.",
         `"Strong" is ${STRONG} or above and a "gap" is ${WEAK} or below; the dataset defines neither.`,
         'Only the three weakest skills per body are tabulated, to keep the table readable.',
       ],

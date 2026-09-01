@@ -61,7 +61,11 @@ helpers used by more than one analytics module: `daysBetween`, `committeesOf`,
 **`src/lib/analytics/*.ts`** — twelve tools across attendance, actions and skills,
 each implementing `ToolDefinition`. `registry.ts` exports `TOOLS` and `getTool`.
 The registry is the single source the router generates its schemas from, so
-**adding a tool requires no router change.**
+**adding a tool needs no router change for the model path.** The offline
+fallback is different: it scores against a hand-maintained per-tool keyword
+table (`TOOL_HINTS`), and a new tool not listed there falls back to weak
+name/description overlap. So a new tool is reachable by the model immediately
+but only unreliably by the classifier until it gets a `TOOL_HINTS` entry.
 
 **`src/lib/router.ts`** — two paths. Primary is Cloudflare Workers AI tool-calling
 through the AI Gateway (header `cf-aig-gateway-id` is required on every call), with
@@ -116,6 +120,17 @@ These are the traps the dataset sets on purpose. Each has a test.
   `dataset.skillNames`. A second organisation's data must load with no code change.
 - **Small-n caveats must be computed, not asserted**, with the real n and the real
   percentage-point impact of one more absence.
+- **A nil result still needs its caveats.** An answer that renders with no
+  "worth knowing" block reads as a figure that needed no qualification rather
+  than as a nil return.
+- **Disclosed assumptions must describe what the code actually did.** A wrong
+  assumption sentence is worse than none: it misdescribes the answer to the one
+  reader who is checking it.
+- **Out-of-scope questions must refuse, not reach a plausible tool.** The
+  offline classifier once answered "who times out in the next 12 months" with a
+  chart of attendance by meeting — full headline and provenance, entirely the
+  wrong subject. A confidently wrong answer is worse than a visible failure.
+  `TENURE_PATTERNS` in the router exists for this.
 
 ## Testing
 
@@ -165,6 +180,19 @@ fallback that changes the design.
 Eval harness over structured/document/hybrid/refusal cases; provenance surfaced as
 a chart affordance rather than only as text; image export for individual charts;
 shareable read-only dashboard links; second dataset loading with no code changes.
+
+### Known limitations
+
+- **`x-forwarded-for` is trusted as-is** for rate-limit and session keying. On a
+  platform that sets it (Vercel, Cloudflare) that is correct; anywhere it is
+  passed through from the client, a caller can rotate the header to get a fresh
+  bucket per request and defeat the limiter entirely.
+- **Session and rate-limit state are in-memory `Map`s.** Neither survives across
+  serverless instances, so both need moving to KV before deployment or sign-ins
+  will fail intermittently in production.
+- **The CQC refusal test passes for the wrong reason.** It currently refuses
+  because retrieval is not built, not because no paper covers CQC. When RAG
+  lands it will keep passing while no longer testing what it claims to.
 
 ### Open decisions
 

@@ -415,3 +415,34 @@ test('no organisation-specific value is hard-coded in the tool source', async ()
     assert.ok(!/Date\.now\(\)|new Date\(/.test(src), `${f}.ts must not read the system clock`)
   }
 })
+
+test('every tool returns non-empty caveats, including on a nil result', () => {
+  // deferred_more_than_once returned an empty caveats array when nothing met
+  // the threshold, so the answer rendered with no "worth knowing" block at all
+  // — reading as though the figure needed no qualification rather than as a
+  // nil return.
+  const dataset = loadDataset()
+  for (const tool of TOOLS) {
+    const result = tool.run(dataset, {})
+    assert.ok(result.caveats.length > 0, `${tool.name} returned no caveats`)
+    assert.ok(result.assumptions.length > 0, `${tool.name} returned no assumptions`)
+  }
+  const nil = getTool('deferred_more_than_once')!.run(dataset, { min_deferrals: 3 })
+  assert.equal(nil.table?.rows.length ?? 0, 0, 'expected a nil result for this threshold')
+  assert.ok(nil.caveats.length > 0, 'a nil result still needs its caveat')
+})
+
+test('committee_skills_gaps states the metric it actually ranks on', () => {
+  // The disclosed assumption said the ranking used each body's single weakest
+  // skill, while the code ranked on the mean across all skills. The two put
+  // different bodies first, so the wrong text misdescribed the answer.
+  const dataset = loadDataset()
+  const result = getTool('committee_skills_gaps')!.run(dataset, {})
+  const values = result.chart?.points.map((p) => p.value) ?? []
+  const ascending = values.every((v, i) => i === 0 || v >= values[i - 1])
+  assert.ok(ascending, 'expected bodies ordered weakest mean first')
+  assert.ok(
+    result.assumptions.some((a) => /mean across all skills/i.test(a)),
+    'assumptions must name the metric actually used for the ranking',
+  )
+})

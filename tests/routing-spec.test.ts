@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { TOOLS } from '../src/lib/analytics/registry'
-import { routeQuestion } from '../src/lib/router'
+import { fallbackRoute, routeQuestion } from '../src/lib/router'
 
 // The questions EXACTLY as they appear in the specification document.
 //
@@ -80,3 +80,27 @@ test('the IQ refusal does not borrow the qualifications explanation', async () =
     'IQ is not a qualifications question; the reason must not say it is',
   )
 })
+
+// Out-of-scope questions must REFUSE rather than reach a plausible-looking
+// tool. An audit found the offline classifier answering both of these with a
+// full headline, chart and provenance block about an unrelated subject — a
+// confidently wrong answer, which is worse than a visible failure.
+const MUST_REFUSE_OFFLINE = [
+  'Who times out in the next 12 months, and what does that do to the skills matrix?',
+  'Are there any directors whose term limit affects committee skills coverage?',
+  'Who has served more than nine years on the board?',
+  'What is coming next quarter that we have not started preparing for?',
+  'What do the board papers say about a particular risk, project or issue?',
+  'What concerns or themes recur across recent board papers?',
+]
+
+for (const question of MUST_REFUSE_OFFLINE) {
+  test(`offline classifier refuses rather than misroutes: ${question.slice(0, 48)}`, () => {
+    const route = fallbackRoute(question, TOOLS)
+    assert.equal(
+      route.kind,
+      'refusal',
+      `routed to ${route.kind === 'tool' ? route.name : '?'} instead of refusing`,
+    )
+  })
+}

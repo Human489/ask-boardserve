@@ -128,6 +128,17 @@ const QUALIFICATION_PATTERNS =
 const UNMEASURED_PATTERNS = /\biq\b|\bintelligence\b|\bpersonality\b|\bage(s)?\b|\bsalary\b|\bpay\b/
 
 /**
+ * Tenure and term-limit questions. These read as structured questions but are
+ * not: there is no appointment date or term-expiry field anywhere in the data,
+ * and the nine-year limit exists only as prose in a board paper. Without this
+ * the keyword scorer matched "months", or "committee" plus "coverage", and
+ * returned a real chart about something else entirely — a confidently wrong
+ * answer, which is worse than a visible failure.
+ */
+const TENURE_PATTERNS =
+  /\bterm limits?\b|\btimes? out\b|\btiming out\b|\btenure\b|\bnine[- ]year\b|\bterm expir|\bsteps? down\b|\brotates? off\b|\bre-?appoint/
+
+/**
  * Per-tool keyword scoring for the offline path.
  *
  * An earlier version scored three broad CATEGORIES (attendance / actions /
@@ -348,6 +359,17 @@ export function fallbackRoute(question: string, tools: ToolDefinition[]): Route 
         'This question asks what the board papers say, which needs document retrieval across the paper corpus.',
       alternative:
         'Board paper retrieval is not yet built. The attendance records, action log and skills audit can be queried now.',
+    }
+  }
+
+  if (TENURE_PATTERNS.test(q)) {
+    return {
+      kind: 'refusal',
+      routedBy: 'fallback',
+      reason:
+        'No appointment date or term-expiry field exists in this data, and the term limit itself is stated only in a board paper rather than as a field. Answering this needs the skills audit and the papers together.',
+      alternative:
+        'Board paper retrieval is not yet built, so the two cannot be combined. The skills audit alone can show current strength by area.',
     }
   }
 

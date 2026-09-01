@@ -638,6 +638,16 @@ export const deferredMoreThanOnce: ToolDefinition = {
         'The log records how often a due date moved, but not who agreed to move it or why.',
       ],
       caveats: [
+        // An empty result still needs its caveat. Without this the answer
+        // renders with no "worth knowing" block at all, which reads as though
+        // the figure needed no qualification rather than as a nil return.
+        ...(hits.length === 0
+          ? [
+              `A nil return is not the same as a clean record: all ${all.length} actions were checked, and ${
+                all.filter((a) => a.times_deferred > 0).length
+              } have had a due date moved at least once — just never ${min} times or more.`,
+            ]
+          : []),
         ...(hits.length > 0 && hits.length < 5
           ? [
               `Only ${hits.length} action${
