@@ -305,9 +305,20 @@ export const attendanceByMeeting: ToolDefinition = {
 
     return {
       tool: 'attendance_by_meeting',
-      headline: `Across ${series.length} meetings${
-        body ? ` of ${body}` : ''
-      }, ${trendClause}, ${dipClause}.`,
+      // With no matching meetings every derived figure is zero, and the normal
+      // sentence then reads "attendance moves 0% to 0%, a 0-point improvement
+      // larger than one meeting's noise of 0 points" — a non-event described
+      // as a finding. Say what actually happened instead.
+      headline:
+        series.length === 0
+          ? `No meetings${
+              body ? ` of ${body}` : ''
+            } appear in the attendance records, so there is no attendance to plot. The bodies present are ${list(
+              allBodies(dataset),
+            )}.`
+          : `Across ${series.length} meetings${
+              body ? ` of ${body}` : ''
+            }, ${trendClause}, ${dipClause}.`,
       chart: {
         kind: 'line',
         title: `Attendance by meeting${body ? ` — ${body}` : ''}`,

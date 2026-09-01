@@ -446,3 +446,55 @@ test('committee_skills_gaps states the metric it actually ranks on', () => {
     'assumptions must name the metric actually used for the ranking',
   )
 })
+
+// Every cross-cutting sweep in this file called tools with their defaults only.
+// Two bugs hid behind that: an unmatched `body` crashed committee_skills_gaps,
+// and attendance_by_meeting described a non-event as a finding ("attendance
+// moves 0% to 0%, a 0-point improvement larger than one meeting's noise of 0
+// points"). The router can emit any of these arguments.
+const HOSTILE_ARGS: Record<string, unknown>[] = [
+  { body: 'Nonexistent Committee' },
+  { threshold: 0 },
+  { threshold: 1000 },
+  { threshold: -5 },
+  { limit: 0 },
+  { limit: 9999 },
+  { min_deferrals: 0 },
+  { group_by: 'not-a-real-grouping' },
+  { top_n_gaps: 0 },
+]
+
+for (const args of HOSTILE_ARGS) {
+  test(`no tool throws or emits NaN for args ${JSON.stringify(args)}`, () => {
+    const dataset = loadDataset()
+    for (const tool of TOOLS) {
+      let result
+      try {
+        result = tool.run(dataset, args)
+      } catch (e) {
+        assert.fail(`${tool.name} threw: ${(e as Error).message}`)
+      }
+      const serialised = JSON.stringify(result)
+      assert.ok(!/NaN|Infinity/.test(serialised), `${tool.name} produced NaN or Infinity`)
+      assert.ok(result.headline.length > 0, `${tool.name} produced no headline`)
+      assert.ok(result.caveats.length > 0, `${tool.name} produced no caveats`)
+    }
+  })
+}
+
+test('an unmatched body returns a nil answer that says so, not a vacuous one', () => {
+  const dataset = loadDataset()
+  const missing = 'Nonexistent Committee'
+
+  const skills = getTool('committee_skills_gaps')!.run(dataset, { body: missing })
+  assert.match(skills.headline, /no body matching/i)
+  assert.equal(skills.chart, null)
+
+  const meetings = getTool('attendance_by_meeting')!.run(dataset, { body: missing })
+  assert.match(meetings.headline, /no meetings/i)
+  // The old headline claimed a 0-point move was "larger than one meeting's noise".
+  assert.ok(
+    !/0-point|0% year average/.test(meetings.headline),
+    'a nil result must not be described as a trend',
+  )
+})

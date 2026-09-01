@@ -317,6 +317,35 @@ export const committeeSkillsGaps: ToolDefinition = {
     )
     const worst = ranked[0]
 
+    // A body argument that matches nothing leaves ranked empty, and every line
+    // below reads ranked[0]. Sibling attendance tools fall back to the raw
+    // string and return a graceful nil result; this one crashed instead, and
+    // the API turned that into "the analysis could not be completed" rather
+    // than saying the committee was not found.
+    if (!worst) {
+      const known = allBodies(dataset)
+      return {
+        tool: 'committee_skills_gaps',
+        headline: `No body matching "${String(args.body ?? '')}" appears in the attendance records, so its skills coverage cannot be assessed. The bodies present are ${list(
+          known,
+        )}.`,
+        chart: null,
+        table: null,
+        assumptions: [
+          'Bodies are those that appear in the attendance records; there is no separate list of committees in the dataset.',
+        ],
+        caveats: [
+          'This is a nil return caused by an unmatched committee name, not a finding that the board has no skills gaps.',
+        ],
+        provenance: {
+          asAt: dataset.asAt,
+          sources: ['attendance.json', 'skills-audit.csv'],
+          rowsConsidered: dataset.attendance.records.length,
+          derivation: `Matched the requested body against the ${known.length} bodies present in the attendance records and found none.`,
+        },
+      }
+    }
+
     const points: DataPoint[] = ranked.map((b) => ({
       label: b.body,
       value: b.overall,
