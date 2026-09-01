@@ -1,9 +1,11 @@
 # ---------------------------------------------------------------
 # NEVER COMMIT: board data and secrets
 # ---------------------------------------------------------------
-dataset/
-dataset-*/
-data/private/
+# Anchored to the repo root: an unanchored "dataset/" also matches
+# src/lib/dataset/, which silently drops application code from commits.
+/dataset/
+/dataset-*/
+/data/private/
 *.dataset.json
 
 # Environment variables / secrets

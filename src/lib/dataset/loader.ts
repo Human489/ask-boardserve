@@ -1,0 +1,216 @@
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import type {
+  ActionsFile,
+  AttendanceFile,
+  BoardPaper,
+  Dataset,
+  SkillsRow,
+} from '@/lib/types'
+
+// Loads the dataset from disk. Nothing here is specific to any one organisation:
+// skill columns, committee names, director ids and risk references are all read
+// from the files rather than hard-coded, so a second dataset loads unchanged.
+
+const FIXED_SKILL_COLUMNS = ['director_id', 'director_name', 'role', 'tenure_years']
+
+function datasetDir(): string {
+  return process.env.DATASET_PATH ?? join(process.cwd(), 'dataset')
+}
+
+/** Minimal RFC-4180 line splitter: handles quoted fields containing commas. */
+function splitCsvLine(line: string): string[] {
+  const out: string[] = []
+  let cur = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"'
+          i++
+        } else inQuotes = false
+      } else cur += ch
+    } else if (ch === '"') inQuotes = true
+    else if (ch === ',') {
+      out.push(cur)
+      cur = ''
+    } else cur += ch
+  }
+  out.push(cur)
+  return out.map((s) => s.trim())
+}
+
+function parseSkills(csv: string): { rows: SkillsRow[]; skillNames: string[] } {
+  const lines = csv
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+  if (lines.length < 2) throw new Error('skills-audit.csv has no data rows')
+
+  const header = splitCsvLine(lines[0])
+  for (const col of FIXED_SKILL_COLUMNS) {
+    if (!header.includes(col)) {
+      throw new Error(`skills-audit.csv is missing the "${col}" column`)
+    }
+  }
+  // Everything that is not an identity column is a skill. Read, never assumed.
+  const skillNames = header.filter((h) => !FIXED_SKILL_COLUMNS.includes(h))
+  if (skillNames.length === 0) throw new Error('skills-audit.csv has no skill columns')
+
+  const rows: SkillsRow[] = lines.slice(1).map((line, i) => {
+    const cells = splitCsvLine(line)
+    if (cells.length !== header.length) {
+      throw new Error(
+        `skills-audit.csv row ${i + 2} has ${cells.length} cells, expected ${header.length}`,
+      )
+    }
+    const get = (col: string) => cells[header.indexOf(col)]
+    const scores: Record<string, number> = {}
+    for (const skill of skillNames) {
+      const raw = get(skill)
+      const n = Number(raw)
+      if (!Number.isFinite(n)) {
+        throw new Error(`skills-audit.csv row ${i + 2}: "${skill}" is not a number ("${raw}")`)
+      }
+      scores[skill] = n
+    }
+    const tenure = Number(get('tenure_years'))
+    if (!Number.isFinite(tenure)) {
+      throw new Error(`skills-audit.csv row ${i + 2}: tenure_years is not a number`)
+    }
+    return {
+      director_id: get('director_id'),
+      director_name: get('director_name'),
+      role: get('role'),
+      tenure_years: tenure,
+      scores,
+    }
+  })
+
+  return { rows, skillNames }
+}
+
+function parsePapers(dir: string): BoardPaper[] {
+  const files = readdirSync(dir)
+    .filter((f) => f.startsWith('paper-') && f.endsWith('.md'))
+    .sort()
+  return files.map((filename) => {
+    const body = readFileSync(join(dir, filename), 'utf8')
+    // First markdown heading is the title; fall back to the filename.
+    const m = body.match(/^#\s+(.+)$/m)
+    return {
+      id: filename.replace(/\.md$/, ''),
+      filename,
+      title: m ? m[1].trim() : filename.replace(/\.md$/, ''),
+      body,
+    }
+  })
+}
+
+function readJson<T>(path: string, label: string): T {
+  let raw: string
+  try {
+    raw = readFileSync(path, 'utf8')
+  } catch {
+    throw new Error(
+      `Could not read ${label} at ${path}. The dataset is gitignored — ` +
+        `place it at ./dataset or set DATASET_PATH.`,
+    )
+  }
+  try {
+    return JSON.parse(raw) as T
+  } catch (e) {
+    throw new Error(`${label} is not valid JSON: ${(e as Error).message}`)
+  }
+}
+
+let cached: Dataset | null = null
+
+export function loadDataset(): Dataset {
+  if (cached) return cached
+
+  const dir = datasetDir()
+  const attendance = readJson<AttendanceFile>(join(dir, 'attendance.json'), 'attendance.json')
+  const actions = readJson<ActionsFile>(join(dir, 'actions.json'), 'actions.json')
+
+  let skillsCsv: string
+  try {
+    skillsCsv = readFileSync(join(dir, 'skills-audit.csv'), 'utf8')
+  } catch {
+    throw new Error(`Could not read skills-audit.csv at ${dir}`)
+  }
+  const { rows: skills, skillNames } = parseSkills(skillsCsv)
+
+  // The as-at date comes from the data, never from the system clock. Taking it
+  // from the clock makes every date-dependent test rot as the month turns.
+  const asAt = actions.as_at ?? actions.generated ?? attendance.generated
+  if (!asAt) throw new Error('No as_at or generated date found in the dataset')
+
+  cached = {
+    organisation: attendance.organisation ?? actions.organisation,
+    asAt,
+    attendance,
+    actions,
+    skills,
+    skillNames,
+    papers: parsePapers(dir),
+  }
+  return cached
+}
+
+/** Test seam: drop the cache so a test can point DATASET_PATH somewhere else. */
+export function resetDatasetCache(): void {
+  cached = null
+}
+
+// ------------------------------------------------------------ shared helpers
+// Used by more than one analytics module, so they live with the loader.
+
+/** Inclusive day count between two ISO dates. Pure, timezone-free. */
+export function daysBetween(fromIso: string, toIso: string): number {
+  const a = Date.UTC(
+    Number(fromIso.slice(0, 4)),
+    Number(fromIso.slice(5, 7)) - 1,
+    Number(fromIso.slice(8, 10)),
+  )
+  const b = Date.UTC(
+    Number(toIso.slice(0, 4)),
+    Number(toIso.slice(5, 7)) - 1,
+    Number(toIso.slice(8, 10)),
+  )
+  return Math.round((b - a) / 86_400_000)
+}
+
+/**
+ * Committee membership is NOT a stated field anywhere in the dataset. It is
+ * inferred from eligibility: a director has a record row for a committee
+ * meeting only if they are a member of that committee. Any tool that reports
+ * membership must carry this as a caveat.
+ */
+export function committeesOf(dataset: Dataset, directorName: string): string[] {
+  const bodies = new Set<string>()
+  for (const r of dataset.attendance.records) {
+    if (r.director_name === directorName) bodies.add(r.body)
+  }
+  return [...bodies].sort()
+}
+
+export function membersOf(dataset: Dataset, body: string): string[] {
+  const names = new Set<string>()
+  for (const r of dataset.attendance.records) {
+    if (r.body === body) names.add(r.director_name)
+  }
+  return [...names].sort()
+}
+
+export function allBodies(dataset: Dataset): string[] {
+  return [...new Set(dataset.attendance.meetings.map((m) => m.body))].sort()
+}
+
+/** Rounds to one decimal place, avoiding 88.99999999 in the UI. */
+export function pct(numerator: number, denominator: number): number {
+  if (denominator === 0) return 0
+  return Math.round((numerator / denominator) * 1000) / 10
+}
