@@ -3,6 +3,7 @@ import { getTool, TOOLS } from '@/lib/analytics/registry'
 import { loadDataset } from '@/lib/dataset/loader'
 import { checkRateLimit } from '@/lib/ratelimit'
 import { routeQuestion, type HistoryTurn } from '@/lib/router'
+import { bearerToken, isValidSession } from '@/lib/session'
 import type { AnswerResult } from '@/lib/types'
 
 // The dataset is read from the filesystem, so this cannot run on the edge.
@@ -36,6 +37,13 @@ function parseHistory(raw: unknown): HistoryTurn[] {
 }
 
 export async function POST(req: Request) {
+  // The real gate. Nothing is persisted client-side, so there is no cookie for
+  // middleware to check — this route refusing without a valid session is what
+  // actually keeps the board data private.
+  if (!isValidSession(bearerToken(req))) {
+    return fail(401, 'Your session has ended. Enter the passcode again to continue.')
+  }
+
   const limit = checkRateLimit(clientIp(req))
   if (!limit.allowed) {
     return NextResponse.json(

@@ -662,3 +662,105 @@ table.answer-table {
     grid-template-columns: 1fr;
   }
 }
+
+/* ------------------------------------------------------------------ gate
+   The passcode screen. Shown on every load: the session is held in React
+   state only, so a refresh returns here. */
+
+.gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 48px 20px 80px;
+}
+
+.gate-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 28px 26px 26px;
+  display: flex;
+  flex-direction: column;
+}
+
+.gate-title {
+  margin: 0 0 8px;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.gate-sub {
+  margin: 0 0 22px;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.gate-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+  margin-bottom: 7px;
+}
+
+.gate-input {
+  width: 100%;
+  font: inherit;
+  font-size: 0.9375rem;
+  letter-spacing: 0.14em;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: var(--plane);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+}
+
+.gate-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.gate-input:disabled {
+  opacity: 0.6;
+}
+
+.gate-error {
+  margin: 12px 0 0;
+  padding: 9px 11px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--error-ink);
+  background: var(--error-bg);
+  border: 1px solid var(--error-edge);
+  border-radius: var(--radius-sm);
+}
+
+.gate-button {
+  margin-top: 18px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 10px 14px;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.gate-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.gate-button:not(:disabled):hover {
+  filter: brightness(1.06);
+}

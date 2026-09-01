@@ -50,7 +50,12 @@ function historyFrom(turns: Turn[]): { role: 'user' | 'assistant'; content: stri
   return history
 }
 
-export default function Chat() {
+interface ChatProps {
+  token: string
+  onSessionExpired: () => void
+}
+
+export default function Chat({ token, onSessionExpired }: ChatProps) {
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
   const [inFlight, setInFlight] = useState(false)
@@ -66,7 +71,11 @@ export default function Chat() {
     try {
       const response = await fetch('/api/ask', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // Held in memory by Gate; never persisted anywhere.
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ question, history: historyFrom(priorTurns) }),
       })
 
@@ -92,6 +101,13 @@ export default function Chat() {
               : turn,
           ),
         )
+        return
+      }
+
+      // A 401 means the in-memory session is gone. Hand control back to the
+      // gate rather than showing an error the user cannot act on here.
+      if (response.status === 401) {
+        onSessionExpired()
         return
       }
 
@@ -121,7 +137,7 @@ export default function Chat() {
     } finally {
       setInFlight(false)
     }
-  }, [])
+  }, [token, onSessionExpired])
 
   const ask = useCallback(
     (question: string) => {

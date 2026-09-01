@@ -1,4 +1,4 @@
-import Chat from '@/components/Chat'
+import Gate from '@/components/Gate'
 
 export default function Page() {
   return (
@@ -12,7 +12,7 @@ export default function Page() {
           </p>
         </div>
       </header>
-      <Chat />
+      <Gate />
     </div>
   )
 }
