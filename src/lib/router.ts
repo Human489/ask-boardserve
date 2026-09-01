@@ -1,4 +1,5 @@
 import { getConfig } from '@/lib/config'
+import { recordCall, recordFailure, usageFromResponse } from '@/lib/usage'
 import type { ToolDefinition } from '@/lib/types'
 
 // Routing only. This file never computes a figure and never writes a headline:
@@ -454,6 +455,7 @@ async function modelRoute(
       // Log loudly. Falling back silently means a broken gateway looks exactly
       // like no credentials at all, and the only visible symptom is that every
       // answer says it was routed by the offline classifier.
+      recordFailure()
       const detail = await res.text().catch(() => '')
       console.error(
         `[router] AI Gateway returned ${res.status}. Falling back to the offline ` +
@@ -468,12 +470,27 @@ async function modelRoute(
     // Read either.
     const body = (await res.json()) as {
       result?: {
+        usage?: Record<string, unknown>
         tool_calls?: { name?: string; arguments?: unknown }[]
         choices?: {
           message?: { tool_calls?: { function?: { name?: string; arguments?: unknown } }[] }
         }[]
       }
     }
+    // Workers AI reports token counts and the Neuron cost of this call on every
+    // response. Recording them here is the only usage visibility available:
+    // the account analytics API refuses this token.
+    const usage = usageFromResponse(body)
+    if (usage) {
+      recordCall(usage)
+      if (process.env.NODE_ENV !== 'production') {
+        console.info(
+          `[usage] ${usage.promptTokens} in / ${usage.completionTokens} out, ` +
+            `${usage.neurons.toFixed(2)} neurons`,
+        )
+      }
+    }
+
     const result = body.result
     const fn =
       result?.choices?.[0]?.message?.tool_calls?.[0]?.function ?? result?.tool_calls?.[0]
@@ -505,6 +522,7 @@ async function modelRoute(
     const filled = { ...inferArgs(chosen, ` ${question.toLowerCase()} `), ...coerceArgs(chosen, args) }
     return { kind: 'tool', name: chosen.name, args: filled, routedBy: 'model' }
   } catch (e) {
+    recordFailure()
     const reason = (e as Error)?.name === 'AbortError' ? 'timed out' : String(e)
     console.error(`[router] model routing failed (${reason}); using the offline classifier.`)
     return null
