@@ -196,6 +196,14 @@ export interface ToolParam {
   description: string
   enum?: string[]
   default?: string | number | boolean
+  /**
+   * Inclusive bounds for a number. The model will happily emit a threshold of
+   * 0, which is not a smaller threshold but a meaningless one — nobody is below
+   * 0% attendance — and the same question then answers differently run to run.
+   * A value outside these bounds is discarded in favour of the default.
+   */
+  min?: number
+  max?: number
 }
 
 export interface ToolDefinition {

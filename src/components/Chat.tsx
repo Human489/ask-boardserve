@@ -60,9 +60,15 @@ export default function Chat({ token, onSessionExpired }: ChatProps) {
   const [draft, setDraft] = useState('')
   const [inFlight, setInFlight] = useState(false)
   const transcriptEnd = useRef<HTMLDivElement>(null)
+  // Mirrors `turns` so ask/retry can read the prior transcript without doing it
+  // inside a setState updater. React double-invokes updaters in StrictMode, so
+  // a fetch fired from inside one runs twice — two model calls per click, and
+  // twice the rate-limit budget spent.
+  const turnsRef = useRef<Turn[]>([])
   const textarea = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
+    turnsRef.current = turns
     transcriptEnd.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
   }, [turns])
 
@@ -144,10 +150,9 @@ export default function Chat({ token, onSessionExpired }: ChatProps) {
       const trimmed = question.trim()
       if (!trimmed || inFlight) return
       const turn: Turn = { id: newId(), question: trimmed, status: 'pending' }
-      setTurns((current) => {
-        void run(turn.id, trimmed, current)
-        return [...current, turn]
-      })
+      const prior = turnsRef.current
+      setTurns((current) => [...current, turn])
+      void run(turn.id, trimmed, prior)
       setDraft('')
       if (textarea.current) textarea.current.style.height = 'auto'
     },
@@ -157,16 +162,15 @@ export default function Chat({ token, onSessionExpired }: ChatProps) {
   const retry = useCallback(
     (target: Turn) => {
       if (inFlight) return
-      setTurns((current) => {
-        const index = current.findIndex((turn) => turn.id === target.id)
-        if (index === -1) return current
-        void run(target.id, target.question, current.slice(0, index))
-        return current.map((turn) =>
-          turn.id === target.id
-            ? { ...turn, status: 'pending', error: undefined }
-            : turn,
-        )
-      })
+      const current = turnsRef.current
+      const index = current.findIndex((turn) => turn.id === target.id)
+      if (index === -1) return
+      setTurns((turns) =>
+        turns.map((turn) =>
+          turn.id === target.id ? { ...turn, status: 'pending', error: undefined } : turn,
+        ),
+      )
+      void run(target.id, target.question, current.slice(0, index))
     },
     [inFlight, run],
   )

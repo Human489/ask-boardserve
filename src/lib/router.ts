@@ -304,6 +304,14 @@ function inferArgs(tool: ToolDefinition, q: string): Record<string, unknown> {
  * value to the type the tool declared, and drop anything the tool does not
  * declare at all, so a hallucinated argument cannot reach a tool.
  */
+/** Exported under a test-only name so the bounds behaviour can be asserted. */
+export function coerceArgsForTest(
+  tool: ToolDefinition,
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  return coerceArgs(tool, raw)
+}
+
 function coerceArgs(
   tool: ToolDefinition,
   raw: Record<string, unknown>,
@@ -314,7 +322,14 @@ function coerceArgs(
     if (!param) continue
     if (param.type === 'number') {
       const n = typeof value === 'number' ? value : Number(String(value).trim())
-      if (Number.isFinite(n)) out[name] = n
+      // Out of range is dropped rather than clamped: clamping 0 to 1 would
+      // still answer a question the user did not ask, whereas dropping it
+      // falls back to the tool's documented default.
+      const inRange =
+        Number.isFinite(n) &&
+        (param.min === undefined || n >= param.min) &&
+        (param.max === undefined || n <= param.max)
+      if (inRange) out[name] = n
     } else if (param.type === 'boolean') {
       out[name] = typeof value === 'boolean' ? value : String(value).trim() === 'true'
     } else {

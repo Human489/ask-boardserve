@@ -162,6 +162,8 @@ export const gapCoverage: ToolDefinition = {
       type: 'number',
       description: 'How many of the weakest skills to score directors against.',
       default: 3,
+      min: 1,
+      max: 10,
     },
   },
   required: [],

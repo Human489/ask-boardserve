@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { TOOLS } from '../src/lib/analytics/registry'
-import { fallbackRoute, routeQuestion } from '../src/lib/router'
+import { coerceArgsForTest, fallbackRoute, routeQuestion } from '../src/lib/router'
 
 // The questions EXACTLY as they appear in the specification document.
 //
@@ -104,3 +104,30 @@ for (const question of MUST_REFUSE_OFFLINE) {
     )
   })
 }
+
+// The model emitted threshold: 0 on three runs in five of the same question,
+// so the same question answered differently each time — once against 80% and
+// once against a meaningless 0%, both presented with a full headline and
+// provenance. Out-of-range numbers are now dropped so the tool's documented
+// default applies.
+test('out-of-range numeric arguments are dropped, not passed to the tool', () => {
+  const tool = TOOLS.find((t) => t.name === 'attendance_below_threshold')!
+  assert.equal(coerceArgsForTest(tool, { threshold: 0 }).threshold, undefined)
+  assert.equal(coerceArgsForTest(tool, { threshold: -5 }).threshold, undefined)
+  assert.equal(coerceArgsForTest(tool, { threshold: 1000 }).threshold, undefined)
+  assert.equal(coerceArgsForTest(tool, { threshold: 75 }).threshold, 75)
+  // Strings are still coerced, as the model often sends numbers as text.
+  assert.equal(coerceArgsForTest(tool, { threshold: '75' }).threshold, 75)
+})
+
+test('every numeric tool parameter declares bounds', () => {
+  for (const tool of TOOLS) {
+    for (const [name, param] of Object.entries(tool.parameters)) {
+      if (param.type !== 'number') continue
+      assert.ok(
+        param.min !== undefined && param.max !== undefined,
+        `${tool.name}.${name} has no bounds, so the model can send a meaningless value`,
+      )
+    }
+  }
+})

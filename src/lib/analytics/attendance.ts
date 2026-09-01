@@ -87,8 +87,12 @@ export const attendanceBelowThreshold: ToolDefinition = {
   parameters: {
     threshold: {
       type: 'number',
-      description: 'Attendance percentage below which a director is flagged.',
+      description:
+        'Attendance percentage below which a director is flagged. Between 1 and 100. ' +
+        'Omit it unless the question names a figure; the default is the one the answer discloses.',
       default: 80,
+      min: 1,
+      max: 100,
     },
     body: {
       type: 'string',
