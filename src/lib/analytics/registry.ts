@@ -1,4 +1,5 @@
 import { searchBoardPapers } from '@/lib/retrieval/tool'
+import { tenureAndSkillsImpact } from '@/lib/analytics/tenure'
 import type { ToolDefinition } from '@/lib/types'
 import { ATTENDANCE_TOOLS } from '@/lib/analytics/attendance'
 import { ACTION_TOOLS } from '@/lib/analytics/actions'
@@ -21,7 +22,17 @@ export const ANALYTICS_TOOLS: ToolDefinition[] = [
  * because it is async, returns prose rather than a chart, and is the one tool
  * allowed to conclude that the sources do not answer the question.
  */
-export const TOOLS: ToolDefinition[] = [...ANALYTICS_TOOLS, searchBoardPapers]
+/**
+ * Everything the router may choose from. The two below are separate from
+ * ANALYTICS_TOOLS because neither is a pure computation: paper retrieval
+ * answers from prose, and the tenure tool has to read a term limit out of a
+ * paper before it can compute anything. Both are async and both may refuse.
+ */
+export const TOOLS: ToolDefinition[] = [
+  ...ANALYTICS_TOOLS,
+  searchBoardPapers,
+  tenureAndSkillsImpact,
+]
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
 

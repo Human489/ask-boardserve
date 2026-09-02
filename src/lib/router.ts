@@ -164,7 +164,7 @@ const UNMEASURED_PATTERNS = /\biq\b|\bintelligence\b|\bpersonality\b|\bage(s)?\b
  * answer, which is worse than a visible failure.
  */
 const TENURE_PATTERNS =
-  /\bterm limits?\b|\btimes? out\b|\btiming out\b|\btenure\b|\bnine[- ]year\b|\bterm expir|\bsteps? down\b|\brotates? off\b|\bre-?appoint/
+  /\bterm limits?\b|\btimes? out\b|\btiming out\b|\btenure\b|\bterm expir|\bsteps? down\b|\brotates? off\b|\bre-?appoint|\byears? on the board\b|\bserved\b[^.?]*\byears?\b|\b(?:\d+|three|four|five|six|seven|eight|nine|ten|eleven|twelve)[- ]years?\b[^.?]*\b(?:limit|maximum|term)\b/
 
 /**
  * Per-tool keyword scoring for the offline path.
@@ -409,14 +409,19 @@ export function fallbackRoute(question: string, tools: ToolDefinition[]): Route 
     }
   }
 
+  // Tenure questions used to refuse here, because answering them needs a term
+  // limit that exists only as prose and there was no tool to read it. There is
+  // now, so they route to it. It refuses on its own account if no paper states
+  // a limit.
   if (TENURE_PATTERNS.test(q)) {
-    return {
-      kind: 'refusal',
-      routedBy: 'fallback',
-      reason:
-        'No appointment date or term-expiry field exists in this data, and the term limit itself is stated only in a board paper rather than as a field. Answering this needs the skills audit and the papers together.',
-      alternative:
-        'Board paper retrieval is not yet built, so the two cannot be combined. The skills audit alone can show current strength by area.',
+    const tenure = tools.find((t) => t.name === 'tenure_and_skills_impact')
+    if (tenure) {
+      return {
+        kind: 'tool',
+        name: tenure.name,
+        args: inferArgs(tenure, q),
+        routedBy: 'fallback',
+      }
     }
   }
 
@@ -630,6 +635,8 @@ function guardPapersRoute(
   tools: ToolDefinition[],
   dataset?: Dataset,
 ): Route {
+  // Only the papers tool is guarded. The tenure tool deliberately reads a paper
+  // AND computes, so naming structured data is expected of it, not a mistake.
   if (route.kind !== 'tool' || route.name !== 'search_board_papers' || !dataset) return route
 
   const scope = checkPapersScope(question, dataset)

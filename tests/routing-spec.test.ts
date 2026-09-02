@@ -57,7 +57,7 @@ for (const question of REFUSALS) {
 
 test('every registered tool is reachable from at least one spec question', async () => {
   const reached = new Set<string>()
-  for (const question of [...STRUCTURED.map((s) => s[0]), ...DOCUMENT_QUESTIONS]) {
+  for (const question of [...STRUCTURED.map((s) => s[0]), ...DOCUMENT_QUESTIONS, ...HYBRID_QUESTIONS]) {
     const route = await routeQuestion(question, TOOLS)
     if (route.kind === 'tool') reached.add(route.name)
   }
@@ -85,9 +85,6 @@ test('the IQ refusal does not borrow the qualifications explanation', async () =
 // full headline, chart and provenance block about an unrelated subject — a
 // confidently wrong answer, which is worse than a visible failure.
 const MUST_REFUSE_OFFLINE = [
-  'Who times out in the next 12 months, and what does that do to the skills matrix?',
-  'Are there any directors whose term limit affects committee skills coverage?',
-  'Who has served more than nine years on the board?',
   'What is coming next quarter that we have not started preparing for?',
 ]
 
@@ -132,6 +129,24 @@ test('every numeric tool parameter declares bounds', () => {
 // Q13 and Q14 of the specification are document questions. They must reach the
 // retrieval tool rather than be refused by keyword — whether the papers cover
 // the subject is judged by the tool, with the passages in front of it.
+// Spec Q15 is hybrid: the term limit is prose in a paper, the tenure is a CSV
+// column, and neither source answers it alone. It used to refuse because no
+// tool could combine them.
+const HYBRID_QUESTIONS = [
+  'Who times out in the next 12 months, and what does that do to the skills matrix?',
+  'Are there any directors whose term limit affects committee skills coverage?',
+  'Who has served more than nine years on the board?',
+]
+
+for (const question of HYBRID_QUESTIONS) {
+  test(`hybrid question reaches the tenure tool: ${question.slice(0, 44)}`, () => {
+    const route = fallbackRoute(question, TOOLS)
+    assert.equal(route.kind, 'tool', 'a hybrid question must no longer be refused by keyword')
+    if (route.kind !== 'tool') return
+    assert.equal(route.name, 'tenure_and_skills_impact')
+  })
+}
+
 const DOCUMENT_QUESTIONS = [
   'What do the board papers say about a particular risk, project or issue?',
   'What concerns or themes recur across recent board papers?',

@@ -5,6 +5,7 @@ import { join } from 'node:path'
 
 import { loadDataset, pct } from '../src/lib/dataset/loader'
 import { ANALYTICS_TOOLS, TOOLS, getTool } from '../src/lib/analytics/registry'
+import { isRefusal } from '../src/lib/types'
 import type { ToolResult } from '../src/lib/types'
 
 const dataset = loadDataset()
@@ -375,15 +376,18 @@ test('committee_skills_gaps can be scoped to one body', () => {
 
 // ------------------------------------------------------------ cross-cutting
 
-test('the registry exposes twelve deterministic tools plus paper retrieval', () => {
+test('the registry exposes twelve deterministic tools plus the two that read papers', () => {
   assert.equal(ANALYTICS_TOOLS.length, 12)
-  assert.equal(TOOLS.length, 13)
-  assert.equal(new Set(TOOLS.map((t) => t.name)).size, 13)
+  assert.equal(TOOLS.length, 14)
+  assert.equal(new Set(TOOLS.map((t) => t.name)).size, 14)
   for (const t of TOOLS) assert.equal(getTool(t.name), t)
   assert.equal(getTool('no_such_tool'), undefined)
   // The split is load-bearing: everything numeric must be computed, so the one
   // tool that answers from prose is deliberately not in ANALYTICS_TOOLS.
+  // Neither is a pure computation: one answers from prose, the other has to
+  // read a term limit out of a paper before it can compute anything.
   assert.ok(!ANALYTICS_TOOLS.some((t) => t.name === 'search_board_papers'))
+  assert.ok(!ANALYTICS_TOOLS.some((t) => t.name === 'tenure_and_skills_impact'))
 })
 
 test('every tool returns a non-empty headline that says something', () => {
@@ -683,4 +687,68 @@ test('a chunk spanning two sections says so, rather than naming one', async () =
       )
     }
   }
+})
+
+// The hybrid tool. Neither source answers "who times out": the audit records
+// how long each director has served, nothing records how long they MAY serve,
+// and that limit is prose in a board paper.
+test('the term limit is read from a paper, and every consequence is computed', async () => {
+  const { getTool } = await import('../src/lib/analytics/registry')
+  const result = await getTool('tenure_and_skills_impact')!.run(dataset, {})
+
+  // Without credentials the papers cannot be searched. That must be a graceful
+  // refusal rather than a crash, and the rest of the contract cannot be checked.
+  if (isRefusal(result)) {
+    assert.match(result.reason, /could not be reached|no term limit/i)
+    return
+  }
+
+  // The limit must be attributed, not assumed. An assumption that silently
+  // supplied nine years would answer confidently from a number nobody wrote.
+  const attribution = result.assumptions.find((a) => /read from/i.test(a))
+  assert.ok(attribution, 'the answer must say where the limit came from')
+  assert.match(attribution!, /paper/i)
+  assert.ok(result.provenance.sources.some((s) => s.startsWith('paper-')))
+  assert.ok(result.provenance.sources.includes('skills-audit.csv'))
+
+  // Whoever is listed must genuinely be at or past the limit, computed from the
+  // CSV rather than taken from the answer.
+  const limitMatch = attribution!.match(/(\d+)-year limit/)
+  assert.ok(limitMatch, `expected the limit stated in: ${attribution}`)
+  const limit = Number(limitMatch![1])
+
+  const expected = dataset.skills
+    .filter((d) => (limit - d.tenure_years) * 12 <= 12)
+    .map((d) => d.director_name)
+    .sort()
+  const listed = (result.table?.rows ?? []).map((r) => String(r[0])).sort()
+  assert.deepEqual(listed, expected)
+})
+
+test('the tenure tool refuses when no paper states a limit', async () => {
+  const { findTermLimit } = await import('../src/lib/retrieval/termlimit')
+  // No limit in the text, so nothing to count towards.
+  assert.equal(
+    findTermLimit([
+      {
+        score: 0.9,
+        text: 'The board met four times and reviewed the risk register.',
+        paperId: 'p',
+        paperTitle: 'T',
+        section: 'S',
+      },
+    ]),
+    null,
+  )
+})
+
+test('a stated limit is read whatever number it uses', async () => {
+  const { findTermLimit } = await import('../src/lib/retrieval/termlimit')
+  const make = (text: string) => [
+    { score: 0.9, text, paperId: 'p', paperTitle: 'T', section: 'S' },
+  ]
+  // Nine years is not assumed: another organisation's limit must read correctly.
+  assert.equal(findTermLimit(make('with a maximum term of twelve.'))?.years, 12)
+  assert.equal(findTermLimit(make('both reach the six year limit soon.'))?.years, 6)
+  assert.equal(findTermLimit(make('a maximum term of 9 applies.'))?.years, 9)
 })
