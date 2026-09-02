@@ -353,7 +353,7 @@ function inferArgs(tool: ToolDefinition, q: string): Record<string, unknown> {
  * value to the type the tool declared, and drop anything the tool does not
  * declare at all, so a hallucinated argument cannot reach a tool.
  */
-/** Exported under a test-only name so the bounds behaviour can be asserted. */
+/** Retained name for the tests that assert the bounds behaviour. */
 export function coerceArgsForTest(
   tool: ToolDefinition,
   raw: Record<string, unknown>,
@@ -361,7 +361,13 @@ export function coerceArgsForTest(
   return coerceArgs(tool, raw)
 }
 
-function coerceArgs(
+/**
+ * Exported because arguments arrive from outside the router too. Pinning a
+ * chart posts a tool name and arguments, and running those unvalidated would
+ * put every declared bound, enum and default on the honour system — an
+ * out-of-range value would reach a tool and be reported as a finding.
+ */
+export function coerceArgs(
   tool: ToolDefinition,
   raw: Record<string, unknown>,
 ): Record<string, unknown> {

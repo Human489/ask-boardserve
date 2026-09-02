@@ -170,20 +170,52 @@ test('refreshing a pin that is not there reports not-found', async () => {
 })
 
 test('the pin route computes the frozen result rather than trusting the client', () => {
-  // The product's governing rule is that no figure on screen was produced
-  // outside a tool. A pin is a figure on screen, so the route must run the tool
-  // itself; accepting `result` from the request body would put an unverified
-  // number on the dashboard. This is greppable rather than behavioural because
-  // the route needs a dataset and a passcode to exercise directly, and the
-  // property being protected is that the field is never read at all.
+  // The governing rule is that no figure on screen was produced outside a tool.
+  // A pin is a figure on screen, so the route must run the tool itself; reading
+  // `result` from the request body would put an unverified number on the
+  // dashboard.
+  //
+  // This assertion was previously pinned to the literal text
+  // `definition.run(dataset, args)` and matched destructuring with `[^}]*`.
+  // Both were brittle in the worst way: adding a default value inside a
+  // destructuring pattern stopped that block being inspected at all, while the
+  // test still passed on the remaining blocks. It now checks the property.
   const source = readFileSync('src/app/api/pins/route.ts', 'utf8')
-  const destructured = source.match(/const \{[^}]*\} = \(body \?\? \{\}\) as/g) ?? []
-  assert.ok(destructured.length > 0, 'the route reads its request body')
-  for (const block of destructured) {
+
+  // Brace-balanced, so a `= {}` default inside the pattern cannot terminate the
+  // block early and hide what follows it.
+  const blocks: string[] = []
+  const marker = /(?:const|let)\s*\{/g
+  for (let m = marker.exec(source); m; m = marker.exec(source)) {
+    let depth = 1
+    let i = m.index + m[0].length
+    const from = i
+    while (i < source.length && depth > 0) {
+      if (source[i] === '{') depth++
+      else if (source[i] === '}') depth--
+      i++
+    }
+    const inner = source.slice(from, i - 1)
+    const tail = source.slice(i, i + 40)
+    if (/=\s*\(?\s*body/.test(tail) || /body\s*\?\?/.test(tail)) blocks.push(inner)
+  }
+
+  assert.ok(blocks.length > 0, 'the route destructures its request body somewhere')
+  for (const inner of blocks) {
     assert.ok(
-      !/\bresult\b/.test(block),
-      `the pins route must never take "result" from the request body: ${block}`,
+      !/\bresult\b/.test(inner),
+      'the pins route must never take "result" from the request body',
     )
   }
-  assert.match(source, /definition\.run\(dataset, args\)/)
+
+  // Destructuring is not the only way to read a field, so forbid any single
+  // expression that pulls `result` straight off the body too.
+  assert.ok(
+    !/body[^\n;]*\.\s*result\b/.test(source),
+    'the pins route must not read `result` off the request body',
+  )
+
+  // And the tool must actually run server-side, however its arguments are
+  // wrapped on the way in.
+  assert.match(source, /definition\.run\(\s*dataset\s*,/)
 })

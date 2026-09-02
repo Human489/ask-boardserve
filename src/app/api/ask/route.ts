@@ -3,19 +3,13 @@ import { getTool, TOOLS } from '@/lib/analytics/registry'
 import { loadDataset } from '@/lib/dataset/loader'
 import { checkRateLimit } from '@/lib/ratelimit'
 import { routeQuestion, type HistoryTurn } from '@/lib/router'
-import { bearerCredential, isAuthorised } from '@/lib/auth'
+import { clientIp, rejectUnauthorised } from '@/lib/apiauth'
 import type { AnswerResult } from '@/lib/types'
 
 // The dataset is read from the filesystem, so this cannot run on the edge.
 export const runtime = 'nodejs'
 
 const MAX_QUESTION_CHARS = 500
-
-function clientIp(req: Request): string {
-  const fwd = req.headers.get('x-forwarded-for')
-  if (fwd) return fwd.split(',')[0].trim()
-  return req.headers.get('x-real-ip') ?? 'unknown'
-}
 
 function fail(status: number, error: string, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ ok: false, error, ...extra }, { status })
@@ -41,9 +35,12 @@ export async function POST(req: Request) {
   // middleware to check — this route refusing without the passcode is what
   // actually keeps the board data private. Stateless, so it behaves the same on
   // a cold instance as a warm one.
-  if (!isAuthorised(bearerCredential(req))) {
-    return fail(401, 'That passcode was not accepted. Enter it again to continue.')
-  }
+  // Turning the request away now CHARGES the attempt. Previously this returned
+  // 401 before any budget was touched, which made every question endpoint an
+  // unmetered passcode oracle regardless of how carefully /api/login was
+  // limited.
+  const denied = await rejectUnauthorised(req)
+  if (denied) return denied
 
   const limit = await checkRateLimit(clientIp(req))
   if (!limit.allowed) {

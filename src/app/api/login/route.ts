@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getConfig } from '@/lib/config'
-import { checkRateLimit } from '@/lib/ratelimit'
+import { throttleFailedAuth } from '@/lib/apiauth'
 import { isAuthorised } from '@/lib/auth'
 
 // Reads APP_PASSCODE, so it runs on the Node runtime.
@@ -8,27 +8,7 @@ export const runtime = 'nodejs'
 
 const MAX_PASSCODE_CHARS = 200
 
-function clientIp(req: Request): string {
-  const fwd = req.headers.get('x-forwarded-for')
-  if (fwd) return fwd.split(',')[0].trim()
-  return req.headers.get('x-real-ip') ?? 'unknown'
-}
-
 export async function POST(req: Request) {
-  // Rate limited under its own key. A passcode endpoint without one is a
-  // brute-force oracle, and it must not share a budget with /api/ask or a
-  // failed login would eat the user's question allowance.
-  const limit = await checkRateLimit(`login:${clientIp(req)}`)
-  if (!limit.allowed) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: `Too many sign-in attempts. Please wait ${limit.retryAfterSeconds} seconds and try again.`,
-        retryAfterSeconds: limit.retryAfterSeconds,
-      },
-      { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
-    )
-  }
 
   if (!getConfig().appPasscode) {
     console.error('[api/login] APP_PASSCODE is not set; no one can sign in.')
@@ -54,6 +34,15 @@ export async function POST(req: Request) {
   }
 
   if (!isAuthorised(supplied)) {
+    // Charged on failure only, and under a budget shared with every other
+    // endpoint that accepts the passcode. This route's own key was not enough:
+    // /api/ask and /api/pins take the same credential as a bearer token, so
+    // limiting only this one left the others unmetered. Keeping the budget
+    // separate from the question allowance was the original and correct
+    // reasoning, and it still holds — a wrong passcode does not cost a reader
+    // any of their questions, and a correct one costs nothing at all.
+    const throttled = await throttleFailedAuth(req)
+    if (throttled) return throttled
     return NextResponse.json(
       { ok: false, error: 'That passcode was not recognised.' },
       { status: 401 },

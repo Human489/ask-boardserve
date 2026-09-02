@@ -1,14 +1,44 @@
 import { NextResponse } from 'next/server'
-import { getTool } from '@/lib/analytics/registry'
-import { bearerCredential, isAuthorised } from '@/lib/auth'
+import { ANALYTICS_TOOLS, getTool } from '@/lib/analytics/registry'
+import { clientIp, rejectUnauthorised } from '@/lib/apiauth'
 import { loadDataset } from '@/lib/dataset/loader'
 import { addPin, listPins, MAX_PINS, removePin, replacePin, type Pin } from '@/lib/pins'
+import { checkRateLimit } from '@/lib/ratelimit'
+import { coerceArgs } from '@/lib/router'
 import { isRefusal } from '@/lib/types'
 
 // The dataset is read from the filesystem, so this cannot run on the edge.
 export const runtime = 'nodejs'
 
 const MAX_QUESTION_CHARS = 500
+
+/**
+ * Arguments are stored verbatim inside the pin, and the whole pin list travels
+ * in a single KV value on every dashboard read. Unbounded, a caller could pad
+ * one pin until the value exceeded KV's limit and every later write failed.
+ * Tools read their arguments through coercing helpers, so nothing legitimate
+ * needs more room than this.
+ */
+const MAX_ARGS_CHARS = 2_000
+
+/**
+ * Every method is throttled, not just the expensive ones. POST and PATCH each
+ * run a tool — which for the paper-retrieval tool means a vector query and two
+ * model calls — so an unthrottled pin endpoint is a cheaper way to spend the
+ * Cloudflare account than the question endpoint it sits beside.
+ */
+async function throttled(req: Request): Promise<NextResponse | null> {
+  const limit = await checkRateLimit(clientIp(req))
+  if (limit.allowed) return null
+  return NextResponse.json(
+    {
+      ok: false,
+      error: `Too many requests in a short time. Please wait ${limit.retryAfterSeconds} seconds and try again.`,
+      retryAfterSeconds: limit.retryAfterSeconds,
+    },
+    { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
+  )
+}
 
 function fail(status: number, error: string, extra: Record<string, unknown> = {}) {
   return NextResponse.json({ ok: false, error, ...extra }, { status })
@@ -30,6 +60,28 @@ function newId(): string {
  * that no tool computed, which is the one thing this product does not do. So
  * pinning re-runs the analysis here, and refreshing runs it again.
  */
+/**
+ * Which analyses may be pinned.
+ *
+ * Everything except paper retrieval. Its safety on the question path comes from
+ * guards that live in the router — the scope check that keeps structured
+ * questions out of the papers, and the clock-anchoring refusal — and pinning
+ * posts a tool name directly, reaching the tool without passing any of them.
+ * Replicating that chain here would duplicate it and let the two drift.
+ *
+ * It is also the wrong shape for a pin: its prose is written by a model, so a
+ * Refresh could return different wording for the same sources, and a card that
+ * rewords itself is not a frozen figure.
+ *
+ * The two hybrids stay pinnable. They read a term limit out of a paper by
+ * pattern rather than by model, and every figure they publish is computed.
+ */
+const PINNABLE = new Set([
+  ...ANALYTICS_TOOLS.map((t) => t.name),
+  'tenure_and_skills_impact',
+  'upcoming_unprepared',
+])
+
 async function compute(
   tool: string,
   args: Record<string, unknown>,
@@ -37,6 +89,13 @@ async function compute(
   const definition = getTool(tool)
   if (!definition) {
     return { ok: false, status: 400, error: 'That analysis is not available.' }
+  }
+  if (!PINNABLE.has(definition.name)) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Answers drawn from the board papers cannot be pinned to the dashboard.',
+    }
   }
 
   let dataset
@@ -52,7 +111,11 @@ async function compute(
   }
 
   try {
-    const result = await definition.run(dataset, args)
+    // The same coercion the router applies to model-supplied arguments: drop
+    // anything undeclared, reject values outside a declared range rather than
+    // clamping them. Without this, `{within_months: 100000}` pins a card
+    // headlined with a 100000-month term-limit horizon.
+    const result = await definition.run(dataset, coerceArgs(definition, args))
     // A refusal has no figures and no chart, so there is nothing to pin. It is
     // still a correct answer — it just is not a dashboard card.
     if (isRefusal(result)) {
@@ -73,25 +136,49 @@ async function compute(
   }
 }
 
-function parseArgs(raw: unknown): Record<string, unknown> | null {
-  if (raw === undefined || raw === null) return {}
-  if (typeof raw !== 'object' || Array.isArray(raw)) return null
-  return raw as Record<string, unknown>
+type ArgsResult =
+  | { ok: true; args: Record<string, unknown> }
+  | { ok: false; error: string }
+
+function parseArgs(raw: unknown): ArgsResult {
+  if (raw === undefined || raw === null) return { ok: true, args: {} }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return { ok: false, error: 'The analysis arguments were not an object.' }
+  }
+  let encoded: string
+  try {
+    encoded = JSON.stringify(raw)
+  } catch {
+    return { ok: false, error: 'The analysis arguments could not be read.' }
+  }
+  if (encoded.length > MAX_ARGS_CHARS) {
+    return { ok: false, error: 'The analysis arguments are too large to pin.' }
+  }
+  return { ok: true, args: raw as Record<string, unknown> }
 }
 
 export async function GET(req: Request) {
-  if (!isAuthorised(bearerCredential(req))) {
-    return fail(401, 'That passcode was not accepted. Enter it again to continue.')
+  const denied = await rejectUnauthorised(req)
+  if (denied) return denied
+
+  const limited = await throttled(req)
+  if (limited) return limited
+  const { pins, durable, reachable } = await listPins()
+  // Reporting an outage as an empty dashboard would tell the reader their pins
+  // are gone. Say the store could not be read instead.
+  if (!reachable) {
+    return fail(502, 'The dashboard could not be read just now. Try again in a moment.')
   }
-  const { pins, durable } = await listPins()
   return NextResponse.json({ ok: true, pins, durable, max: MAX_PINS })
 }
 
 /** Pin an analysis. Body: { question, tool, args }. */
 export async function POST(req: Request) {
-  if (!isAuthorised(bearerCredential(req))) {
-    return fail(401, 'That passcode was not accepted. Enter it again to continue.')
-  }
+  const denied = await rejectUnauthorised(req)
+  if (denied) return denied
+
+  const limited = await throttled(req)
+  if (limited) return limited
 
   let body: unknown
   try {
@@ -114,9 +201,27 @@ export async function POST(req: Request) {
     return fail(400, 'A pin needs the analysis that produced it.')
   }
   const parsedArgs = parseArgs(args)
-  if (!parsedArgs) return fail(400, 'The analysis arguments were not an object.')
+  if (!parsedArgs.ok) return fail(400, parsedArgs.error)
 
-  const computed = await compute(tool, parsedArgs)
+  // Capacity and duplication are checked BEFORE the analysis runs. Computing
+  // first meant a request that ends in a 409 had already paid for a tool run,
+  // which for the paper tool is two model calls spent to store nothing.
+  const current = await listPins()
+  if (!current.reachable) {
+    return fail(502, 'The dashboard could not be read, so nothing was pinned. Try again.')
+  }
+  if (
+    current.pins.some(
+      (p) => p.tool === tool && JSON.stringify(p.args) === JSON.stringify(parsedArgs.args),
+    )
+  ) {
+    return fail(409, 'That analysis is already on the dashboard.')
+  }
+  if (current.pins.length >= MAX_PINS) {
+    return fail(409, `The dashboard holds ${MAX_PINS} charts. Remove one before pinning another.`)
+  }
+
+  const computed = await compute(tool, parsedArgs.args)
   if (!computed.ok) return fail(computed.status, computed.error)
 
   const outcome = await addPin({
@@ -149,9 +254,11 @@ export async function POST(req: Request) {
 
 /** Refresh one pin: re-run its tool and replace the frozen snapshot in place. */
 export async function PATCH(req: Request) {
-  if (!isAuthorised(bearerCredential(req))) {
-    return fail(401, 'That passcode was not accepted. Enter it again to continue.')
-  }
+  const denied = await rejectUnauthorised(req)
+  if (denied) return denied
+
+  const limited = await throttled(req)
+  if (limited) return limited
 
   let body: unknown
   try {
@@ -164,7 +271,10 @@ export async function PATCH(req: Request) {
   const { id } = (body ?? {}) as { id?: unknown }
   if (typeof id !== 'string' || id === '') return fail(400, 'Which pin should be refreshed?')
 
-  const { pins } = await listPins()
+  const { pins, reachable } = await listPins()
+  if (!reachable) {
+    return fail(502, 'The dashboard could not be read, so nothing was refreshed. Try again.')
+  }
   const existing = pins.find((p) => p.id === id)
   if (!existing) return fail(404, 'That chart is no longer on the dashboard.')
 
@@ -183,6 +293,9 @@ export async function PATCH(req: Request) {
     if (outcome.reason === 'not-found') {
       return fail(404, 'That chart is no longer on the dashboard.')
     }
+    if (outcome.reason === 'unreachable') {
+      return fail(502, 'The dashboard could not be read, so nothing was refreshed. Try again.')
+    }
     return fail(502, 'The refreshed figures could not be saved. Try again.')
   }
 
@@ -191,9 +304,11 @@ export async function PATCH(req: Request) {
 
 /** Unpin. Body: { id }. */
 export async function DELETE(req: Request) {
-  if (!isAuthorised(bearerCredential(req))) {
-    return fail(401, 'That passcode was not accepted. Enter it again to continue.')
-  }
+  const denied = await rejectUnauthorised(req)
+  if (denied) return denied
+
+  const limited = await throttled(req)
+  if (limited) return limited
 
   let body: unknown
   try {
@@ -208,6 +323,11 @@ export async function DELETE(req: Request) {
 
   const outcome = await removePin(id)
   if (!outcome.ok) {
+    if (outcome.reason === 'unreachable') {
+      // Not the same as "already gone": we do not know what is there, so
+      // reporting success would show an emptied dashboard that is intact.
+      return fail(502, 'The dashboard could not be read, so nothing was removed. Try again.')
+    }
     if (outcome.reason === 'not-found') {
       // Already gone is the state the caller wanted, so this is not an error.
       const { pins, durable } = await listPins()

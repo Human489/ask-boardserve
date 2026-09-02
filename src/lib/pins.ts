@@ -1,4 +1,4 @@
-import { kvAvailable, kvDelete, kvGet, kvPut } from '@/lib/kv'
+import { kvAvailable, kvDelete, kvPut, kvRead } from '@/lib/kv'
 import type { ToolResult } from '@/lib/types'
 
 // Pinned charts: the dashboard the secretary assembles for themselves.
@@ -52,11 +52,30 @@ export const MAX_PINS = 24
 // are saved.
 let memory: Pin[] = []
 
-function parse(raw: string | null): Pin[] {
-  if (!raw) return []
+/** A stored entry has to look like a pin before the UI is handed it. */
+function isPin(value: unknown): value is Pin {
+  if (!value || typeof value !== 'object') return false
+  const p = value as Partial<Pin>
+  return (
+    typeof p.id === 'string' &&
+    typeof p.question === 'string' &&
+    typeof p.tool === 'string' &&
+    typeof p.args === 'object' &&
+    p.args !== null &&
+    typeof p.result === 'object' &&
+    p.result !== null &&
+    typeof (p.result as { headline?: unknown }).headline === 'string'
+  )
+}
+
+function parse(raw: string): Pin[] {
   try {
     const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? (parsed as Pin[]) : []
+    if (!Array.isArray(parsed)) return []
+    // Dropping an unrecognised entry keeps a schema change or a hand-edited
+    // value from crashing the dashboard render, which `Array.isArray` alone did
+    // not: a null element survived the cast and threw on first property access.
+    return parsed.filter(isPin)
   } catch {
     // A corrupt value is treated as no pins rather than as an error: the
     // dashboard being empty is recoverable, the app failing to load is not.
@@ -68,11 +87,21 @@ export interface PinStore {
   pins: Pin[]
   /** False when KV is unconfigured and pins only survive this process. */
   durable: boolean
+  /**
+   * False when KV could not be read at all. The pins list is then not empty,
+   * it is UNKNOWN, and nothing may be written on top of it.
+   */
+  reachable: boolean
 }
 
 export async function listPins(): Promise<PinStore> {
-  if (!kvAvailable()) return { pins: memory, durable: false }
-  return { pins: parse(await kvGet(KEY)), durable: true }
+  if (!kvAvailable()) return { pins: memory, durable: false, reachable: true }
+  const read = await kvRead(KEY)
+  // An unreachable store reports itself rather than presenting as empty. This
+  // is the difference between "you have no pins" and "we could not ask".
+  if (!read.ok) return { pins: [], durable: true, reachable: false }
+  if (read.missing) return { pins: [], durable: true, reachable: true }
+  return { pins: parse(read.value), durable: true, reachable: true }
 }
 
 async function write(pins: Pin[]): Promise<boolean> {
@@ -86,7 +115,7 @@ async function write(pins: Pin[]): Promise<boolean> {
 
 export type AddOutcome =
   | { ok: true; pins: Pin[]; durable: boolean }
-  | { ok: false; reason: 'full' | 'duplicate' | 'write-failed' }
+  | { ok: false; reason: 'full' | 'duplicate' | 'write-failed' | 'unreachable' }
 
 /**
  * Newest first, because the dashboard is read from the top and the thing just
@@ -99,7 +128,10 @@ export type AddOutcome =
  * every read) costs a round trip per card for a collision that will not happen.
  */
 export async function addPin(pin: Pin): Promise<AddOutcome> {
-  const { pins, durable } = await listPins()
+  const { pins, durable, reachable } = await listPins()
+  // Writing here would replace every existing pin with just this one, because
+  // an unreadable list looks exactly like an empty one.
+  if (!reachable) return { ok: false, reason: 'unreachable' }
 
   // Pinning the same analysis twice would put two identical cards on the
   // dashboard, which reads as a bug rather than as two pins.
@@ -117,10 +149,11 @@ export async function addPin(pin: Pin): Promise<AddOutcome> {
 
 export type MutateOutcome =
   | { ok: true; pins: Pin[]; durable: boolean }
-  | { ok: false; reason: 'not-found' | 'write-failed' }
+  | { ok: false; reason: 'not-found' | 'write-failed' | 'unreachable' }
 
 export async function removePin(id: string): Promise<MutateOutcome> {
-  const { pins, durable } = await listPins()
+  const { pins, durable, reachable } = await listPins()
+  if (!reachable) return { ok: false, reason: 'unreachable' }
   const next = pins.filter((p) => p.id !== id)
   if (next.length === pins.length) return { ok: false, reason: 'not-found' }
   if (next.length === 0) {
@@ -138,7 +171,8 @@ export async function removePin(id: string): Promise<MutateOutcome> {
 
 /** Replaces one pin's frozen snapshot in place, keeping its position. */
 export async function replacePin(id: string, updated: Pin): Promise<MutateOutcome> {
-  const { pins, durable } = await listPins()
+  const { pins, durable, reachable } = await listPins()
+  if (!reachable) return { ok: false, reason: 'unreachable' }
   const index = pins.findIndex((p) => p.id === id)
   if (index === -1) return { ok: false, reason: 'not-found' }
   const next = [...pins]
