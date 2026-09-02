@@ -62,3 +62,9 @@ Thumbs.db
 
 # Next.js generated types
 next-env.d.ts
+
+# Local Claude Code settings: machine-specific, and where tools like impeccable
+# write their hooks. launch.json stays tracked — it is the project's own config.
+.claude/settings.local.json
+.claude/skills/
+.claude/agents/
