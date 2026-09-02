@@ -120,12 +120,42 @@ async function main() {
   const vectors = await embed(chunks.map((c) => c.text))
   console.log(`embedded ${vectors.length} chunks`)
 
+  // The junk floor is DERIVED, not tuned. Chunks of one corpus are all about the
+  // same domain, so the distribution of chunk-to-chunk similarity describes what
+  // "about this domain" looks like numerically, for this corpus, with no probe
+  // questions and no hand-set constant. The 5th percentile measured cleanly
+  // between off-domain questions and on-domain ones; p1 sat below the noise and
+  // p50 upward would reject real questions.
+  //
+  // It matters that this is derived: a constant calibrated on one organisation's
+  // papers would not travel to another's, and the agent is meant to load a
+  // second dataset without code changes.
+  const cos = (a, b) => {
+    let dot = 0
+    let na = 0
+    let nb = 0
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i]
+      na += a[i] * a[i]
+      nb += b[i] * b[i]
+    }
+    return dot / (Math.sqrt(na) * Math.sqrt(nb))
+  }
+  const pairs = []
+  for (let i = 0; i < vectors.length; i++) {
+    for (let j = i + 1; j < vectors.length; j++) pairs.push(cos(vectors[i], vectors[j]))
+  }
+  pairs.sort((a, b) => a - b)
+  const corpusFloor = Math.round(pairs[Math.floor(0.05 * (pairs.length - 1))] * 10000) / 10000
+  console.log(`derived floor (corpus p5 over ${pairs.length} pairs): ${corpusFloor}`)
+
   const records = chunks.map((c, i) => ({
     id: `${datasetId}::${c.id}`,
     values: vectors[i],
     metadata: {
       datasetId,
       asAt,
+      corpusFloor,
       paperId: c.paperId,
       paperTitle: c.paperTitle,
       section: c.section,

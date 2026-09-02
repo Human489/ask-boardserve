@@ -93,12 +93,21 @@ export function chunkPaper(paper: BoardPaper): Chunk[] {
         .map((w) => w.word)
         .join(' ')
         .slice(0, MAX_STORED_CHARS)
+      // Windows cross headings by design, so the heading at the START of one is
+      // often not the section it mostly covers: a window beginning in "Income"
+      // and running into "Expenditure" was citing Income for an expenditure
+      // figure, sending a reader to the wrong part of the paper. Label it with
+      // the section holding most of its words.
+      const spanned = new Map<string, number>()
+      for (const w of window) spanned.set(w.section, (spanned.get(w.section) ?? 0) + 1)
+      const section = [...spanned.entries()].sort((a, b) => b[1] - a[1])[0][0]
+
       chunks.push({
         id: `${paper.id}#${index}`,
         text,
         paperId: paper.id,
         paperTitle,
-        section: window[0].section,
+        section,
         chunkIndex: index,
         words: window.length,
       })
