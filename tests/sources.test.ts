@@ -9,7 +9,12 @@ import { join } from 'node:path'
 // dead pattern. For a refusal rule that means it quietly stops refusing, which
 // is the failure this project cares most about.
 
-const ROOTS = ['src/lib', 'src/app', 'src/components']
+// Tests and scripts are scanned too. A word-boundary escape in this very suite was mangled
+// into a literal backspace by an editing script, producing a guard that
+// compiled, ran, and could never match — and the scan that exists to catch
+// exactly that was only looking at src/. A broken assertion in a test is the
+// worst place for this to hide, because the test still reports success.
+const ROOTS = ['src/lib', 'src/app', 'src/components', 'tests', 'scripts']
 // Everything below space except tab, newline and carriage return.
 const CONTROL = /[\x00-\x08\x0B\x0C\x0E-\x1F]/
 

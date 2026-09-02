@@ -244,8 +244,15 @@ export const gapCoverage: ToolDefinition = {
     const gapNames = gaps.map((g) => g.skill)
 
     // The cut-off can land inside a tie: state the tiebreak rather than hiding it.
+    //
+    // Only when the tie was actually SPLIT, though. Every skill on the cutoff
+    // mean was being reported as a tiebreak even when all of them made the
+    // list, so the answer announced that the cut "would change the ranking"
+    // when nothing had been cut and no other choice existed. A caveat that
+    // fires when there is nothing to qualify teaches the reader to skip them.
     const cutoffMean = gaps[gaps.length - 1].mean
     const tiedAtCutoff = stats.filter((s) => s.mean === cutoffMean)
+    const tieWasSplit = tiedAtCutoff.some((s) => !gapNames.includes(s.skill))
 
     const ranked = dataset.skills
       .map((d) => {
@@ -284,7 +291,7 @@ export const gapCoverage: ToolDefinition = {
           )}) with ${best.total} of a possible ${gapNames.length * 5}`
 
     const tieNote =
-      tiedAtCutoff.length > 1
+      tiedAtCutoff.length > 1 && tieWasSplit
         ? ` The weakest ${gapNames.length} cut through a tie at a mean of ${cutoffMean.toFixed(2)} between ${list(
             tiedAtCutoff.map((s) => s.skill),
           )}; the audit file's column order picks ${gapNames[gapNames.length - 1]}, and choosing the other would change the ranking.`
@@ -320,7 +327,7 @@ export const gapCoverage: ToolDefinition = {
       assumptions: [
         `The ${gapNames.length} weakest skills by board mean were treated as the gap areas: ${list(gapNames)}.`,
         'Directors are ranked by the unweighted sum of their scores across those areas; the gaps are not weighted by severity.',
-        ...(tiedAtCutoff.length > 1
+        ...(tiedAtCutoff.length > 1 && tieWasSplit
           ? [
               `The gap list cut through a tie at a mean of ${cutoffMean.toFixed(2)}; it was broken by the order the columns appear in the audit file.`,
             ]
@@ -431,8 +438,13 @@ export const committeeSkillsGaps: ToolDefinition = {
     const worstTwo = worst.stats.slice(0, 2)
     const zeroStrong = worstTwo.filter((s) => s.strong === 0)
 
+    // "carries the widest gap" is a claim about a ranking. With one body in
+    // scope there is no ranking, and the superlative asserted a comparison the
+    // answer never made.
     const headline =
-      `${worst.body} carries the widest skills gap, averaging ${worst.overall.toFixed(
+      `${worst.body} ${
+        ranked.length > 1 ? 'carries the widest skills gap, averaging' : 'averages'
+      } ${worst.overall.toFixed(
         2,
       )} across every skill: ${list(
         worstTwo.map((s) => `${s.skill} at ${s.mean.toFixed(2)}`),
@@ -506,7 +518,13 @@ export const committeeSkillsGaps: ToolDefinition = {
         rows,
       },
       assumptions: [
-        "A body's gap is ranked on its mean across all skills, with its single weakest skill shown alongside. Ranking on the weakest skill alone puts a different body first, so the choice of metric changes the answer.",
+        // The second sentence is a comparison between bodies, so it is only
+        // true when there is more than one body to compare. Scoped to a single
+        // committee it asserted that another body would rank first, with no
+        // other body in the answer at all.
+        ranked.length > 1
+          ? "A body's gap is ranked on its mean across all skills, with its single weakest skill shown alongside. Ranking on the weakest skill alone puts a different body first, so the choice of metric changes the answer."
+          : "A body's gap is ranked on its mean across all skills, with its single weakest skill shown alongside. Only one body is in scope, so nothing is being ranked against it.",
         `"Strong" is ${STRONG} or above and a "gap" is ${WEAK} or below; the dataset defines neither.`,
         'Only the three weakest skills per body are tabulated, to keep the table readable.',
       ],

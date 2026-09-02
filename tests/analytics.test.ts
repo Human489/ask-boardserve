@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { loadDataset, pct } from '../src/lib/dataset/loader'
+import { allBodies, loadDataset, pct } from '../src/lib/dataset/loader'
 import { ANALYTICS_TOOLS, TOOLS, getTool } from '../src/lib/analytics/registry'
 import { isRefusal } from '../src/lib/types'
 import type { ToolResult } from '../src/lib/types'
@@ -538,12 +538,39 @@ test('an unmatched body returns a nil answer that says so, not a vacuous one', (
   assert.equal(skills.chart, null)
 
   const meetings = asComputed('attendance_by_meeting', getTool('attendance_by_meeting')!.run(dataset, { body: missing }))
-  assert.match(meetings.headline, /no meetings/i)
+  assert.match(meetings.headline, /no (body|meetings)/i)
+  assert.match(meetings.headline, new RegExp(missing))
   // The old headline claimed a 0-point move was "larger than one meeting's noise".
   assert.ok(
     !/0-point|0% year average/.test(meetings.headline),
     'a nil result must not be described as a trend',
   )
+  assert.equal(meetings.chart, null, 'a nil result draws no chart')
+
+  // The rest of the answer has to be nil too. The headline was special-cased
+  // long before the assumptions and caveats were, so an empty series still
+  // announced a "0% year average" and a noise threshold measured "at the
+  // average attendance size of 0 seats" — figures invented from an empty set,
+  // presented as the qualifications of a finding.
+  const narration = [...meetings.assumptions, ...meetings.caveats].join(' ')
+  assert.ok(
+    !/\b0(\.0)?%|0 seats|0 points|0 percentage points/.test(narration),
+    `a nil result must not carry computed figures: ${narration}`,
+  )
+
+  const below = asComputed(
+    'attendance_below_threshold',
+    getTool('attendance_below_threshold')!.run(dataset, { body: missing }),
+  )
+  // "No director is below the threshold" and "there is no data here" are
+  // opposite findings. This used to issue the first for the second, giving a
+  // body that does not exist a clean bill of health.
+  assert.ok(
+    !/no director is below/i.test(below.headline),
+    `an absent body must not be reported as compliant: ${below.headline}`,
+  )
+  assert.match(below.headline, new RegExp(missing))
+  assert.equal(below.chart, null, 'a nil result draws no chart')
 })
 
 // Filters exist because the tools answered a narrower question with their full
@@ -752,4 +779,116 @@ test('a stated limit is read whatever number it uses', async () => {
   assert.equal(findTermLimit(make('with a maximum term of twelve.'))?.years, 12)
   assert.equal(findTermLimit(make('both reach the six year limit soon.'))?.years, 6)
   assert.equal(findTermLimit(make('a maximum term of 9 applies.'))?.years, 9)
+})
+
+// ---------------------------------------------------------------------------
+// Narration that described nothing as if it were something. Each of these was a
+// sentence the tool asserted with confidence, computed over an empty or
+// wrongly-ordered set, and none of them was caught by a test.
+
+test('no answer names a "heaviest" group that holds nothing', () => {
+  const dataset = loadDataset()
+  for (const group_by of ['owner', 'committee', 'owner_type']) {
+    const r = asComputed('overdue_actions', getTool('overdue_actions')!.run(dataset, { group_by }))
+    const claim = r.headline.match(/heaviest \w+ is (.+?) with (\d+)/)
+    if (!claim) continue
+    // Groups are populated from the recorded-overdue set as well as the derived
+    // one, so sorting by derived count could put a zero first — naming it as
+    // heaviest while the chart beside it showed another group with more.
+    assert.notEqual(claim[2], '0', `named a group holding zero as heaviest: ${r.headline}`)
+  }
+})
+
+test('an owner with nothing overdue gets caveats about the nil, not about zero bars', () => {
+  const dataset = loadDataset()
+  const owners = [...new Set(dataset.actions.actions.map((a) => a.owner))]
+  const clean = owners.find(
+    (o) =>
+      !dataset.actions.actions.some(
+        (a) => a.owner === o && a.due_date < dataset.asAt && a.status !== 'complete',
+      ),
+  )
+  assert.ok(clean, 'the dataset has an owner with nothing overdue')
+  const r = asComputed('overdue_actions', getTool('overdue_actions')!.run(dataset, { owner: clean }))
+
+  const text = r.caveats.join(' ')
+  assert.ok(!/\b0 of the 0\b/.test(text), `degenerate caveat: ${text}`)
+  assert.ok(!/Only 0 rows/.test(text), `degenerate caveat: ${text}`)
+  // A nil still has to be qualified, or it reads as a settled fact.
+  assert.ok(r.caveats.length > 0, 'a nil result still needs its caveats')
+})
+
+test('the ranking robustness caveat is not emitted for an ordering the chart does not show', () => {
+  const dataset = loadDataset()
+  const byMeetings = asComputed(
+    'attendance_by_committee',
+    getTool('attendance_by_committee')!.run(dataset, { rank_by: 'meetings' }),
+  )
+  // Ranked by meeting count, a caveat about how robust the ATTENDANCE ordering
+  // is describes an ordering the reader cannot see — and it was computed from
+  // the wrong array, so it named the busiest body as the lowest attender and
+  // could produce a negative gap.
+  assert.ok(
+    !byMeetings.caveats.some((c) => /ranking is not robust/i.test(c)),
+    `attendance robustness claimed while ranking on meetings: ${byMeetings.caveats.join(' | ')}`,
+  )
+
+  // Ranked on attendance it must still fire, and must name the genuinely
+  // lowest body rather than whichever happened to sort first.
+  const byRate = asComputed(
+    'attendance_by_committee',
+    getTool('attendance_by_committee')!.run(dataset, {}),
+  )
+  const robustness = byRate.caveats.find((c) => /ranking is not robust/i.test(c))
+  if (robustness) {
+    assert.ok(
+      !/-\d/.test(robustness),
+      `a gap between ranked bodies cannot be negative: ${robustness}`,
+    )
+  }
+})
+
+test('a tiebreak is only reported when the tie was actually split', () => {
+  const dataset = loadDataset()
+  // Every skill sharing the cutoff mean was reported as a tiebreak even when
+  // all of them made the list, so the answer said choosing the other "would
+  // change the ranking" when nothing had been cut.
+  for (const top_n_gaps of [1, 2, 3, 4, 5]) {
+    const r = asComputed('gap_coverage', getTool('gap_coverage')!.run(dataset, { top_n_gaps }))
+    const mentionsTie = /cut through a tie/i.test(r.headline + r.assumptions.join(' '))
+    if (!mentionsTie) continue
+    const named = r.assumptions.find((a) => /gap areas/i.test(a)) ?? ''
+    const tieClause =
+      r.headline.match(/cut through a tie at a mean of [\d.]+ between (.+?);/)?.[1] ?? ''
+    // Whatever the tiebreak names as the loser must not itself be in the list.
+    for (const skill of tieClause.split(/ and |, /).map((x) => x.trim())) {
+      if (!skill) continue
+      const inList = named.includes(skill)
+      const bothIn = tieClause
+        .split(/ and |, /)
+        .every((x) => named.includes(x.trim()))
+      assert.ok(!bothIn || !inList, `a tiebreak was reported though nothing was cut: ${tieClause}`)
+    }
+  }
+})
+
+test('a single body in scope makes no claim about a ranking', () => {
+  const dataset = loadDataset()
+  const body = allBodies(dataset).find((b) => b !== 'Board')
+  assert.ok(body)
+  const r = asComputed(
+    'committee_skills_gaps',
+    getTool('committee_skills_gaps')!.run(dataset, { body }),
+  )
+  // "carries the widest skills gap" and "ranking on the weakest skill alone
+  // puts a different body first" are both comparisons, asserted with no other
+  // body in the answer.
+  assert.ok(
+    !/widest skills gap/i.test(r.headline),
+    `superlative with one body in scope: ${r.headline}`,
+  )
+  assert.ok(
+    !r.assumptions.some((a) => /puts a different body first/i.test(a)),
+    'claimed another body would rank first, with no other body in scope',
+  )
 })

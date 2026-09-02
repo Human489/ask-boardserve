@@ -121,6 +121,35 @@ export const attendanceBelowThreshold: ToolDefinition = {
       widened = true
     }
 
+    // "No director is below the threshold" and "there are no directors here"
+    // are opposite findings, and this returned the first for both. Asked about
+    // a body that does not exist, it issued a clean bill of health — a reader
+    // would have concluded attendance there was fine.
+    if (rates.length === 0) {
+      const known = allBodies(dataset)
+      const unknownBody = body !== undefined && !known.some((b) => b === body)
+      return {
+        tool: 'attendance_below_threshold',
+        headline: unknownBody
+          ? `No body called "${body}" appears in the attendance records, so no attendance rate can be computed for it. The bodies present are ${list(known)}.`
+          : `No attendance rows${body ? ` for ${body}` : ''} were found, so no director's rate can be computed.`,
+        chart: null,
+        table: null,
+        assumptions: [
+          'Body names were matched exactly as written in the attendance records; the dataset defines no aliases.',
+        ],
+        caveats: [
+          'Nothing matched, so this is an absence of data rather than a finding about attendance.',
+        ],
+        provenance: {
+          asAt: dataset.asAt,
+          sources: SOURCES,
+          rowsConsidered: rows.length,
+          derivation: `No eligibility rows matched${body ? ` the body "${body}"` : ''}, so no rate was calculated.`,
+        },
+      }
+    }
+
     const points: DataPoint[] = flagged.map((d) => ({
       label: d.name,
       value: d.rate,
@@ -311,6 +340,42 @@ export const attendanceByMeeting: ToolDefinition = {
             dips.slice(0, 3).map((d) => `${d.meeting.body} on ${d.meeting.date} at ${d.rate}%`),
           )}`
 
+    // A nil result must not carry statistics computed from nothing.
+    //
+    // The headline was already special-cased for an empty series, but the
+    // assumptions, caveats and the chart's reference line were not — so a body
+    // with no meetings still announced a "0% year average", a noise threshold
+    // "at the average attendance size of 0 seats", and a chart drawing a
+    // reference line at zero. Those are not qualifications of a figure; they
+    // are figures, and every one of them was invented by arithmetic over an
+    // empty set.
+    if (series.length === 0) {
+      const known = allBodies(dataset)
+      const unknownBody = body !== undefined && !known.some((b) => b === body)
+      return {
+        tool: 'attendance_by_meeting',
+        headline: unknownBody
+          ? `No body called "${body}" appears in the attendance records, so there is nothing to plot. The bodies present are ${list(known)}.`
+          : `No meetings${body ? ` of ${body}` : ''} appear in the attendance records, so there is no attendance to plot. The bodies present are ${list(known)}.`,
+        // No chart rather than an empty one: a line chart with no points and a
+        // reference line at zero reads as a real measurement of zero.
+        chart: null,
+        table: null,
+        assumptions: [
+          `Body names were matched exactly as written in the attendance records; the dataset defines no aliases.`,
+        ],
+        caveats: [
+          'Nothing matched, so nothing was computed — there is no figure here to qualify.',
+        ],
+        provenance: {
+          asAt: dataset.asAt,
+          sources: SOURCES,
+          rowsConsidered: rows.length,
+          derivation: `No meeting rows matched${body ? ` the body "${body}"` : ''}, so no rate was calculated.`,
+        },
+      }
+    }
+
     return {
       tool: 'attendance_by_meeting',
       // With no matching meetings every derived figure is zero, and the normal
@@ -421,9 +486,18 @@ export const attendanceByCommittee: ToolDefinition = {
           : a.rate - b.rate || a.body.localeCompare(b.body),
       )
 
-    const lowest = stats[0]
-    const highest = stats[stats.length - 1]
-    const tiedLowest = stats.filter((s) => s.rate === lowest.rate)
+    // Every sentence below describes the ATTENDANCE ordering, so it is derived
+    // from a rate-sorted view rather than from the display order. With
+    // rank_by=meetings the display is sorted by meeting count, and reading
+    // stats[0] as "the lowest attender" produced a robustness caveat comparing
+    // the two busiest bodies — a gap that could even come out negative, giving
+    // "sits only -6.9 points below".
+    const byRate = [...stats].sort(
+      (a, b) => a.rate - b.rate || a.body.localeCompare(b.body),
+    )
+    const lowest = byRate[0]
+    const highest = byRate[byRate.length - 1]
+    const tiedLowest = byRate.filter((s) => s.rate === lowest.rate)
 
     const points: DataPoint[] = stats.map((s) => ({
       label: s.body,
@@ -443,20 +517,23 @@ export const attendanceByCommittee: ToolDefinition = {
     // The ranking is only robust if the gap to the next body exceeds the swing
     // one more miss would cause at the lower-ranked body.
     const gap =
-      stats.length > 1 ? Math.round((stats[1].rate - stats[0].rate) * 10) / 10 : 0
+      byRate.length > 1 ? Math.round((byRate[1].rate - byRate[0].rate) * 10) / 10 : 0
     const robust = gap > lowest.swing
     const robustClause = robust
-      ? `and the ${gap}-point gap to ${stats[1].body} is wider than the ${lowest.swing} points one more miss would move it`
+      ? `and the ${gap}-point gap to ${byRate[1].body} is wider than the ${lowest.swing} points one more miss would move it`
       : `but the ${gap}-point gap to ${
-          stats.length > 1 ? stats[1].body : 'the next body'
+          byRate.length > 1 ? byRate[1].body : 'the next body'
         } is narrower than the ${lowest.swing} points one more miss would move it, so the ranking is not robust`
 
     const caveats: string[] = [
       'Committee membership is inferred from eligibility rows, not from a membership roster field.',
     ]
-    if (!robust && stats.length > 1) {
+    // Only when the chart is actually ranking on attendance. Ranked by meeting
+    // count, a caveat about how robust the attendance ordering is describes an
+    // ordering the reader cannot see.
+    if (!robust && byRate.length > 1 && rankBy === 'attendance') {
       caveats.push(
-        `The ranking is not robust: ${lowest.body} sits only ${gap} points below ${stats[1].body}, ` +
+        `The ranking is not robust: ${lowest.body} sits only ${gap} points below ${byRate[1].body}, ` +
           `but one more miss at ${lowest.body} would move it ${lowest.swing} points.`,
       )
     }

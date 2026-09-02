@@ -55,14 +55,28 @@ function resolveOwner(dataset: Dataset, owner: string): string | null {
   return hit ? hit.director_name : null
 }
 
-function ownerCaveat(dataset: Dataset, actions: BoardAction[]): string {
+/**
+ * Returns null when there is nothing to qualify.
+ *
+ * With an empty result this produced `"owner" is a job title, not a director:
+ * 0 of 0 distinct owners in this answer cannot be resolved ... so these bars
+ * are roles, not people` — describing bars that do not exist, in an answer with
+ * no owners in it.
+ */
+function ownerCaveat(dataset: Dataset, actions: BoardAction[]): string | null {
   const owners = [...new Set(actions.map((a) => a.owner))]
+  if (owners.length === 0) return null
   const unresolved = owners.filter((o) => resolveOwner(dataset, o) === null)
   return (
     `"owner" is a job title, not a director: ${unresolved.length} of ${owners.length} ` +
     'distinct owners in this answer cannot be resolved to a named director, so these ' +
     'bars are roles, not people.'
   )
+}
+
+/** Drops a caveat that had nothing to say, so callers can spread it inline. */
+function maybe(caveat: string | null): string[] {
+  return caveat ? [caveat] : []
 }
 
 function groupKey(a: BoardAction, groupBy: string): string {
@@ -208,7 +222,14 @@ export const overdueActions: ToolDefinition = {
             : `, so nothing of theirs is outstanding past its due date.`)
         : `${derived.length} action${derived.length === 1 ? ' is' : 's are'} overdue when derived from due dates against ${asAt}, ` +
           `against ${recorded.length} the log records as overdue, and ${disagreement}` +
-          (topGroup ? `; the heaviest ${groupBy} is ${topGroup.label} with ${topGroup.value}.` : '.'),
+          // A group can exist with a derived count of zero, because the groups
+          // are also populated from the recorded-overdue set. Sorting by
+          // derived count then put a zero at the top and the sentence named it
+          // as "heaviest" — contradicting the chart beside it, which showed
+          // another group with more.
+          (topGroup && topGroup.value > 0
+            ? `; the heaviest ${groupBy} is ${topGroup.label} with ${topGroup.value}.`
+            : '.'),
       // Filtered to one owner, the chart is a single bar — padding, not a
       // finding. The listed actions are the answer.
       chart: matchedOwner ? null : {
@@ -249,9 +270,26 @@ export const overdueActions: ToolDefinition = {
         'The recorded count is the raw status field as typed into the log, shown for comparison rather than used as the answer.',
       ],
       caveats: [
-        ownerCaveat(dataset, derived),
-        `${unresolvable} of the ${owners.length} owners holding a derived-overdue action cannot be matched to a person, so no individual can be named from this data alone.`,
-        ...(derived.length < 5
+        // A nil result still needs qualifying, or it reads as a settled fact
+        // needing none. What it needs is the derivation, because "nothing is
+        // overdue" here means nothing is past its due date — which is not the
+        // same as the log saying so.
+        ...(derived.length === 0
+          ? [
+              `Overdue is derived from due dates against ${asAt}, not read from the log's status field, which records ${recorded.length} as overdue.`,
+            ]
+          : []),
+        ...maybe(ownerCaveat(dataset, derived)),
+        // Both of these describe a set that may be empty. With nothing overdue
+        // they read "0 of the 0 owners ... cannot be matched" and "Only 0 rows
+        // are in scope, so single actions dominate the shape of the chart" —
+        // qualifying figures that do not exist, about a chart that is not drawn.
+        ...(owners.length > 0
+          ? [
+              `${unresolvable} of the ${owners.length} owners holding a derived-overdue action cannot be matched to a person, so no individual can be named from this data alone.`,
+            ]
+          : []),
+        ...(derived.length > 0 && derived.length < 5
           ? [`Only ${derived.length} rows are in scope, so single actions dominate the shape of the chart.`]
           : []),
       ],
@@ -372,7 +410,7 @@ export const longestOverdue: ToolDefinition = {
         `A limit of ${limit} was requested; ties at the cut-off are all shown.`,
       ],
       caveats: [
-        ownerCaveat(dataset, shown.map((r) => r.action)),
+        ...maybe(ownerCaveat(dataset, shown.map((r) => r.action))),
         'Age past due says nothing about effort spent; a deferred due date resets the clock the log measures.',
       ],
       provenance: {
@@ -557,7 +595,7 @@ export const actionsDistribution: ToolDefinition = {
     }
 
     const caveats: string[] = [
-      ownerCaveat(dataset, unresolved),
+      ...maybe(ownerCaveat(dataset, unresolved)),
       'Counts treat every action as equal weight; the log records priority but not effort or size.',
     ]
     for (const s of stats) {
@@ -592,7 +630,12 @@ export const actionsDistribution: ToolDefinition = {
       },
       assumptions: [
         'Unresolved means any status other than "complete".',
-        `Owner types present in this dataset are ${list([...typeCounts.keys()])}; the board/executive split is read from those values, not assumed.`,
+        // The values are read from the data; the SPLIT is not. Anything whose
+        // owner_type is not literally "executive" is counted as non-executive,
+        // so a dataset using different words would put every action on the
+        // non-executive side while this sentence claimed the split came from
+        // the data. Say what the code actually did.
+        `Owner types present in this dataset are ${list([...typeCounts.keys()])}. Anything not recorded as "executive" is counted as non-executive.`,
       ],
       caveats,
       provenance: {
@@ -716,7 +759,7 @@ export const deferredMoreThanOnce: ToolDefinition = {
               } meet the threshold, which is a list rather than a distribution, so it is shown as a table.`,
             ]
           : []),
-        ...(hits.length > 0 ? [ownerCaveat(dataset, hits)] : []),
+        ...(hits.length > 0 ? maybe(ownerCaveat(dataset, hits)) : []),
       ],
       provenance: {
         asAt,
