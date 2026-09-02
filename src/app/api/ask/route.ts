@@ -90,7 +90,7 @@ export async function POST(req: Request) {
 
   let route
   try {
-    route = await routeQuestion(asked, TOOLS, parseHistory(history))
+    route = await routeQuestion(asked, TOOLS, parseHistory(history), dataset)
   } catch (e) {
     logDetail('routeQuestion', e)
     return fail(

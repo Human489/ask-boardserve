@@ -1,6 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { recordCall, recordFailure, usageFromResponse } from '@/lib/usage'
-import type { ToolDefinition } from '@/lib/types'
+import { checkPapersScope } from '@/lib/retrieval/scope'
+import type { Dataset, ToolDefinition } from '@/lib/types'
 
 // Routing only. This file never computes a figure and never writes a headline:
 // it decides which tool runs, with which arguments, or that nothing can answer.
@@ -580,11 +581,57 @@ export async function routeQuestion(
   question: string,
   tools: ToolDefinition[],
   history: HistoryTurn[] = [],
+  dataset?: Dataset,
 ): Promise<Route> {
   if (getConfig().hasModelCredentials) {
     const routed = await modelRoute(question, tools, history)
-    if (routed) return routed
+    if (routed) return guardPapersRoute(routed, question, tools, dataset)
     console.warn('[router] model routing unavailable; using the deterministic fallback')
   }
-  return fallbackRoute(question, tools)
+  return guardPapersRoute(fallbackRoute(question, tools), question, tools, dataset)
+}
+
+/**
+ * Refuses to send a structured question to the board papers.
+ *
+ * The model was told not to, in the papers tool's own description, and did it
+ * anyway — the same reason the figure verifier exists. Telling a model
+ * something is a request; checking is a check.
+ *
+ * With no dataset the check cannot run, so the route passes through unchanged
+ * rather than being blocked on a guess.
+ */
+function guardPapersRoute(
+  route: Route,
+  question: string,
+  tools: ToolDefinition[],
+  dataset?: Dataset,
+): Route {
+  if (route.kind !== 'tool' || route.name !== 'search_board_papers' || !dataset) return route
+
+  const scope = checkPapersScope(question, dataset)
+  if (!scope.belongsToStructuredData) return route
+
+  console.warn(
+    `[router] question names structured data (${scope.matched.join(', ')}); ` +
+      'not routing it to the board papers',
+  )
+
+  // Try the deterministic classifier for a structured tool. If it also lands on
+  // the papers, or refuses, say plainly that no tool computes this rather than
+  // asking the papers a question they cannot hold the answer to.
+  const retry = fallbackRoute(question, tools)
+  if (retry.kind === 'tool' && retry.name !== 'search_board_papers') return retry
+
+  return {
+    kind: 'refusal',
+    routedBy: route.routedBy,
+    reason:
+      `This asks about ${scope.matched.slice(0, 3).join(', ')}, which is held in the ` +
+      `attendance records, action log or skills audit rather than in the board papers. ` +
+      `No tool computes exactly this, so there is nothing to show — the data is there, the ` +
+      `analysis is not.`,
+    alternative:
+      'Asking it a different way often reaches a tool that can: by committee, by director, or by what is overdue.',
+  }
 }
