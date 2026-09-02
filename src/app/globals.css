@@ -374,11 +374,6 @@ textarea {
   width: 100%;
 }
 
-/* Recharts injects focus outlines on the surface wrapper; keep it quiet. */
-.chart-frame .recharts-wrapper:focus {
-  outline: none;
-}
-
 .chart-legend {
   display: flex;
   flex-wrap: wrap;

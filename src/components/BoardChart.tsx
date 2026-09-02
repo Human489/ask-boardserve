@@ -1,6 +1,10 @@
 'use client'
 
-import { useEffect, useId, useMemo, useState } from 'react'
+// The default import is here so this module can be rendered outside Next's JSX
+// transform — tests/chart-hatch.test.tsx renders the flagged-hatch defs through
+// react-dom/server to prove the pattern actually reaches the SVG. Next itself
+// does not need it.
+import React, { useEffect, useId, useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -19,7 +23,7 @@ import type { ChartSpec, DataPoint, Unit } from '@/lib/types'
 // Chart colours live in globals.css so light and dark stay in one place. Recharts
 // needs concrete values for its SVG props, so we read the computed tokens back at
 // runtime and re-read them when the OS theme flips.
-interface Palette {
+export interface Palette {
   series1: string
   series2: string
   highlight: string
@@ -184,10 +188,19 @@ function AngledTick({ x = 0, y = 0, payload, fill }: AngledTickProps) {
 
 /* A flagged bar must be distinguishable without colour, so it is filled with a
    hatch rather than a flat red. The legend swatch repeats the same hatch, which
-   is what makes it decodable. */
-function FlaggedHatch({ id, palette }: { id: string; palette: Palette }) {
+   is what makes it decodable.
+   
+   This is deliberately NOT a component. Recharts renders a chart's children
+   through renderByOrder, which keeps only elements whose type is a string in
+   its own SVG tag list, or a component it recognises. A function component is
+   neither, so wrapping these defs in one had them silently dropped — leaving
+   every flagged Cell pointing at a paint server that did not exist, which in
+   SVG means the bar does not render at all. The flagged bars, the whole point
+   of the answer, were invisible while the legend still advertised a hatch.
+   It is the same trap the comment about axes below warns about. */
+export function flaggedHatchDefs(id: string, palette: Palette) {
   return (
-    <defs>
+    <defs key="flagged-hatch">
       <pattern
         id={id}
         width="6"
@@ -402,7 +415,7 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
                 }
                 barGap={2}
               >
-                <FlaggedHatch id={hatchId} palette={palette} />
+                {flaggedHatchDefs(hatchId, palette)}
                 <CartesianGrid
                   stroke={palette.grid}
                   vertical={horizontal}
