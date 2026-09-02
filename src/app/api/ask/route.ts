@@ -45,7 +45,7 @@ export async function POST(req: Request) {
     return fail(401, 'That passcode was not accepted. Enter it again to continue.')
   }
 
-  const limit = checkRateLimit(clientIp(req))
+  const limit = await checkRateLimit(clientIp(req))
   if (!limit.allowed) {
     return NextResponse.json(
       {

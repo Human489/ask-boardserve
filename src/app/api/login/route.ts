@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   // Rate limited under its own key. A passcode endpoint without one is a
   // brute-force oracle, and it must not share a budget with /api/ask or a
   // failed login would eat the user's question allowance.
-  const limit = checkRateLimit(`login:${clientIp(req)}`)
+  const limit = await checkRateLimit(`login:${clientIp(req)}`)
   if (!limit.allowed) {
     return NextResponse.json(
       {

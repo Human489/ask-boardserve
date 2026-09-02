@@ -94,26 +94,30 @@ test('every required argument is filled from the tool schema', () => {
   }
 })
 
-test('the 21st request in a window is denied with a sane Retry-After', () => {
+test('the 21st request in a window is denied with a sane Retry-After', async () => {
   process.env.RATE_LIMIT_PER_MINUTE = '20'
   resetConfigCache()
   resetRateLimits()
 
+  // KV is deliberately not configured here, so this exercises the local layer
+  // on its own: exact, instant, and the only layer a test can assert precisely.
+  // The shared layer is eventually consistent by nature and is verified against
+  // the real service instead.
   const t0 = 1_700_000_000_000
   for (let i = 0; i < 20; i++) {
-    const r = checkRateLimit('1.2.3.4', t0 + i * 10)
+    const r = await checkRateLimit('1.2.3.4', t0 + i * 10)
     assert.equal(r.allowed, true, `request ${i + 1} should be allowed`)
     assert.equal(r.remaining, 19 - i)
   }
 
-  const denied = checkRateLimit('1.2.3.4', t0 + 500)
+  const denied = await checkRateLimit('1.2.3.4', t0 + 500)
   assert.equal(denied.allowed, false)
   assert.equal(denied.remaining, 0)
   assert.ok(denied.retryAfterSeconds > 0 && denied.retryAfterSeconds <= 60)
 
   // A different IP has its own window.
-  assert.equal(checkRateLimit('5.6.7.8', t0 + 500).allowed, true)
+  assert.equal((await checkRateLimit('5.6.7.8', t0 + 500)).allowed, true)
 
   // The window rolls over.
-  assert.equal(checkRateLimit('1.2.3.4', t0 + 60_001).allowed, true)
+  assert.equal((await checkRateLimit('1.2.3.4', t0 + 60_001)).allowed, true)
 })
