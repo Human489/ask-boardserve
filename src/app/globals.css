@@ -12,19 +12,25 @@
 
   --ink: #0b0b0b;
   --ink-2: #52514e;
-  --ink-muted: #898781;
+  /* Carries provenance, axis captions and every small label, so it is held at
+     4.5:1 against the *sunken* surface — the darkest ground it lands on. The
+     previous #898781 measured 3.18:1 there. */
+  --ink-muted: #6b6963;
 
   --hairline: rgba(11, 11, 11, 0.1);
   --hairline-strong: #c3c2b7;
   --grid: #e1e0d9;
-  --axis: #c3c2b7;
+  --axis: #b4b3a8;
 
-  --series-1: #2a78d6;
-  --series-2: #1baf7a;
-  --highlight: #d03b3b;
-  --reference: #898781;
+  /* Series and accent share one blue: the accent needs 4.5:1 under white
+     button text, which is stricter than the 3:1 a chart mark needs, so the
+     stricter value wins for both and the two never drift apart. */
+  --series-1: #256cc4;
+  --series-2: #0f8e61;
+  --highlight: #c62f2f;
+  --reference: #6b6963;
 
-  --accent: #2a78d6;
+  --accent: #256cc4;
   --accent-ink: #ffffff;
 
   --refusal-bg: #f3f5fa;
@@ -38,11 +44,22 @@
   --notice-bg: #f5f4f0;
   --notice-edge: #e1e0d9;
 
+  --focus: #256cc4;
+  --selection: #d4e2f6;
+
+  --shadow-tooltip: 0 4px 14px rgba(11, 11, 11, 0.1);
+  --shadow-card: 0 1px 2px rgba(11, 11, 11, 0.04);
+
   --radius: 10px;
   --radius-sm: 6px;
   --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   --measure: 780px;
+  /* Notes and provenance sit inside the 780px card, which at 13px would run to
+     roughly 100ch. Prose inside the card is capped separately. */
+  --measure-prose: 72ch;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -60,7 +77,7 @@
     --hairline: rgba(255, 255, 255, 0.12);
     --hairline-strong: #383835;
     --grid: #2c2c2a;
-    --axis: #383835;
+    --axis: #4d4d48;
 
     --series-1: #3987e5;
     --series-2: #199e70;
@@ -80,6 +97,14 @@
 
     --notice-bg: #1f1f1d;
     --notice-edge: #2c2c2a;
+
+    --focus: #7fb2f0;
+    --selection: #1e3a5f;
+
+    /* A black shadow is invisible on a dark plane; depth has to come from a
+       lift in the border plus a deeper, wider cast. */
+    --shadow-tooltip: 0 6px 20px rgba(0, 0, 0, 0.55);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
   }
 }
 
@@ -102,11 +127,62 @@ body {
   font-size: 15px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  /* Figures are read off this screen and typed into board papers by hand, so
+     digits are held to a fixed width everywhere rather than only in tables. */
+  font-variant-numeric: tabular-nums;
 }
 
 button {
   font: inherit;
   color: inherit;
+}
+
+/* ------------------------------------------------- browser-owned surfaces */
+
+::selection {
+  background: var(--selection);
+  color: var(--ink);
+}
+
+::placeholder {
+  color: var(--ink-muted);
+  opacity: 1;
+}
+
+input,
+textarea {
+  caret-color: var(--accent);
+}
+
+/* One focus ring for every control, so a keyboard user sees the same shape on
+   an example button, the composer, the send button and the passcode field. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+* {
+  scrollbar-color: var(--hairline-strong) transparent;
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--hairline-strong);
+  border: 3px solid var(--plane);
+  border-radius: 99px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-muted);
 }
 
 /* ------------------------------------------------------------------ shell */
@@ -229,12 +305,13 @@ button {
 
 .question {
   align-self: flex-end;
-  max-width: 88%;
+  max-width: min(88%, 58ch);
   background: var(--surface-sunken);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   padding: 10px 14px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* ------------------------------------------------------------ answer card */
@@ -244,6 +321,20 @@ button {
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   padding: 22px 24px;
+  box-shadow: var(--shadow-card);
+}
+
+/* The one authored moment: the answer settles into the place the skeleton was
+   holding. It starts visible, so nothing is hidden if the animation is skipped. */
+@keyframes settle {
+  from {
+    transform: translateY(6px);
+    opacity: 0.7;
+  }
+}
+
+.card:not(.card-skeleton) {
+  animation: settle 420ms var(--ease-out) both;
 }
 
 .headline {
@@ -252,6 +343,8 @@ button {
   line-height: 1.4;
   font-weight: 600;
   letter-spacing: -0.012em;
+  max-width: var(--measure-prose);
+  overflow-wrap: anywhere;
 }
 
 .chart-block {
@@ -309,7 +402,7 @@ button {
   padding: 8px 11px;
   font-size: 12px;
   max-width: 260px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-tooltip);
 }
 
 .tooltip-label {
@@ -364,12 +457,23 @@ table.answer-table {
   background: var(--surface-sunken);
 }
 
+/* The first column holds names and job titles. Held on one line it forces a
+   horizontal scroll on every table; allowed to wrap, the figures beside it
+   stay on screen. */
+.answer-table td:first-child {
+  white-space: normal;
+  min-width: 14ch;
+  overflow-wrap: anywhere;
+}
+
 .answer-table tbody tr:last-child td {
   border-bottom: none;
 }
 
+.answer-table th.numeric,
 .answer-table td.numeric {
-  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------- notes & provenance */
@@ -393,6 +497,8 @@ table.answer-table {
   padding-left: 18px;
   font-size: 13px;
   color: var(--ink-2);
+  max-width: var(--measure-prose);
+  overflow-wrap: anywhere;
 }
 
 .note-list li + li {
@@ -411,9 +517,10 @@ table.answer-table {
 .provenance dl {
   margin: 0;
   display: grid;
-  grid-template-columns: max-content 1fr;
+  grid-template-columns: max-content minmax(0, 1fr);
   column-gap: 12px;
   row-gap: 2px;
+  max-width: var(--measure-prose);
 }
 
 .provenance dt {
@@ -426,6 +533,7 @@ table.answer-table {
 
 .routing-notice {
   margin-top: 18px;
+  max-width: var(--measure-prose);
   background: var(--notice-bg);
   border: 1px solid var(--notice-edge);
   border-radius: var(--radius-sm);
@@ -441,23 +549,42 @@ table.answer-table {
   border-color: var(--refusal-edge);
 }
 
-.refusal-kicker {
-  font-size: 11px;
+/* A refusal and an error both need to say what kind of card this is before the
+   heading is read. That is a status, not an eyebrow: it is set at reading size
+   with a drawn mark beside it, and it names the outcome rather than labelling
+   the sentence underneath. */
+.card-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 10px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+}
+
+.card-status svg {
+  flex: none;
+  display: block;
+}
+
+.status-refusal {
   color: var(--refusal-ink);
-  margin: 0 0 8px;
+}
+
+.status-error {
+  color: var(--error-ink);
 }
 
 .refusal-body {
   margin: 12px 0 0;
   color: var(--ink-2);
+  max-width: var(--measure-prose);
 }
 
 .refusal-alt {
   margin: 10px 0 0;
   color: var(--ink-2);
+  max-width: var(--measure-prose);
 }
 
 .card-error {
@@ -465,32 +592,31 @@ table.answer-table {
   border-color: var(--error-edge);
 }
 
-.error-kicker {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--error-ink);
-  margin: 0 0 8px;
-}
-
 .error-body {
   margin: 0;
   color: var(--ink-2);
+  max-width: var(--measure-prose);
 }
 
 .retry {
   margin-top: 14px;
+  min-height: 36px;
   background: transparent;
   border: 1px solid var(--hairline-strong);
   border-radius: var(--radius-sm);
-  padding: 6px 14px;
+  padding: 7px 14px;
   font-size: 13px;
   cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
 }
 
-.retry:hover {
+.retry:hover:not(:disabled) {
   border-color: var(--ink-2);
+}
+
+.retry:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* --------------------------------------------------------------- loading */
@@ -557,7 +683,8 @@ table.answer-table {
 
 @media (prefers-reduced-motion: reduce) {
   .skeleton-line::after,
-  .skeleton-chart::after {
+  .skeleton-chart::after,
+  .card:not(.card-skeleton) {
     animation: none;
   }
 }
@@ -577,8 +704,6 @@ table.answer-table {
 /* ---------------------------------------------------------------- composer */
 
 .composer {
-  position: sticky;
-  bottom: 0;
   background: var(--plane);
   border-top: 1px solid var(--hairline);
   padding: 14px 24px 20px;
@@ -592,7 +717,7 @@ table.answer-table {
   align-items: flex-end;
 }
 
-.composer textarea {
+.composer-input {
   flex: 1;
   resize: none;
   font: inherit;
@@ -605,12 +730,11 @@ table.answer-table {
   min-height: 44px;
 }
 
-.composer textarea:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: -1px;
+.composer-input:focus-visible {
+  border-color: var(--accent);
 }
 
-.composer textarea:disabled {
+.composer-input:disabled {
   opacity: 0.6;
 }
 
@@ -669,10 +793,12 @@ table.answer-table {
 
 .gate {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   flex: 1;
-  padding: 48px 20px 80px;
+  /* Centred in a full-height plane the card floated in a void with nothing
+     holding it. Anchored in the upper third it reads as placed. */
+  padding: clamp(40px, 14vh, 132px) 20px 80px;
 }
 
 .gate-card {
@@ -723,9 +849,7 @@ table.answer-table {
 }
 
 .gate-input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-  border-color: transparent;
+  border-color: var(--accent);
 }
 
 .gate-input:disabled {
@@ -816,4 +940,13 @@ table.answer-table {
 .citation-section::before {
   content: '§ ';
   color: var(--ink-muted);
+}
+
+/* The flagged legend swatch mirrors the mark it stands for: a hatch beside the
+   bars, a diamond beside the line. */
+.legend-swatch.is-diamond {
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  transform: rotate(45deg);
 }

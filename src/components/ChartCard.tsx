@@ -1,6 +1,7 @@
 'use client'
 
 import BoardChart from './BoardChart'
+import { UnavailableMark } from './marks'
 import { isRefusal } from '@/lib/types'
 import type { AnswerResult, TableSpec } from '@/lib/types'
 
@@ -19,6 +20,14 @@ function NoteList({ label, items }: { label: string; items: string[] }) {
 }
 
 function AnswerTable({ spec }: { spec: TableSpec }) {
+  // A column of figures is read down, not across, so it is set flush right —
+  // and the heading has to follow the column or it stops labelling it. CSS
+  // cannot see the cell types, so the column is classified here.
+  const numericColumn = spec.columns.map((_, c) =>
+    spec.rows.some((row) => typeof row[c] === 'number') &&
+    spec.rows.every((row) => row[c] === null || typeof row[c] === 'number'),
+  )
+
   return (
     <div className="table-block">
       <div className="table-scroll">
@@ -26,7 +35,7 @@ function AnswerTable({ spec }: { spec: TableSpec }) {
           <thead>
             <tr>
               {spec.columns.map((column, i) => (
-                <th key={i} scope="col">
+                <th key={i} scope="col" className={numericColumn[i] ? 'numeric' : undefined}>
                   {column}
                 </th>
               ))}
@@ -36,7 +45,7 @@ function AnswerTable({ spec }: { spec: TableSpec }) {
             {spec.rows.map((row, r) => (
               <tr key={r}>
                 {row.map((cell, c) => (
-                  <td key={c} className={typeof cell === 'number' ? 'numeric' : undefined}>
+                  <td key={c} className={numericColumn[c] ? 'numeric' : undefined}>
                     {cell === null ? '—' : typeof cell === 'number' ? cell.toLocaleString('en-GB') : cell}
                   </td>
                 ))}
@@ -71,7 +80,10 @@ export default function ChartCard({
   if (isRefusal(result)) {
     return (
       <article className="card card-refusal">
-        <p className="refusal-kicker">Not answerable from this data</p>
+        <p className="card-status status-refusal">
+          <UnavailableMark />
+          Not answerable from this data
+        </p>
         <h2 className="headline">{result.headline}</h2>
         <p className="refusal-body">{result.reason}</p>
         {result.alternative && (

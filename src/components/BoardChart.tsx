@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -27,6 +27,7 @@ interface Palette {
   grid: string
   axis: string
   muted: string
+  surface: string
 }
 
 const TOKENS: Record<keyof Palette, string> = {
@@ -37,6 +38,7 @@ const TOKENS: Record<keyof Palette, string> = {
   grid: '--grid',
   axis: '--axis',
   muted: '--ink-muted',
+  surface: '--surface',
 }
 
 /** Recharts hands the dot renderer the row it is drawing, which is how a
@@ -178,11 +180,41 @@ function AngledTick({ x = 0, y = 0, payload, fill }: AngledTickProps) {
   )
 }
 
+// ------------------------------------------------------------------- flagged
+
+/* A flagged bar must be distinguishable without colour, so it is filled with a
+   hatch rather than a flat red. The legend swatch repeats the same hatch, which
+   is what makes it decodable. */
+function FlaggedHatch({ id, palette }: { id: string; palette: Palette }) {
+  return (
+    <defs>
+      <pattern
+        id={id}
+        width="6"
+        height="6"
+        patternUnits="userSpaceOnUse"
+        patternTransform="rotate(45)"
+      >
+        <rect width="6" height="6" fill={palette.highlight} />
+        <line x1="0" y1="0" x2="0" y2="6" stroke={palette.surface} strokeWidth="2.2" />
+      </pattern>
+    </defs>
+  )
+}
+
+/** Matches the SVG hatch in CSS so the legend and the chart cannot drift. */
+function hatchSwatch(palette: Palette): string {
+  return `repeating-linear-gradient(45deg, ${palette.highlight} 0 2px, ${palette.surface} 2px 4px)`
+}
+
 // --------------------------------------------------------------------- chart
 
 export default function BoardChart({ spec }: { spec: ChartSpec }) {
   const palette = usePalette()
   const narrow = useIsNarrow()
+  // Several answer cards sit on the page at once, each with its own SVG. A
+  // shared pattern id would resolve to whichever chart mounted first.
+  const hatchId = `flagged-hatch-${useId().replace(/[^\w-]/g, '')}`
 
   const hasSecond = useMemo(
     () => spec.points.some((p) => typeof p.value2 === 'number'),
@@ -210,14 +242,24 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
       ? 250
       : 300
 
-  const legendEntries: { label: string; color: string }[] = []
+  const legendEntries: {
+    label: string
+    color: string
+    fill?: string
+    shape?: 'diamond'
+  }[] = []
   if (palette) {
     if (hasSecond) {
       legendEntries.push({ label: seriesLabel, color: palette.series1 })
       legendEntries.push({ label: series2Label ?? 'Second series', color: palette.series2 })
     }
     if (hasHighlight) {
-      legendEntries.push({ label: 'Flagged', color: palette.highlight })
+      legendEntries.push({
+        label: 'Flagged',
+        color: palette.highlight,
+        fill: spec.kind === 'bar' ? hatchSwatch(palette) : undefined,
+        shape: spec.kind === 'line' ? 'diamond' : undefined,
+      })
     }
   }
 
@@ -299,13 +341,28 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
                   // already is on bars.
                   dot={(props: LineDotProps) => {
                     const flagged = props.payload?.highlight === true
-                    return (
+                    // A flagged meeting becomes a diamond rather than a redder
+                    // circle: the shape survives being printed or read by
+                    // someone who cannot separate the two colours.
+                    return flagged ? (
+                      <rect
+                        key={`dot-${props.index}`}
+                        x={(props.cx ?? 0) - 5}
+                        y={(props.cy ?? 0) - 5}
+                        width={10}
+                        height={10}
+                        transform={`rotate(45 ${props.cx ?? 0} ${props.cy ?? 0})`}
+                        fill={palette.highlight}
+                        stroke="var(--surface)"
+                        strokeWidth={2}
+                      />
+                    ) : (
                       <circle
                         key={`dot-${props.index}`}
                         cx={props.cx}
                         cy={props.cy}
-                        r={flagged ? 5.5 : 4}
-                        fill={flagged ? palette.highlight : palette.series1}
+                        r={4}
+                        fill={palette.series1}
                         stroke="var(--surface)"
                         strokeWidth={2}
                       />
@@ -345,6 +402,7 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
                 }
                 barGap={2}
               >
+                <FlaggedHatch id={hatchId} palette={palette} />
                 <CartesianGrid
                   stroke={palette.grid}
                   vertical={horizontal}
@@ -448,7 +506,9 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
                   {spec.points.map((point, i) => (
                     <Cell
                       key={i}
-                      fill={point.highlight ? palette.highlight : palette.series1}
+                      fill={point.highlight ? `url(#${hatchId})` : palette.series1}
+                      stroke={point.highlight ? palette.highlight : undefined}
+                      strokeWidth={point.highlight ? 1 : 0}
                     />
                   ))}
                 </Bar>
@@ -471,7 +531,12 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
         <div className="chart-legend">
           {legendEntries.map((entry) => (
             <span className="legend-item" key={entry.label}>
-              <span className="legend-swatch" style={{ background: entry.color }} />
+              <span
+                className={
+                  entry.shape === 'diamond' ? 'legend-swatch is-diamond' : 'legend-swatch'
+                }
+                style={{ background: entry.fill ?? entry.color }}
+              />
               {entry.label}
             </span>
           ))}

@@ -59,7 +59,7 @@ export default function Chat({ credential, onRejected }: ChatProps) {
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
   const [inFlight, setInFlight] = useState(false)
-  const transcriptEnd = useRef<HTMLDivElement>(null)
+  const transcriptInner = useRef<HTMLDivElement>(null)
   // Mirrors `turns` so ask/retry can read the prior transcript without doing it
   // inside a setState updater. React double-invokes updaters in StrictMode, so
   // a fetch fired from inside one runs twice — two model calls per click, and
@@ -67,10 +67,27 @@ export default function Chat({ credential, onRejected }: ChatProps) {
   const turnsRef = useRef<Turn[]>([])
   const textarea = useRef<HTMLTextAreaElement>(null)
 
+  // Scroll to the *top* of the newest turn, not the foot of the transcript. An
+  // answer card is taller than the viewport, and the headline is the sentence
+  // the reader needs first — landing at the bottom scrolls it off screen.
+  const turnCount = turns.length
   useEffect(() => {
     turnsRef.current = turns
-    transcriptEnd.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
   }, [turns])
+
+  useEffect(() => {
+    if (turnCount === 0) return
+    const newest = transcriptInner.current?.lastElementChild
+    if (!newest) return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    newest.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' })
+  }, [turnCount])
+
+  // Answers arrive asynchronously into a card the reader may not be looking at.
+  // The pending skeleton already announces itself; this announces the finding.
+  const latest = turns[turns.length - 1]
+  const announcement =
+    latest && latest.status === 'answered' && latest.result ? latest.result.headline : ''
 
   const run = useCallback(async (turnId: string, question: string, priorTurns: Turn[]) => {
     setInFlight(true)
@@ -210,14 +227,17 @@ export default function Chat({ credential, onRejected }: ChatProps) {
             </div>
           </div>
         ) : (
-          <div className="transcript-inner">
+          <div className="transcript-inner" ref={transcriptInner}>
             {turns.map((turn) => (
-              <Message key={turn.id} turn={turn} onRetry={retry} />
+              <Message key={turn.id} turn={turn} busy={inFlight} onRetry={retry} />
             ))}
           </div>
         )}
-        <div ref={transcriptEnd} />
       </div>
+
+      <p className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </p>
 
       <div className="composer">
         <div className="composer-inner">
