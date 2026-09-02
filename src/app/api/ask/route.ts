@@ -119,7 +119,7 @@ export async function POST(req: Request) {
 
   let result: AnswerResult
   try {
-    result = tool.run(dataset, route.args)
+    result = await tool.run(dataset, route.args)
   } catch (e) {
     logDetail(`tool ${tool.name}`, e)
     return fail(

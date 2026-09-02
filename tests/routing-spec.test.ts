@@ -36,7 +36,6 @@ const STRUCTURED: [string, string][] = [
 const REFUSALS = [
   'How long are our packs, and are they going out with enough notice?',
   'What did we decide in the last 3 meetings, and what happened?',
-  'What do the board papers say about our CQC readiness?',
   'How many directors are qualified accountants?',
   'What was the board’s average IQ?',
 ]
@@ -58,7 +57,7 @@ for (const question of REFUSALS) {
 
 test('every registered tool is reachable from at least one spec question', async () => {
   const reached = new Set<string>()
-  for (const [question] of STRUCTURED) {
+  for (const question of [...STRUCTURED.map((s) => s[0]), ...DOCUMENT_QUESTIONS]) {
     const route = await routeQuestion(question, TOOLS)
     if (route.kind === 'tool') reached.add(route.name)
   }
@@ -90,8 +89,6 @@ const MUST_REFUSE_OFFLINE = [
   'Are there any directors whose term limit affects committee skills coverage?',
   'Who has served more than nine years on the board?',
   'What is coming next quarter that we have not started preparing for?',
-  'What do the board papers say about a particular risk, project or issue?',
-  'What concerns or themes recur across recent board papers?',
 ]
 
 for (const question of MUST_REFUSE_OFFLINE) {
@@ -130,4 +127,44 @@ test('every numeric tool parameter declares bounds', () => {
       )
     }
   }
+})
+
+// Q13 and Q14 of the specification are document questions. They must reach the
+// retrieval tool rather than be refused by keyword — whether the papers cover
+// the subject is judged by the tool, with the passages in front of it.
+const DOCUMENT_QUESTIONS = [
+  'What do the board papers say about a particular risk, project or issue?',
+  'What concerns or themes recur across recent board papers?',
+  'What do the board papers say about our CQC readiness?',
+]
+
+for (const question of DOCUMENT_QUESTIONS) {
+  test(`document question reaches retrieval: ${question.slice(0, 48)}`, () => {
+    const route = fallbackRoute(question, TOOLS)
+    assert.equal(route.kind, 'tool', 'a document question must not be refused by keyword')
+    if (route.kind !== 'tool') return
+    assert.equal(route.name, 'search_board_papers')
+    // The tool needs the user's own wording, not a summary of it.
+    assert.equal(route.args.question, question)
+  })
+}
+
+test('the CQC question is no longer refused for the wrong reason', () => {
+  // It used to pass because retrieval was unbuilt, so it would have kept passing
+  // once retrieval landed while no longer testing anything. It now routes to the
+  // papers, and the refusal has to come from reading them.
+  const route = fallbackRoute('What do the board papers say about our CQC readiness?', TOOLS)
+  assert.equal(route.kind, 'tool')
+})
+
+test('the offline classifier cannot spot a document question that names no document', () => {
+  // A known limit, asserted so it is not mistaken for a regression. "Why did the
+  // hospice close the Ashcombe unit?" is answered by paper-02, but nothing in the
+  // wording says so — the giveaway would be "Ashcombe", and matching on an
+  // organisation's own vocabulary is exactly the hard-coding that stops a second
+  // dataset loading unchanged. The model path handles these; the keyword
+  // fallback cannot — but it fails safe, refusing rather than answering from a
+  // structured tool that shares a word with the question.
+  const route = fallbackRoute('Why did the hospice close the Ashcombe unit?', TOOLS)
+  assert.equal(route.kind, 'refusal', 'must refuse rather than reach an unrelated tool')
 })

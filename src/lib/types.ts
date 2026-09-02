@@ -212,5 +212,14 @@ export interface ToolDefinition {
   description: string
   parameters: Record<string, ToolParam>
   required: string[]
-  run: (dataset: Dataset, args: Record<string, unknown>) => ToolResult
+  /**
+   * Async because a tool may need to reach a service — paper retrieval embeds
+   * the question and queries a vector index. Returns AnswerResult rather than
+   * ToolResult because a tool is allowed to conclude that the data cannot
+   * answer the question, which is a refusal, not an empty chart.
+   */
+  run: (
+    dataset: Dataset,
+    args: Record<string, unknown>,
+  ) => AnswerResult | Promise<AnswerResult>
 }

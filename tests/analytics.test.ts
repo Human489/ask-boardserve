@@ -2,15 +2,26 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 
 import { loadDataset, pct } from '../src/lib/dataset/loader'
-import { TOOLS, getTool } from '../src/lib/analytics/registry'
+import { ANALYTICS_TOOLS, TOOLS, getTool } from '../src/lib/analytics/registry'
 import type { ToolResult } from '../src/lib/types'
 
 const dataset = loadDataset()
 
+// The tool contract allows async results and refusals, because paper retrieval
+// needs both. The twelve analytics tools must be neither: they compute from
+// files already in memory, and a computation that cannot be done is a caveated
+// nil result, not a refusal.
+function asComputed(name: string, result: unknown): ToolResult {
+  assert.ok(!(result instanceof Promise), `${name} must be synchronous`)
+  const r = result as ToolResult
+  assert.notEqual(r.tool, 'refusal', `${name} must not refuse`)
+  return r
+}
+
 function run(name: string, args: Record<string, unknown> = {}): ToolResult {
   const tool = getTool(name)
   assert.ok(tool, `tool ${name} is registered`)
-  return tool!.run(dataset, args)
+  return asComputed(name, tool!.run(dataset, args))
 }
 
 function tableRow(r: ToolResult, predicate: (row: (string | number | null)[]) => boolean) {
@@ -362,16 +373,20 @@ test('committee_skills_gaps can be scoped to one body', () => {
 
 // ------------------------------------------------------------ cross-cutting
 
-test('the registry exposes all 12 tools with unique names', () => {
-  assert.equal(TOOLS.length, 12)
-  assert.equal(new Set(TOOLS.map((t) => t.name)).size, 12)
+test('the registry exposes twelve deterministic tools plus paper retrieval', () => {
+  assert.equal(ANALYTICS_TOOLS.length, 12)
+  assert.equal(TOOLS.length, 13)
+  assert.equal(new Set(TOOLS.map((t) => t.name)).size, 13)
   for (const t of TOOLS) assert.equal(getTool(t.name), t)
   assert.equal(getTool('no_such_tool'), undefined)
+  // The split is load-bearing: everything numeric must be computed, so the one
+  // tool that answers from prose is deliberately not in ANALYTICS_TOOLS.
+  assert.ok(!ANALYTICS_TOOLS.some((t) => t.name === 'search_board_papers'))
 })
 
 test('every tool returns a non-empty headline that says something', () => {
-  for (const t of TOOLS) {
-    const r = t.run(dataset, {})
+  for (const t of ANALYTICS_TOOLS) {
+    const r = asComputed(t.name, t.run(dataset, {}))
     assert.ok(r.headline.trim().length > 20, `${t.name} headline is substantive`)
     assert.ok(
       !/this chart shows/i.test(r.headline),
@@ -386,8 +401,8 @@ test('every tool returns a non-empty headline that says something', () => {
 })
 
 test('no tool output contains NaN or Infinity', () => {
-  for (const t of TOOLS) {
-    const r = t.run(dataset, {})
+  for (const t of ANALYTICS_TOOLS) {
+    const r = asComputed(t.name, t.run(dataset, {}))
     for (const n of allNumbers(r)) {
       assert.ok(Number.isFinite(n), `${t.name} produced a non-finite number`)
     }
@@ -422,12 +437,12 @@ test('every tool returns non-empty caveats, including on a nil result', () => {
   // — reading as though the figure needed no qualification rather than as a
   // nil return.
   const dataset = loadDataset()
-  for (const tool of TOOLS) {
-    const result = tool.run(dataset, {})
+  for (const tool of ANALYTICS_TOOLS) {
+    const result = asComputed(tool.name, tool.run(dataset, {}))
     assert.ok(result.caveats.length > 0, `${tool.name} returned no caveats`)
     assert.ok(result.assumptions.length > 0, `${tool.name} returned no assumptions`)
   }
-  const nil = getTool('deferred_more_than_once')!.run(dataset, { min_deferrals: 3 })
+  const nil = asComputed('deferred_more_than_once', getTool('deferred_more_than_once')!.run(dataset, { min_deferrals: 3 }))
   assert.equal(nil.table?.rows.length ?? 0, 0, 'expected a nil result for this threshold')
   assert.ok(nil.caveats.length > 0, 'a nil result still needs its caveat')
 })
@@ -437,7 +452,7 @@ test('committee_skills_gaps states the metric it actually ranks on', () => {
   // skill, while the code ranked on the mean across all skills. The two put
   // different bodies first, so the wrong text misdescribed the answer.
   const dataset = loadDataset()
-  const result = getTool('committee_skills_gaps')!.run(dataset, {})
+  const result = asComputed('committee_skills_gaps', getTool('committee_skills_gaps')!.run(dataset, {}))
   const values = result.chart?.points.map((p) => p.value) ?? []
   const ascending = values.every((v, i) => i === 0 || v >= values[i - 1])
   assert.ok(ascending, 'expected bodies ordered weakest mean first')
@@ -467,10 +482,10 @@ const HOSTILE_ARGS: Record<string, unknown>[] = [
 for (const args of HOSTILE_ARGS) {
   test(`no tool throws or emits NaN for args ${JSON.stringify(args)}`, () => {
     const dataset = loadDataset()
-    for (const tool of TOOLS) {
+    for (const tool of ANALYTICS_TOOLS) {
       let result
       try {
-        result = tool.run(dataset, args)
+        result = asComputed(tool.name, tool.run(dataset, args))
       } catch (e) {
         assert.fail(`${tool.name} threw: ${(e as Error).message}`)
       }
@@ -486,11 +501,11 @@ test('an unmatched body returns a nil answer that says so, not a vacuous one', (
   const dataset = loadDataset()
   const missing = 'Nonexistent Committee'
 
-  const skills = getTool('committee_skills_gaps')!.run(dataset, { body: missing })
+  const skills = asComputed('committee_skills_gaps', getTool('committee_skills_gaps')!.run(dataset, { body: missing }))
   assert.match(skills.headline, /no body matching/i)
   assert.equal(skills.chart, null)
 
-  const meetings = getTool('attendance_by_meeting')!.run(dataset, { body: missing })
+  const meetings = asComputed('attendance_by_meeting', getTool('attendance_by_meeting')!.run(dataset, { body: missing }))
   assert.match(meetings.headline, /no meetings/i)
   // The old headline claimed a 0-point move was "larger than one meeting's noise".
   assert.ok(

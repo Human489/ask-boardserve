@@ -49,7 +49,6 @@ const STRUCTURED: { q: string; tool: string }[] = [
 const REFUSALS = [
   'How long are our packs, and are they going out with enough notice?',
   'What did we decide in the last three meetings, and what happened?',
-  'What do the papers say about CQC readiness?',
   'How many directors are qualified accountants?',
   "What was the board's average IQ?",
 ]
@@ -73,11 +72,15 @@ for (const q of REFUSALS) {
   })
 }
 
-test('board paper retrieval is refused, and says retrieval is not built', () => {
+test('board paper questions route to retrieval, which decides for itself', () => {
+  // Previously refused outright because retrieval did not exist. It now routes,
+  // and whether the papers actually cover the subject is judged by the tool with
+  // the passages in front of it — a decision no keyword or score can make.
   const r = fallbackRoute('What do the board papers say about the Ashcombe day therapy unit?', TOOLS)
-  assert.equal(r.kind, 'refusal')
-  if (r.kind !== 'refusal') return
-  assert.match(String(r.alternative), /not yet built/i)
+  assert.equal(r.kind, 'tool')
+  if (r.kind !== 'tool') return
+  assert.equal(r.name, 'search_board_papers')
+  assert.equal(r.args.question, 'What do the board papers say about the Ashcombe day therapy unit?')
 })
 
 test('every required argument is filled from the tool schema', () => {

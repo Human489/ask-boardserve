@@ -54,7 +54,7 @@ function systemPrompt(tools: ToolDefinition[]): string {
     'Call exactly one tool. Never compute or state a number yourself; the tools produce every figure.',
     'Refuse by calling the refuse tool when the data cannot answer the question. Specifically:',
     ...REFUSAL_RULES.map((r) => `- ${r}`),
-    'Searching or quoting the board papers is not yet available, so document-retrieval questions must be refused too.',
+    'Questions about what the board papers say, recommend or explain go to search_board_papers. It reads the papers and will itself refuse if they do not cover the subject, so route there rather than refusing on their behalf.',
     `The tools you may call are: ${tools.map((t) => t.name).join(', ')}, refuse.`,
   ].join('\n')
 }
@@ -367,14 +367,18 @@ export function fallbackRoute(question: string, tools: ToolDefinition[]): Route 
     }
   }
 
+  // Document questions now have a tool. The patterns still run here, ahead of
+  // the keyword scorer, because "what do the papers say about X" would
+  // otherwise score against whichever structured tool shares a word with X.
   if (RETRIEVAL_PATTERNS.test(q)) {
-    return {
-      kind: 'refusal',
-      routedBy: 'fallback',
-      reason:
-        'This question asks what the board papers say, which needs document retrieval across the paper corpus.',
-      alternative:
-        'Board paper retrieval is not yet built. The attendance records, action log and skills audit can be queried now.',
+    const papers = tools.find((t) => t.name === 'search_board_papers')
+    if (papers) {
+      return {
+        kind: 'tool',
+        name: papers.name,
+        args: { question },
+        routedBy: 'fallback',
+      }
     }
   }
 
@@ -551,13 +555,6 @@ export async function routeQuestion(
   tools: ToolDefinition[],
   history: HistoryTurn[] = [],
 ): Promise<Route> {
-  // Document retrieval is out of scope for the core build in both paths, and
-  // the model is not trusted to know that, so it is decided before the call.
-  const q = ` ${question.toLowerCase().replace(/[^a-z0-9\s'-]/g, ' ')} `
-  if (RETRIEVAL_PATTERNS.test(q) && !MINUTES_PATTERNS.test(q) && !PACK_PATTERNS.test(q)) {
-    return fallbackRoute(question, tools)
-  }
-
   if (getConfig().hasModelCredentials) {
     const routed = await modelRoute(question, tools, history)
     if (routed) return routed

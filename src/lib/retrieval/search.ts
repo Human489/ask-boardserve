@@ -62,13 +62,45 @@ function contentWords(question: string): string[] {
   return [...new Set(words)].filter((w) => !STOPWORDS.has(w))
 }
 
+/**
+ * Takes the strongest passages, then adds one representative from any paper not
+ * already present.
+ *
+ * Two failures shaped this. A plain top-k clusters: "what themes recur across
+ * recent board papers" drew every passage from one paper and was refused,
+ * correctly, because one paper cannot evidence a recurring theme. But capping
+ * how many any one paper may contribute broke the opposite case — "why is the
+ * hospice closing the Ashcombe unit" lost the paper-02 passages that answered
+ * it and was refused too.
+ *
+ * So breadth is added rather than substituted. A specific question keeps all of
+ * its best evidence and gains a couple of passages it can ignore; a cross-paper
+ * question gets the spread it needs.
+ */
+function withBreadth<T extends { score: number; paperId: string }>(
+  matches: T[],
+  core: number,
+  limit: number,
+): T[] {
+  const kept = matches.slice(0, core)
+  const represented = new Set(kept.map((m) => m.paperId))
+  for (const m of matches.slice(core)) {
+    if (kept.length >= limit) break
+    if (represented.has(m.paperId)) continue
+    represented.add(m.paperId)
+    kept.push(m)
+  }
+  return kept.sort((a, b) => b.score - a.score)
+}
+
 export async function searchPapers(
   dataset: Dataset,
   question: string,
-  topK = 5,
+  topK = 6,
 ): Promise<SearchResult> {
   const [vector] = await embed([question])
-  const matches = await queryVectors(vector, topK)
+  // Over-fetch so there is something to diversify from.
+  const matches = await queryVectors(vector, Math.max(topK * 3, 15))
 
   const topScore = matches[0]?.score ?? 0
   const floorRaw = matches[0]?.metadata?.corpusFloor
@@ -83,8 +115,12 @@ export async function searchPapers(
       ? indexedDataset
       : null
 
-  const passages: Passage[] = matches
+  const aboveFloor = matches
     .filter((m) => m.score >= floor)
+    .map((m) => ({ ...m, paperId: String(m.metadata?.paperId ?? 'unknown') }))
+  const selected = withBreadth(aboveFloor, topK, topK + Math.max(dataset.papers.length - 1, 0))
+
+  const passages: Passage[] = selected
     .map((m) => ({
       score: m.score,
       text: String(m.metadata?.text ?? ''),
