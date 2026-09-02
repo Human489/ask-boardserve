@@ -197,6 +197,18 @@ export async function replacePin(
   return { ok: true, pins: next, durable }
 }
 
+/**
+ * Removes a dataset's whole dashboard.
+ *
+ * Called when the dataset itself is deleted. Re-uploading the same files
+ * produces a new id, so pins left behind could never be reached again — they
+ * would just sit in the namespace, and a "remove everything" would not have.
+ */
+export async function deletePinsFor(datasetId: string): Promise<void> {
+  memory.delete(datasetId)
+  if (kvAvailable()) await kvDelete(KEY(datasetId))
+}
+
 /** Test seam. Clears only the in-process layer. */
 export function resetPins(): void {
   memory.clear()

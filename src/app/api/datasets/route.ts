@@ -10,6 +10,7 @@ import {
 } from '@/lib/datasets'
 import { localDatasetExists } from '@/lib/dataset/loader'
 import { kvAvailable } from '@/lib/kv'
+import { deletePinsFor } from '@/lib/pins'
 import { checkRateLimit } from '@/lib/ratelimit'
 
 // Uploading and switching datasets.
@@ -205,6 +206,9 @@ export async function DELETE(req: Request) {
   if (!removed.ok) {
     return fail(502, 'The dataset could not be removed. Nothing was changed — try again.')
   }
+  // The dashboard belonged to that dataset, so it goes with it. Left behind it
+  // would be unreachable — a re-upload of the same files gets a new id.
+  await deletePinsFor(id)
 
   const state = await currentState()
   if (!state) return fail(502, 'The dataset store could not be read. Try again in a moment.')
