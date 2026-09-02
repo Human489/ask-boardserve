@@ -254,6 +254,38 @@ Found by audit, judged not worth fixing. None affects a user.
 - `bearerCredential`'s regex accepts a broad token shape.
 - The usage meter is dev-only and resets with the server; `/api/usage` 404s in
   production.
+- **`recharts` is on 2.15.4, which upstream has deprecated** — the 1.x and 2.x
+  branches get no further fixes. `npm ci` prints a deprecation notice; nothing
+  fails. Deliberately not upgraded: v3 is a breaking major, and the parts it
+  reworked are precisely the ones `BoardChart` leans on — the per-point `dot`
+  render prop that draws the flagged diamond, and the custom axis tick elements.
+  If a dot renderer stopped receiving `payload`, the flagged marker would simply
+  stop being drawn, with every unit test still passing, because nothing here
+  asserts on rendered SVG. Migrate on its own branch with a visual pass over one
+  bar chart and one line chart, both with a flagged point. Not as a way to
+  silence an install warning before a deploy.
+
+## Deployment
+
+Vercel builds `main`. Two things that were learned the hard way:
+
+- **Vercel gates the build on Next's version**, not just on `npm audit`. A
+  vulnerable Next fails the build outright with "Vulnerable version of Next.js
+  detected" before any code is compiled.
+- **`postcss` is pinned by Next 15 at a vulnerable version**, and npm's only
+  offered fix is Next 16. The `overrides` entry in `package.json` moves it
+  forward inside 8.x instead, so the framework upgrade stays a decision rather
+  than something an audit forces.
+- **`allowScripts` records that esbuild's postinstall was reviewed.** npm 12
+  will block unreviewed install scripts rather than warn, so removing that field
+  turns a warning into a failed install. It is pinned to the reviewed version on
+  purpose.
+
+To reproduce a Vercel build exactly, with no `.env.local` and no dataset:
+
+```bash
+git archive main | tar -x -C /tmp/vercel-repro && cd /tmp/vercel-repro && npm ci && npm run build
+```
 
 ## Open decisions
 
