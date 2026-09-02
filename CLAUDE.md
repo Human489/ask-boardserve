@@ -196,6 +196,36 @@ shareable read-only dashboard links; second dataset loading with no code changes
 
 ### Recorded, not fixed
 
+**Prose faithfulness in retrieved answers is unsolved.** The figure verifier
+covers numbers; nothing checks wording. A run once answered that a lease break
+notice "can be withdrawn by agreement if the clinical case is not supported"
+when the paper says "if the Board does not approve" — a fabricated condition
+inside a correctly-cited answer with sound figures.
+
+A claim-and-quote check was built and measured against this corpus: ask the
+model to split its answer into claims and quote the passage supporting each,
+then verify each quote is really a substring, and that it covers what the claim
+asserts. Results:
+
+- caught 3 of 3 injected failures (fabricated condition, fabricated event,
+  inverted claim)
+- but withheld 3 of 9 faithful answers, every one because the quoting model
+  returned a truncated or empty quote for a sound claim
+- and the fabrication it defends against could not be reproduced once in about
+  thirty natural runs
+
+Blocking one good answer in three, to catch a failure that rare, is worse than
+the disease. Downgrading it to a caveat did not help: it then fired on answers
+quoting figures verbatim, and a warning that cries wolf teaches the reader to
+ignore it. Not shipped. A cross-encoder reranker was also measured for a
+related purpose and scored worse than plain cosine.
+
+What would be worth trying next: constrain the answer itself to
+claim-plus-quote pairs at generation time, so a fabrication has nowhere to
+live, rather than detecting it afterwards.
+
+
+
 Found by audit, judged not worth fixing yet. None affects a user today.
 
 - `unresolvedByCommittee` and `actionsDistribution` compute percentages inline

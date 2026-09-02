@@ -154,6 +154,9 @@ export const searchBoardPapers: ToolDefinition = {
       caveats: [
         'These are extracts, not whole papers. A paper may qualify elsewhere something an extract states plainly.',
         'Every figure above was checked against the passages it came from before this answer was shown. Figures are quoted, never calculated, so where a paper is itself wrong or out of date, so is this.',
+        // Figures are checked; wording is not. A claim-and-quote check was built
+        // and measured against this corpus and is not shipped — see CLAUDE.md.
+        'Wording is summarised from the papers and is not checked word for word, only the figures are. Read the cited section if a phrase matters.',
         ...(papersCited.length === 0
           ? ['The answer cites no specific section, so it is harder to check against the source.']
           : []),
