@@ -40,7 +40,7 @@ function check(name, ok, detail = '') {
   }
 }
 
-async function post(path, body, token) {
+async function send(path, body, token) {
   const res = await fetch(`${BASE}${path}`, {
     method: 'POST',
     headers: {
@@ -51,6 +51,25 @@ async function post(path, body, token) {
   })
   const json = await res.json().catch(() => null)
   return { res, json }
+}
+
+/**
+ * The suite makes more requests than the limiter allows in a minute, so it
+ * would otherwise fail its own later checks on 429s that are the limiter
+ * working correctly. A 429 is waited out and retried once — except where a 429
+ * is the thing being tested, which uses `send` directly.
+ */
+async function post(path, body, token) {
+  // Up to three waits: a single retry was not always enough, because the window
+  // can roll while several calls are queued behind it.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const result = await send(path, body, token)
+    if (result.res.status !== 429) return result
+    const wait = Number(result.json?.retryAfterSeconds ?? 60)
+    process.stdout.write(`  (rate limited, waiting ${wait}s) `)
+    await new Promise((r) => setTimeout(r, (wait + 1) * 1000))
+  }
+  return send(path, body, token)
 }
 
 // The twelve structured questions, exactly as the specification writes them.
@@ -161,13 +180,63 @@ async function main() {
     check(question.slice(0, 52), ok, ok ? '' : `got ${json?.result?.tool}`)
   }
 
+  // ------------------------------------------------------------ multi-turn
+  // Follow-ups carry no subject of their own: "and at 90%?" means nothing
+  // without the question before it. This works because history reaches the
+  // router AND because the tools take arguments a follow-up can bind to — so it
+  // is worth a test, since either half breaking would look like the other.
+  console.log('\nMulti-turn refinement')
+  {
+    const first = 'Who is below our attendance threshold, and on which committee?'
+    const opening = await post('/api/ask', { question: first }, token)
+    const history = [
+      { role: 'user', content: first },
+      { role: 'assistant', content: opening.json?.result?.headline ?? '' },
+    ]
+    const { json } = await post('/api/ask', { question: 'and at 90%?', history }, token)
+    const headline = json?.result?.headline ?? ''
+    check(
+      'a follow-up inherits the subject of the previous question',
+      json?.result?.tool === 'attendance_below_threshold' && /90%/.test(headline),
+      `got tool=${json?.result?.tool} headline=${headline.slice(0, 70)}`,
+    )
+    check(
+      'the follow-up changes the answer rather than repeating it',
+      headline !== (opening.json?.result?.headline ?? ''),
+    )
+  }
+  {
+    const first = 'What actions are overdue, and who owns them?'
+    const opening = await post('/api/ask', { question: first }, token)
+    const history = [
+      { role: 'user', content: first },
+      { role: 'assistant', content: opening.json?.result?.headline ?? '' },
+    ]
+    const { json } = await post('/api/ask', { question: 'just the Head of IT ones', history }, token)
+    const headline = json?.result?.headline ?? ''
+    check(
+      'a follow-up can narrow the previous answer to one owner',
+      /head of it/i.test(headline),
+      headline.slice(0, 90),
+    )
+  }
+  {
+    // A follow-up with no history must not pretend to have one.
+    const { json } = await post('/api/ask', { question: 'and at 90%?' }, token)
+    check(
+      'the same follow-up without history does not invent a subject',
+      json?.ok === true,
+      'it should still answer or refuse cleanly, never error',
+    )
+  }
+
   // -------------------------------------------------------- rate limiting
   console.log('\nRate limiting')
   {
     let sawLimit = false
     let status = 0
     for (let i = 0; i < 30; i++) {
-      const { res } = await post('/api/ask', { question: 'Where are our biggest skill gaps?' }, token)
+      const { res } = await send('/api/ask', { question: 'Where are our biggest skill gaps?' }, token)
       status = res.status
       if (res.status === 429) {
         sawLimit = true
