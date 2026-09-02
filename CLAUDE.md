@@ -5,266 +5,277 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 **Ask BoardServe** — a chat interface where company secretaries ask questions about
-board data in plain English and get back dynamically generated charts. It sits
-alongside BoardServe's existing analytics section, not as a replacement: the point
-is answering the questions a fixed dashboard cannot.
+board data in plain English and get back dynamically generated charts. A companion
+to BoardServe's existing analytics, not a replacement: the point is answering the
+questions a fixed dashboard cannot.
 
-Built for a work-experience project with a fixed schedule (Core → Complete →
-Excellence). See "Project status" at the bottom for what is done and what is next.
+A work-experience project on a fixed schedule (Core → Complete → Excellence).
+`PRODUCT.md` holds the product record — users, purpose, constraints, and what is
+deliberately absent from the data. Read it before designing anything.
+
+## Working practice
+
+**Use branches.** Every feature or fix gets its own branch off `main` and merges
+back with `--no-ff`. `main` should read as a sequence of merges, one per piece of
+work. Do not commit a feature directly to `main`, and do not let one branch
+accumulate unrelated work — that happened once here and had to be untangled by
+cherry-picking commits onto their own branches afterwards.
+
+Commits are scoped (`feat(analytics):`, `fix(router):`) and explain the reasoning,
+not the diff. If a fix exists because a specific thing went wrong, the message
+says what went wrong.
+
+**Verify before claiming.** Run the tests, the smoke suite, and where it is a UI
+change, look at it in the browser. Several defects here passed every unit test and
+were only found by using the thing.
 
 ## Commands
 
 ```bash
 npm run dev          # dev server on :3000
-npm run build        # production build — run before claiming anything works
+npm run build        # production build
 npm run typecheck    # tsc --noEmit
-npm test             # all tests (tsx --test tests/*.test.ts)
+npm test             # 147 unit tests (tsx --test tests/*.test.ts)
+npm run smoke        # 30 end-to-end checks against a RUNNING server
 ```
 
-Single test file, and a single test by name:
+Single file, and a single test by name:
 
 ```bash
 npx tsx --test tests/analytics.test.ts
 npx tsx --test --test-name-pattern "overdue" tests/analytics.test.ts
 ```
 
-Probe the live model router (needs `.env.local`; prints per-question accuracy):
+Scripts (all need `.env.local`):
 
 ```bash
-node scripts/probe-router.mjs
+node scripts/probe-router.mjs        # model routing accuracy, per question
+node scripts/ingest-papers.mjs       # embed the board papers into Vectorize
+node scripts/ingest-papers.mjs --dry-run
+node scripts/calibrate-retrieval.mjs # measure the retrieval threshold
 ```
 
-If `.next` gets into a bad state after mixing `npm run build` with a running dev
-server, the browser will 404 on chunks and the page will silently stop responding
-to clicks. `rm -rf .next` and restart.
+**Stop the dev server before `npm run build`.** They share `.next`, and running
+both corrupts it: the browser 404s on chunks and the page silently stops
+responding to clicks. `rm -rf .next` and restart. This has happened three times.
 
 ## The dataset
 
-**Not in the repo — it is gitignored and must never be committed.** Place it at
+**Not in the repo — gitignored, and must never be committed.** Place it at
 `./dataset` or set `DATASET_PATH`. It holds `attendance.json`, `actions.json`,
 `skills-audit.csv` and three `paper-*.md` board papers.
 
-Note `.gitignore` uses `/dataset/`, anchored. An unanchored `dataset/` also matches
+`.gitignore` uses `/dataset/`, anchored. An unanchored `dataset/` also matches
 `src/lib/dataset/`, which silently drops application code from commits.
+
+Do not open `dataset-b` (a second organisation, for the zero-code-change test)
+until that test is being run honestly. Reading it early spoils the only chance to
+run it.
 
 ## Architecture
 
-Question → router picks a tool → tool computes → UI renders. Four layers:
+Question → router picks a tool → tool computes → UI renders.
 
 **`src/lib/types.ts`** — the contracts everything speaks. Read this first.
-`ToolDefinition` and `ToolResult` are the whole design in one file.
+`ToolDefinition` and `AnswerResult` are the whole design in one file. `run` is
+async and may return a refusal, because retrieval needs both.
 
-**`src/lib/dataset/loader.ts`** — parses the files once and caches. Also holds
-helpers used by more than one analytics module: `daysBetween`, `committeesOf`,
-`membersOf`, `allBodies`, `pct`.
+**`src/lib/dataset/loader.ts`** — parses once and caches. Also holds helpers used
+by more than one analytics module: `daysBetween`, `committeesOf`, `membersOf`,
+`allBodies`, `pct`.
 
-**`src/lib/analytics/*.ts`** — twelve tools across attendance, actions and skills,
-each implementing `ToolDefinition`. `registry.ts` exports `TOOLS` and `getTool`.
-The registry is the single source the router generates its schemas from, so
-**adding a tool needs no router change for the model path.** The offline
-fallback is different: it scores against a hand-maintained per-tool keyword
-table (`TOOL_HINTS`), and a new tool not listed there falls back to weak
-name/description overlap. So a new tool is reachable by the model immediately
-but only unreliably by the classifier until it gets a `TOOL_HINTS` entry.
+**`src/lib/analytics/`** — the twelve deterministic tools (attendance, actions,
+skills) plus two hybrids (`tenure.ts`, `upcoming.ts`). `registry.ts` exports
+`ANALYTICS_TOOLS` (the twelve — synchronous, never refuse, produce every figure
+the product shows) and `TOOLS` (all fifteen, including the three that read papers).
+That split is load-bearing and tested.
+
+**`src/lib/retrieval/`** — `chunk` → `vectorize` → `search` → `answer` (the
+grounding judge) → `verify` (figures) → `tool` (the ToolDefinition). Plus
+`scope.ts` (keeps structured questions out of the papers), `termlimit.ts` and
+`commitments.ts` (facts read from prose by pattern), and `disagreement.ts`.
 
 **`src/lib/router.ts`** — two paths. Primary is Cloudflare Workers AI tool-calling
-through the AI Gateway (header `cf-aig-gateway-id` is required on every call), with
-an explicit `refuse` pseudo-tool so the model does not have to invent a refusal.
-Falls back to a deterministic keyword classifier when credentials are missing or
-the call fails or times out, so the app works and stays testable with no model
-access. The result carries `routedBy: 'model' | 'fallback'` — including on
-refusals — and the UI surfaces it.
+via the AI Gateway. Falls back to a deterministic keyword classifier when
+credentials are missing or the call fails, so the app works and stays testable with
+no model access. Result carries `routedBy: 'model' | 'fallback'`.
 
-**`src/app/api/ask/route.ts`** — rate limit → validate → load → route → run →
-respond. `src/components/` renders it.
+**`src/app/api/ask/route.ts`** — auth → rate limit → validate → load → route → run
+→ respond.
 
 ### The rule the product rests on
 
-**Tools compute, the model narrates.** No number reaching the screen is ever
-produced by a language model. Each tool writes its own `headline` deterministically
-by interpolating values it just computed, so the sentence can never disagree with
-the chart. The model's only job is choosing the tool and its arguments.
+**Tools compute, the model narrates.** No number reaching the screen is produced by
+a language model. Each tool writes its own `headline` deterministically from values
+it just computed, so the sentence cannot disagree with the chart. The model chooses
+the tool and its arguments; for document questions it also summarises retrieved
+prose, and is forbidden from doing arithmetic on it.
 
-A headline must say the **notable thing**, not describe the axes. "Three directors
-are below 80% attendance, all on Audit" — not "this chart shows attendance by
-director".
+A headline says the **notable thing**, not the axes. `ToolResult` also carries
+`assumptions`, `caveats` and `provenance`, all shown without a disclosure.
 
-`ToolResult` also carries `assumptions`, `caveats` and `provenance`, and the UI
-shows all three without a disclosure. An answer without them is not an honest
-answer.
+### A prompt is a request; a check is a check
+
+Three times an instruction to the model failed and a deterministic check
+succeeded: the arithmetic ban that still produced an invented £132,000, the tool
+description that still let structured questions reach the papers, and the refusal
+wording that still claimed absent data existed. Where a rule matters, enforce it in
+code. `verify.ts` and `scope.ts` exist for exactly this.
 
 ## Invariants — breaking these produces plausible wrong answers
 
-These are the traps the dataset sets on purpose. Each has a test.
+Each has a test.
 
-- **`apologies` is non-attendance.** It means advance notice was given. Only
-  `status === 'present'` counts toward a rate.
-- **Denominators differ per director** (9 to 15 here). Committee rows exist only
-  for that committee's members. Never divide by the total meeting count. The
-  regression check: our aggregation must reproduce `director_summary` exactly.
-- **Overdue must be derived**, as `due_date < asAt && status !== 'complete'`. The
-  log's `status` is hand-typed and wrong for some rows. Report the derived and
-  recorded counts and say which is which — and generate that sentence from the
-  actual set difference, which can run in either direction.
-- **Use `dataset.asAt`, never `Date.now()` or `new Date()`.** Reading the clock
-  makes every date-dependent test rot as the month turns. A test greps the sources
-  for both.
-- **`owner` is a job title, not a director.** Most owners cannot be resolved to a
-  named person; say how many.
-- **Committee membership is inferred** from eligibility rows — no roster field
-  exists. Any tool relying on it carries that caveat.
-- **Skills are self-assessed.** A bare mean is a weak answer: always also report
-  the counts at 4-or-above and 2-or-below.
+- **`apologies` is non-attendance.** Only `status === 'present'` counts.
+- **Denominators differ per director** (9 to 15). Committee rows exist only for
+  that committee's members. Our aggregation must reproduce `director_summary`.
+- **Overdue is derived**, `due_date < asAt && status !== 'complete'`. Report the
+  derived AND recorded counts, with the sentence generated from the actual set
+  difference — it can run either way.
+- **Use `dataset.asAt`, never `Date.now()`.** A test greps the analytics sources.
+- **`owner` is a job title, not a director.** Say how many cannot be resolved.
+- **Committee membership is inferred** from eligibility rows. Carry the caveat.
+- **Skills are self-assessed.** Always report counts at 4+ and 2− beside the mean.
 - **Nothing organisation-specific may be hard-coded** — no director, committee,
-  skill or risk names, no meeting counts. Skill columns come from
-  `dataset.skillNames`. A second organisation's data must load with no code change.
-- **Small-n caveats must be computed, not asserted**, with the real n and the real
-  percentage-point impact of one more absence.
-- **A nil result still needs its caveats.** An answer that renders with no
-  "worth knowing" block reads as a figure that needed no qualification rather
-  than as a nil return.
-- **Disclosed assumptions must describe what the code actually did.** A wrong
-  assumption sentence is worse than none: it misdescribes the answer to the one
-  reader who is checking it.
-- **Out-of-scope questions must refuse, not reach a plausible tool.** The
-  offline classifier once answered "who times out in the next 12 months" with a
-  chart of attendance by meeting — full headline and provenance, entirely the
-  wrong subject. A confidently wrong answer is worse than a visible failure.
-  `TENURE_PATTERNS` in the router exists for this.
+  skill or risk names, no counts. A test greps `src/lib` including comments, and
+  has caught leaks in comments twice.
+- **Small-n caveats are computed**, with the real n and the real point impact.
+- **A nil result still needs its caveats**, or it reads as a figure needing no
+  qualification.
+- **Assumptions must describe what the code did.** A wrong assumption sentence is
+  worse than none.
+- **Out-of-scope questions refuse rather than reaching a plausible tool.**
+- **Refusals must not claim data is absent when it is not.** Say what no *tool*
+  computes, not what the *data* lacks.
 
 ## Testing
 
-`tests/analytics.test.ts` pins values verified against the dataset during the
-question audit, so it fails on drift rather than only on throws.
+`tests/analytics.test.ts` pins values verified against the dataset, so it fails on
+drift rather than only on throws.
 
-`tests/routing-spec.test.ts` exists because of a specific failure worth not
-repeating: the original routing tests were written in paraphrases tuned to the
-classifier, and passed 12/12 while the classifier scored only three subject areas
-and returned the first tool in each — nine of twelve tools were unreachable, and
-real accuracy on the specification's wording was 3/12.
+`tests/routing-spec.test.ts` holds the spec questions verbatim. It exists because
+the original routing tests were written in paraphrases tuned to the classifier and
+passed 12/12 while real accuracy on the spec's wording was 3/12. **Route the
+customer's wording, not your own paraphrases.**
 
-**Route the customer's wording, not your own paraphrases.** That file holds the
-spec questions verbatim and asserts every registered tool is reachable from at
-least one of them.
+`tests/sources.test.ts` greps for control characters. Regex `\b` escapes have been
+mangled into literal backspaces three times by editing scripts — the pattern
+compiles, builds, and can never match, which for a refusal rule means it silently
+stops refusing.
+
+`npm run smoke` needs a running server and covers auth, validation, all twelve
+structured questions, five refusals, multi-turn, and rate limiting. It waits out
+its own 429s.
 
 ## Project status
 
-### Core — done
+### Core — done, except deployment
 
-Chat interface, twelve structured questions answered through tools, bar and line
-charts inline, one-sentence insight per chart, passcode middleware, rate limiting
-(20/min per IP, in-memory), loading and error states. 74 tests pass; build clean;
-routing, chart, refusal and provenance paths exercised in the browser in both
-themes.
+Chat, twelve structured questions, bar and line charts, one-sentence insights,
+passcode, rate limiting, loading and error states. **Vercel deployment is not
+done** and is the one outstanding Core item.
 
-**Unverified:** the live model path has never run. `.env.local` exists but the
-`CF_*` values are blank, so all routing so far has come from the offline
-classifier. Filling those in and running `scripts/probe-router.mjs` is the
-highest-value next action, because if the model routes worse than the keyword
-fallback that changes the design.
+### Complete — done, except pinning
 
-### Complete — not started
+Structured/document/hybrid routing, RAG over the board papers, refusal behaviour
+including source disagreement, and multi-turn refinement all work. All 16 spec
+questions answer; all 5 refusals refuse.
 
-- Correct structured / document / hybrid routing
-- Board-paper retrieval through RAG (Vectorize; `CF_VECTORIZE_INDEX` is read into
-  config but not wired). Document questions currently route to a refusal that says
-  retrieval is not built — deliberately, rather than stubbing a fake RAG.
-- Refusal behaviour — the five refusal cases pass already, but they are all
-  *absence* refusals. There is no test for the case where sources disagree: the
-  skills paper's numbers contradict the CSV.
-- Multi-turn refinement — history is plumbed through the API but no tool consumes it
-- Pinning charts to a dashboard (KV)
+**Pinning charts to a dashboard is the remaining item.** KV is already wired, so
+storage is solved; the work is UI plus a route.
 
 ### Excellence — not started
 
-Eval harness over structured/document/hybrid/refusal cases; provenance surfaced as
-a chart affordance rather than only as text; image export for individual charts;
-shareable read-only dashboard links; second dataset loading with no code changes.
+Eval harness, provenance as a chart affordance, image export, shareable read-only
+dashboard links, second-dataset load.
 
-### Known limitations
+## Limitations, and why they are limitations
 
-- **`x-forwarded-for` is trusted as-is** for rate-limit and session keying. On a
-  platform that sets it (Vercel, Cloudflare) that is correct; anywhere it is
-  passed through from the client, a caller can rotate the header to get a fresh
-  bucket per request and defeat the limiter entirely.
-- **Session and rate-limit state are in-memory `Map`s.** Neither survives across
-  serverless instances, so both need moving to KV before deployment or sign-ins
-  will fail intermittently in production.
-- **The CQC refusal test passes for the wrong reason.** It currently refuses
-  because retrieval is not built, not because no paper covers CQC. When RAG
-  lands it will keep passing while no longer testing what it claims to.
+**Prose faithfulness is unsolved.** `verify.ts` checks every figure against the
+cited passages; nothing checks wording. A run once answered that a lease break
+notice "can be withdrawn by agreement if the clinical case is not supported" when
+the paper says "if the Board does not approve" — a fabricated condition inside a
+correctly-cited answer.
+
+A claim-and-quote check was built and measured: it caught 3 of 3 injected
+fabrications, but withheld 3 of 9 faithful answers, because the model quoting its
+own sources returns truncated or empty quotes about a third of the time. The
+fabrication itself could not be reproduced in ~30 natural runs. Blocking one good
+answer in three to catch something that rare is worse than the disease; as a
+caveat instead it fired on answers quoting figures verbatim, which teaches readers
+to ignore warnings. **Not shipped, deliberately.** Worth trying next: constrain
+the answer to claim-plus-quote pairs at generation time, so a fabrication has
+nowhere to live.
+
+**A cross-encoder reranker measured worse than plain cosine** (−0.817 separation
+against −0.043). It ranks relevance, not answerability, and on a corpus where
+everything is board governance those differ.
+
+**No similarity threshold can gate answerability here.** "What was the board's
+average IQ" scores higher than five of eight genuinely answerable questions,
+because it *is* about board composition. More documents made separation worse, not
+better. Hence the design: cosine ranks, a model call judges, and a junk floor
+derived at ingest from the corpus's own 5th-percentile self-similarity catches
+genuinely off-domain questions for free.
+
+**`x-forwarded-for` is trusted as-is.** Correct on Vercel, which sets it. Anywhere
+it is passed through from the client, a caller rotates the header for a fresh
+bucket.
+
+**Rate limiting is approximate by design.** KV has no atomic increment and a write
+costs ~330ms, so the write is not awaited. Two simultaneous requests can both see
+the older count. Approximate and shared beats exact and per-instance.
+
+**There is no session.** The passcode is sent with every request and a refresh
+returns to the gate. That was asked for, and it is what makes the app stateless —
+but it also means no revocation short of changing `APP_PASSCODE`, and no expiry.
+
+**The corpus is thin, and that is the data's fault.** Three papers covering 2 of 6
+board meetings, no committee papers, and nine action-log topics with no paper at
+all. Several reasonable document questions are unanswerable because the document
+does not exist. Say so; do not paper over it.
+
+**The offline classifier cannot spot a document question that names no document.**
+"Why did the hospice close the Ashcombe unit?" gives no clue in its wording, and
+the giveaway would be matching the organisation's own vocabulary — the hard-coding
+that breaks dataset-agnosticism. It fails safe, refusing rather than misrouting.
+
+**The CQC refusal now passes for the right reason** (no paper covers it), having
+previously passed only because retrieval was unbuilt.
 
 ### Recorded, not fixed
 
-**Prose faithfulness in retrieved answers is unsolved.** The figure verifier
-covers numbers; nothing checks wording. A run once answered that a lease break
-notice "can be withdrawn by agreement if the clinical case is not supported"
-when the paper says "if the Board does not approve" — a fabricated condition
-inside a correctly-cited answer with sound figures.
-
-A claim-and-quote check was built and measured against this corpus: ask the
-model to split its answer into claims and quote the passage supporting each,
-then verify each quote is really a substring, and that it covers what the claim
-asserts. Results:
-
-- caught 3 of 3 injected failures (fabricated condition, fabricated event,
-  inverted claim)
-- but withheld 3 of 9 faithful answers, every one because the quoting model
-  returned a truncated or empty quote for a sound claim
-- and the fabrication it defends against could not be reproduced once in about
-  thirty natural runs
-
-Blocking one good answer in three, to catch a failure that rare, is worse than
-the disease. Downgrading it to a caveat did not help: it then fired on answers
-quoting figures verbatim, and a warning that cries wolf teaches the reader to
-ignore it. Not shipped. A cross-encoder reranker was also measured for a
-related purpose and scored worse than plain cosine.
-
-What would be worth trying next: constrain the answer itself to
-claim-plus-quote pairs at generation time, so a fabrication has nowhere to
-live, rather than detecting it afterwards.
-
-
-
-Found by audit, judged not worth fixing yet. None affects a user today.
+Found by audit, judged not worth fixing. None affects a user.
 
 - `unresolvedByCommittee` and `actionsDistribution` compute percentages inline
-  with `Math.round(...)` rather than the canonical `pct()` in the loader. Every
-  other percentage in the codebase goes through `pct()`, so tightening it later
-  would silently leave these two behind.
-- `list()`, `num()` and `str()` are copy-pasted across all three analytics
-  modules. They are exactly the shared helpers this file says belong in
-  `loader.ts`.
-- `Chat.tsx`'s `run()` does not enforce single-flight itself. The `inFlight`
-  guards on the UI paths prevent overlap today, but a second caller of `run`
-  would break the invariant, since its `finally` clears `inFlight`
-  unconditionally.
-- `bearerToken`'s regex accepts alphanumerics only, coupling it to the current
-  hex token format. A base64url token would be rejected as a silent 401 that
-  the UI shows as an unexplained sign-out.
+  rather than via the canonical `pct()`.
+- `list()`, `num()` and `str()` are duplicated across the analytics modules.
+- `Chat.tsx`'s `run()` does not enforce single-flight itself; the UI guards do.
+- `bearerCredential`'s regex accepts a broad token shape.
+- The usage meter is dev-only and resets with the server; `/api/usage` 404s in
+  production.
 
-### Open decisions
+## Open decisions
 
-- **No attendance threshold exists in the data.** Currently defaults to 80% and is
-  always stated in the answer.
-- **The nine-year term limit is prose in `paper-03`**, not a field — so "who times
-  out in the next 12 months" is genuinely a hybrid question, not a structured one.
-- **`paper-03`'s numbers contradict `skills-audit.csv`.** Proposed rule: structured
-  data wins on numbers, papers supply context. Not yet confirmed with the client.
+- **No attendance threshold exists in the data.** Defaults to 80%, always stated.
 - **Body names differ between files** — `attendance.json` says "Finance and Audit
-  Committee", `actions.json` says "Finance and Audit". Nothing joins across them
-  today, but the UI shows both spellings.
-- **"Which committees have the greatest skills gaps" depends on the metric** —
-  by mean across all skills it is People Committee, by single weakest skill it is
-  Clinical Governance. Currently ranks by mean, showing the weakest skill as a
-  second series.
+  Committee", `actions.json` says "Finance and Audit". Nothing joins across them,
+  but the UI shows both spellings.
+- **"Which committees have the greatest skills gaps" depends on the metric** — by
+  mean it is People Committee, by single weakest skill it is Clinical Governance.
+  Ranks by mean, shows the weakest skill as a second series.
+- **`docs/question-set.md` is untracked and contains unverified `dataset-b`
+  claims** that were not produced by opening it in this repo. Treat with suspicion.
 
-### Conventions
+## Environment
 
-Commits are scoped (`feat(analytics):`, `fix(router):`) and explain the reasoning,
-not the diff. Features beyond Core go on their own branch off `main` and merge with
-`--no-ff`. `docs/question-set.md` is deliberately untracked planning material.
+`.env.local`, gitignored. `CF_ACCOUNT_ID`, `CF_API_TOKEN`, `CF_AI_GATEWAY_ID`,
+`CF_VECTORIZE_INDEX`, `CF_KV_NAMESPACE_ID`, `APP_PASSCODE`, `DATASET_PATH`,
+`RATE_LIMIT_PER_MINUTE`.
 
-Do not open `dataset-b` (a second organisation, for the zero-code-change test)
-until that test is being run honestly — reading it early spoils the only chance to
-run it.
+Model calls go to the Workers AI REST endpoint with the `cf-aig-gateway-id`
+header. The `gateway.ai.cloudflare.com/{account}/{gateway}` URL form returns 401
+on this account — it needs a gateway to exist under that exact name.
+
+A missing `APP_PASSCODE` returns 503 in production rather than serving the app
+unprotected. On deployment, every variable above must be set in Vercel too.
