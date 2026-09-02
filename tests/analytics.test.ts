@@ -647,3 +647,40 @@ test('a skill that is not in the audit returns a caveated nil', () => {
   assert.equal(r.chart, null)
   assert.ok(r.caveats.length > 0)
 })
+
+test('a chunk spanning two sections says so, rather than naming one', async () => {
+  // A window that straddles a heading can hold a figure living on the far side
+  // of it. Naming only the dominant section sent a reader to a section where
+  // the quoted figure was not, which is a citation nobody can follow.
+  const { chunkPapers } = await import('../src/lib/retrieval/chunk')
+  const chunks = chunkPapers(dataset.papers)
+
+  const spanning = chunks.filter((c) => c.section.includes(' into '))
+  assert.ok(spanning.length > 0, 'this corpus has windows that cross headings')
+
+  for (const chunk of spanning) {
+    const [first, second] = chunk.section.split(' into ')
+    assert.ok(first.length > 0 && second.length > 0, chunk.section)
+    assert.notEqual(first, second, 'a span must name two different sections')
+  }
+
+  // Every section named must be a real heading in that paper, or the citation
+  // points at something that does not exist.
+  const headings = new Map<string, Set<string>>()
+  for (const paper of dataset.papers) {
+    const found = new Set<string>(['Front matter'])
+    for (const line of paper.body.split(/\r?\n/)) {
+      const m = line.match(/^###\s+(.+)$/)
+      if (m) found.add(m[1].trim())
+    }
+    headings.set(paper.id, found)
+  }
+  for (const chunk of chunks) {
+    for (const part of chunk.section.split(' into ')) {
+      assert.ok(
+        headings.get(chunk.paperId)?.has(part),
+        `"${part}" is cited for ${chunk.paperId} but is not a heading in it`,
+      )
+    }
+  }
+})

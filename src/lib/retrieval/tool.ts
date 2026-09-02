@@ -110,7 +110,7 @@ export const searchBoardPapers: ToolDefinition = {
     // A prompt forbidding arithmetic is a request; this is the check. An early
     // version reported an overspend of £132,000 that appeared in no paper,
     // having subtracted two figures it was shown.
-    const check = verifyAgainstPassages(grounded.text, search.passages)
+    const check = verifyAgainstPassages(grounded.text, search.passages, grounded.citedPassages)
     if (!check.ok) {
       console.error(
         `[retrieval] answer withheld: ${check.unsupported.join(', ')} not found in any passage`,
@@ -127,7 +127,13 @@ export const searchBoardPapers: ToolDefinition = {
       }
     }
 
-    const papersCited = grounded.cited.length > 0 ? grounded.cited : []
+    // A citation carrying none of the figures the answer quotes sends a reader
+    // to a section where they will not find them. Dropped rather than shown,
+    // and noted so the answer does not silently look better sourced than it is.
+    const droppedCitations = new Set(check.unsupportedCitations)
+    const papersCited = grounded.cited.filter(
+      (c) => !droppedCitations.has(`${c.paperId} / ${c.section}`),
+    )
     const sources = [...new Set(papersCited.map((c) => `${c.paperId}.md`))]
 
     return {
@@ -150,6 +156,15 @@ export const searchBoardPapers: ToolDefinition = {
         'Every figure above was checked against the passages it came from before this answer was shown. Figures are quoted, never calculated, so where a paper is itself wrong or out of date, so is this.',
         ...(papersCited.length === 0
           ? ['The answer cites no specific section, so it is harder to check against the source.']
+          : []),
+        ...(droppedCitations.size > 0
+          ? [
+              `${droppedCitations.size} section${
+                droppedCitations.size === 1 ? ' was' : 's were'
+              } cited but did not contain the figures quoted, so ${
+                droppedCitations.size === 1 ? 'it has' : 'they have'
+              } been left out rather than sending you to the wrong place.`,
+            ]
           : []),
       ],
       provenance: {

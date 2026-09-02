@@ -95,12 +95,22 @@ export function chunkPaper(paper: BoardPaper): Chunk[] {
         .slice(0, MAX_STORED_CHARS)
       // Windows cross headings by design, so the heading at the START of one is
       // often not the section it mostly covers: a window beginning in "Income"
-      // and running into "Expenditure" was citing Income for an expenditure
-      // figure, sending a reader to the wrong part of the paper. Label it with
-      // the section holding most of its words.
+      // and running into "Expenditure" cited Income for an expenditure figure.
+      //
+      // Naming only the dominant section is not enough either. A window can
+      // straddle a boundary and hold a figure that lives on the far side of it,
+      // so a reader sent to the dominant section does not find what was quoted.
+      // When a window meaningfully spans two sections, the citation says so.
       const spanned = new Map<string, number>()
       for (const w of window) spanned.set(w.section, (spanned.get(w.section) ?? 0) + 1)
-      const section = [...spanned.entries()].sort((a, b) => b[1] - a[1])[0][0]
+      const ranked = [...spanned.entries()].sort((a, b) => b[1] - a[1])
+      const [dominant, dominantCount] = ranked[0]
+      const runnerUp = ranked[1]
+      const section =
+        runnerUp && runnerUp[1] >= window.length * 0.25
+          ? `${dominant} into ${runnerUp[0]}`
+          : dominant
+      void dominantCount
 
       chunks.push({
         id: `${paper.id}#${index}`,

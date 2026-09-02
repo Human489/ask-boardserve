@@ -17,6 +17,8 @@ import type { Passage } from '@/lib/retrieval/search'
 
 export interface Verification {
   ok: boolean
+  /** Citations that do not contain any figure the answer quotes. */
+  unsupportedCitations: string[]
   /** Numbers in the answer that appear in no passage. */
   unsupported: string[]
 }
@@ -49,16 +51,53 @@ function isFigure(token: string): boolean {
   return digits.length >= 4 || /[.]/.test(token) || /[mk]|bn/i.test(token)
 }
 
-export function verifyAgainstPassages(answer: string, passages: Passage[]): Verification {
-  const haystack = normalise(passages.map((p) => p.text).join(' '))
-  const unsupported: string[] = []
+/**
+ * Checks an answer's figures, and its citations.
+ *
+ * `cited` is the subset of passages the model said it used. Figures are checked
+ * against those FIRST, because checking against everything retrieved lets a
+ * computed number through whenever it happens to coincide with an unrelated
+ * figure elsewhere in the corpus. A reported legacy shortfall of £280,000 —
+ * arrived at by subtraction — passed once because £280,000 is also the agency
+ * nursing budget, sitting in a different passage about a different subject.
+ *
+ * Citations are checked too. An answer cited a section that did not contain the
+ * figure it quoted, so a reader following the reference would not find it. A
+ * citation nobody can follow is worse than none.
+ */
+export function verifyAgainstPassages(
+  answer: string,
+  passages: Passage[],
+  cited: Passage[] = [],
+): Verification {
+  // Fall back to everything retrieved when the model cited nothing: an
+  // uncited answer still deserves its figures checked.
+  const scope = cited.length > 0 ? cited : passages
+  const haystack = normalise(scope.map((p) => p.text).join(' '))
 
-  for (const token of numericTokens(answer)) {
-    if (!isFigure(token)) continue
+  const figures = numericTokens(answer).filter(isFigure)
+  const unsupported: string[] = []
+  for (const token of figures) {
     const needle = normalise(token)
     if (needle.length === 0) continue
     if (!haystack.includes(needle)) unsupported.push(token.trim())
   }
 
-  return { ok: unsupported.length === 0, unsupported: [...new Set(unsupported)] }
+  // A cited passage should carry at least one of the figures the answer quotes.
+  // Only meaningful when the answer quotes figures at all — a narrative answer
+  // cites a section for what it says, not for a number in it.
+  const unsupportedCitations: string[] = []
+  if (figures.length > 0 && cited.length > 1) {
+    for (const passage of cited) {
+      const text = normalise(passage.text)
+      const carries = figures.some((f) => text.includes(normalise(f)))
+      if (!carries) unsupportedCitations.push(`${passage.paperId} / ${passage.section}`)
+    }
+  }
+
+  return {
+    ok: unsupported.length === 0,
+    unsupported: [...new Set(unsupported)],
+    unsupportedCitations: [...new Set(unsupportedCitations)],
+  }
 }

@@ -88,3 +88,50 @@ test('a figure followed by a comma is not rejected either', () => {
   const r = verifyAgainstPassages('Pay costs were £3.86m, above budget.', FINANCE)
   assert.equal(r.ok, true, r.unsupported.join(', '))
 })
+
+// Figures are checked against the CITED passages, not everything retrieved. A
+// computed number otherwise slips through whenever it coincides with an
+// unrelated figure elsewhere in the corpus.
+const OTHER = passage(
+  'Legacy income for the quarter was £610,000 against a budget of £890,000.',
+)
+
+test('a computed figure is caught even when it appears in an uncited passage', () => {
+  // 890,000 - 610,000 = 280,000. That number IS in FINANCE, as the agency
+  // nursing budget — a different subject entirely. Checking against everything
+  // retrieved let it through.
+  const answer = 'Legacy income fell short of budget by £280,000.'
+  const loose = verifyAgainstPassages(answer, [...FINANCE, OTHER])
+  assert.equal(loose.ok, true, 'checking against every passage lets this through')
+
+  const scoped = verifyAgainstPassages(answer, [...FINANCE, OTHER], [OTHER])
+  assert.equal(scoped.ok, false, 'checking against the cited passage catches it')
+  assert.ok(scoped.unsupported.some((u) => u.includes('280')))
+})
+
+test('a citation carrying none of the quoted figures is flagged', () => {
+  const answer = 'Legacy income was £610,000 against a budget of £890,000.'
+  const r = verifyAgainstPassages(answer, [...FINANCE, OTHER], [OTHER, ...FINANCE])
+  assert.equal(r.ok, true, 'the figures themselves are sound')
+  assert.ok(
+    r.unsupportedCitations.some((c) => c.includes('Expenditure')),
+    `expected the expenditure citation flagged, got ${r.unsupportedCitations.join(', ')}`,
+  )
+})
+
+test('a single citation is never flagged as unsupported', () => {
+  // With one citation there is nothing to choose between, and flagging it would
+  // strip the only reference the reader has.
+  const r = verifyAgainstPassages('Agency nursing cost £412,000.', FINANCE, FINANCE)
+  assert.deepEqual(r.unsupportedCitations, [])
+})
+
+test('a narrative answer with no figures flags no citations', () => {
+  const r = verifyAgainstPassages(
+    'The overspend is entirely in bank and agency nursing.',
+    [...FINANCE, OTHER],
+    [OTHER, ...FINANCE],
+  )
+  assert.equal(r.ok, true)
+  assert.deepEqual(r.unsupportedCitations, [], 'a section can be cited for what it says')
+})

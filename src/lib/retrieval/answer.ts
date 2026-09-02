@@ -20,6 +20,8 @@ export interface GroundedAnswer {
   text: string
   /** Papers actually cited, in the order the model used them. */
   cited: { paperTitle: string; section: string; paperId: string }[]
+  /** The passages behind those citations, so the answer can be checked against them. */
+  citedPassages: Passage[]
 }
 
 function passageBlock(passages: Passage[]): string {
@@ -168,15 +170,22 @@ export async function answerFromPassages(
     // citation to a reader.
     const seen = new Set<string>()
     const cited: GroundedAnswer['cited'] = []
+    const citedPassages: Passage[] = []
     for (const i of citeIndexes) {
       const p = search.passages[i - 1]
       const key = `${p.paperId}#${p.section}`
       if (seen.has(key)) continue
       seen.add(key)
       cited.push({ paperTitle: p.paperTitle, section: p.section, paperId: p.paperId })
+      citedPassages.push(p)
     }
 
-    return { answered, text, cited: answered ? cited : [] }
+    return {
+      answered,
+      text,
+      cited: answered ? cited : [],
+      citedPassages: answered ? citedPassages : [],
+    }
   } catch (e) {
     recordFailure()
     const reason = (e as Error)?.name === 'AbortError' ? 'timed out' : String(e)
