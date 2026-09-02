@@ -263,6 +263,28 @@ const TOOL_HINTS: Record<string, string[][]> = {
     ['director', 'coverage'],
     ['who', 'cover'],
   ],
+  // The two hybrid tools. Their terms are deliberately narrow: "due" alone
+  // belongs to the overdue tools, and "skills" alone to the skills tools, so
+  // both entries require a word that only a forward-looking or tenure question
+  // would use.
+  upcoming_unprepared: [
+    ['not started'],
+    ['preparing'],
+    ['prepare'],
+    ['coming', 'quarter'],
+    ['coming up'],
+    ['upcoming'],
+    ['due', 'soon'],
+    ['next quarter'],
+    ['falls due'],
+  ],
+  tenure_and_skills_impact: [
+    ['times out'],
+    ['term limit'],
+    ['tenure'],
+    ['step down'],
+    ['served', 'years'],
+  ],
   committee_skills_gaps: [
     ['committee', 'skill'],
     ['committee', 'gap'],

@@ -1,5 +1,6 @@
 import { searchBoardPapers } from '@/lib/retrieval/tool'
 import { tenureAndSkillsImpact } from '@/lib/analytics/tenure'
+import { upcomingUnprepared } from '@/lib/analytics/upcoming'
 import type { ToolDefinition } from '@/lib/types'
 import { ATTENDANCE_TOOLS } from '@/lib/analytics/attendance'
 import { ACTION_TOOLS } from '@/lib/analytics/actions'
@@ -32,6 +33,7 @@ export const TOOLS: ToolDefinition[] = [
   ...ANALYTICS_TOOLS,
   searchBoardPapers,
   tenureAndSkillsImpact,
+  upcomingUnprepared,
 ]
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))

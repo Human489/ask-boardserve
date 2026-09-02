@@ -376,10 +376,10 @@ test('committee_skills_gaps can be scoped to one body', () => {
 
 // ------------------------------------------------------------ cross-cutting
 
-test('the registry exposes twelve deterministic tools plus the two that read papers', () => {
+test('the registry exposes twelve deterministic tools plus the three that read papers', () => {
   assert.equal(ANALYTICS_TOOLS.length, 12)
-  assert.equal(TOOLS.length, 14)
-  assert.equal(new Set(TOOLS.map((t) => t.name)).size, 14)
+  assert.equal(TOOLS.length, 15)
+  assert.equal(new Set(TOOLS.map((t) => t.name)).size, 15)
   for (const t of TOOLS) assert.equal(getTool(t.name), t)
   assert.equal(getTool('no_such_tool'), undefined)
   // The split is load-bearing: everything numeric must be computed, so the one
@@ -388,6 +388,7 @@ test('the registry exposes twelve deterministic tools plus the two that read pap
   // read a term limit out of a paper before it can compute anything.
   assert.ok(!ANALYTICS_TOOLS.some((t) => t.name === 'search_board_papers'))
   assert.ok(!ANALYTICS_TOOLS.some((t) => t.name === 'tenure_and_skills_impact'))
+  assert.ok(!ANALYTICS_TOOLS.some((t) => t.name === 'upcoming_unprepared'))
 })
 
 test('every tool returns a non-empty headline that says something', () => {

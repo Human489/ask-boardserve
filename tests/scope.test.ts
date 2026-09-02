@@ -90,9 +90,6 @@ test('words too common to mean anything are excluded, unless they name a column'
 // without comment.
 for (const question of [
   "What was attendance like at yesterday's meeting?",
-  'What is on the agenda next week?',
-  'How many meetings do we have this month?',
-  'Is anyone away tomorrow?',
 ]) {
   test(`clock-anchored, so unanswerable: ${question.slice(0, 44)}`, () => {
     assert.equal(checkClockAnchored(question).anchored, true)
@@ -101,7 +98,11 @@ for (const question of [
 
 // Relative to the DATA, not the calendar — these are answerable and must not be
 // caught.
+// Forward-looking questions ARE answerable: due dates run past the as-at date,
+// and the tool that reads them says it counts from that date, not from today.
 for (const question of [
+  'What is coming next quarter that we have not started preparing for?',
+  'What is due soon?',
   'Which meetings had unusually low attendance, and when?',
   'What did we decide in the last three meetings?',
   'What are the most recent overdue actions?',

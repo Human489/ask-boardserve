@@ -57,7 +57,7 @@ for (const question of REFUSALS) {
 
 test('every registered tool is reachable from at least one spec question', async () => {
   const reached = new Set<string>()
-  for (const question of [...STRUCTURED.map((s) => s[0]), ...DOCUMENT_QUESTIONS, ...HYBRID_QUESTIONS]) {
+  for (const question of [...STRUCTURED.map((s) => s[0]), ...DOCUMENT_QUESTIONS, ...HYBRID_QUESTIONS, ...UPCOMING_QUESTIONS]) {
     const route = await routeQuestion(question, TOOLS)
     if (route.kind === 'tool') reached.add(route.name)
   }
@@ -85,7 +85,6 @@ test('the IQ refusal does not borrow the qualifications explanation', async () =
 // full headline, chart and provenance block about an unrelated subject — a
 // confidently wrong answer, which is worse than a visible failure.
 const MUST_REFUSE_OFFLINE = [
-  'What is coming next quarter that we have not started preparing for?',
 ]
 
 for (const question of MUST_REFUSE_OFFLINE) {
@@ -144,6 +143,22 @@ for (const question of HYBRID_QUESTIONS) {
     assert.equal(route.kind, 'tool', 'a hybrid question must no longer be refused by keyword')
     if (route.kind !== 'tool') return
     assert.equal(route.name, 'tenure_and_skills_impact')
+  })
+}
+
+// Spec Q16, the other hybrid: due dates from the action log, plus promises made
+// in paper prose that never became actions.
+const UPCOMING_QUESTIONS = [
+  'What is coming next quarter that we have not started preparing for?',
+  'What have we not started preparing for?',
+]
+
+for (const question of UPCOMING_QUESTIONS) {
+  test(`hybrid question reaches the upcoming tool: ${question.slice(0, 44)}`, () => {
+    const route = fallbackRoute(question, TOOLS)
+    assert.equal(route.kind, 'tool')
+    if (route.kind !== 'tool') return
+    assert.equal(route.name, 'upcoming_unprepared')
   })
 }
 

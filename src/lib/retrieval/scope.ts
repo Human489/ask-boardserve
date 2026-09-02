@@ -116,12 +116,15 @@ export function checkPapersScope(question: string, dataset: Dataset): ScopeCheck
  * figures, and a different question. Worse, the answer never mentioned that no
  * meeting took place yesterday, so the false premise passed unremarked.
  *
- * Only wording tied to the real-world present is caught. "Recent", "latest" and
- * "the last three meetings" are all answerable relative to the data itself and
- * are deliberately not here.
+ * Only the reader's PAST and PRESENT are caught. Forward-looking wording —
+ * "next quarter", "what is due soon" — is deliberately not here: due dates run
+ * past the as-at date, so a question about what is coming can be answered from
+ * them, and the tool that does it states that it counts from the as-at date
+ * rather than from today. "Recent", "latest" and "the last three meetings" are
+ * likewise answerable relative to the data itself.
  */
 const CLOCK_ANCHORED =
-  /\byesterday\b|\btoday\b|\btomorrow\b|\bthis (week|month|morning|afternoon)\b|\blast night\b|\bnext (week|month|quarter|year)\b|\bright now\b|\bcurrently scheduled\b|\bso far this (week|month)\b/
+  /\byesterday\b|\btoday\b|\bthis (week|morning|afternoon)\b|\blast night\b|\bright now\b|\bso far this (week|month)\b/
 
 export interface ClockCheck {
   anchored: boolean
