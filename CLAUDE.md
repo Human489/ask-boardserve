@@ -196,8 +196,27 @@ dashboard links, second-dataset load.
 
 ## Limitations, and why they are limitations
 
-**Prose faithfulness is unsolved.** `verify.ts` checks every figure against the
-cited passages; nothing checks wording. A run once answered that a lease break
+**`verify.ts` settles presence, not attribution.** It checks that a figure
+appears in a cited passage. It does not check that the passage attaches it to
+the same subject, so a passage reading "income was £4.61m" supports an answer
+saying "the deficit was £4.61m". That is a reading of prose, not a fact, and it
+is the same unsolved problem as prose faithfulness below. The answer's caveat
+says so in as many words — it used to claim every figure had been "checked",
+which promised more than the code delivers.
+
+Two holes in it were found by audit and closed. It only examined numbers with
+four or more digits, a decimal, or a magnitude suffix, so **every percentage
+went unchecked** — and a percentage is exactly what a model computes from two
+numbers it has been shown; "attendance fell by 14 per cent" verified clean
+against passages saying 96% and 82%. And matching was a digit-substring test
+against the concatenated passages, so "£12,000" verified against a passage
+reading "£112,000". Money and percentages are now checked at any size, figures
+are compared as whole values, and bare small integers are still skipped, because
+"the 3 papers" is not a finding and demanding it appear verbatim would reject
+sound answers. Measured after the change: six real paper questions, four
+answered, zero withheld on figures, the two refusals both from retrieval.
+
+**Prose faithfulness is unsolved.** Nothing checks wording. A run once answered that a lease break
 notice "can be withdrawn by agreement if the clinical case is not supported" when
 the paper says "if the Board does not approve" — a fabricated condition inside a
 correctly-cited answer.

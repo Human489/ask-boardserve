@@ -153,7 +153,12 @@ export const searchBoardPapers: ToolDefinition = {
       ],
       caveats: [
         'These are extracts, not whole papers. A paper may qualify elsewhere something an extract states plainly.',
-        'Every figure above was checked against the passages it came from before this answer was shown. Figures are quoted, never calculated, so where a paper is itself wrong or out of date, so is this.',
+        // "Every figure was checked" was an overstatement twice over: bare small
+        // integers are deliberately not checked, and the check confirms a
+        // number is present in the source, not that the source attaches it to
+        // the same subject. A caveat that promises more than the code delivers
+        // is worse than none, because the reader stops looking.
+        'Each figure above was checked against the passage it came from — that the number appears there, not that the paper attaches it to the same thing. Figures are quoted, never calculated, so where a paper is itself wrong or out of date, so is this.',
         // Figures are checked; wording is not. A claim-and-quote check was built
         // and measured against this corpus and is not shipped — see CLAUDE.md.
         'Wording is summarised from the papers and is not checked word for word, only the figures are. Read the cited section if a phrase matters.',

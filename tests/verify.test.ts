@@ -135,3 +135,78 @@ test('a narrative answer with no figures flags no citations', () => {
   assert.equal(r.ok, true)
   assert.deepEqual(r.unsupportedCitations, [], 'a section can be cited for what it says')
 })
+
+// ---------------------------------------------------------------------------
+// Two holes found by audit. Both let an invented figure through while the
+// answer carried a caveat telling the reader its figures had been checked.
+
+test('a percentage the model calculated is caught', () => {
+  // The gap: only numbers with 4+ digits, a decimal or a magnitude suffix were
+  // checked, so a two-digit percentage was never looked at — and a percentage
+  // is exactly what a model computes from two numbers it was shown.
+  const passages = [
+    passage('Board attendance was 96% in March and 82% in July.'),
+  ]
+  const check = verifyAgainstPassages(
+    'Attendance fell by 14 per cent between the two meetings.',
+    passages,
+    passages,
+  )
+  assert.equal(check.ok, false)
+  assert.ok(
+    check.unsupported.some((f) => f.includes('14')),
+    `expected 14 to be unsupported, got ${JSON.stringify(check.unsupported)}`,
+  )
+})
+
+test('a small money figure that appears nowhere is caught', () => {
+  const passages = [passage('The transport budget is £4,200 for the year.')]
+  const check = verifyAgainstPassages('The shortfall is £12.', passages, passages)
+  assert.equal(check.ok, false)
+})
+
+test('a figure is not supported by being a digit-substring of a larger one', () => {
+  // The gap: matching was `includes()` against the concatenated passages, so
+  // 12000 verified against 112000 — a different number, about a different
+  // thing, in the same corpus.
+  const passages = [passage('The agency nursing budget is £112,000 for the year.')]
+  const check = verifyAgainstPassages('The overspend is £12,000.', passages, passages)
+  assert.equal(check.ok, false)
+  assert.ok(
+    check.unsupported.some((f) => f.includes('12,000')),
+    `expected £12,000 to be unsupported, got ${JSON.stringify(check.unsupported)}`,
+  )
+})
+
+test('a percentage written differently from the passage still passes', () => {
+  // The widened check must not reject sound answers: a paper writes 14%, an
+  // answer may write "14 per cent", and those are the same claim.
+  const passages = [passage('Deferred actions rose to 14% of the log.')]
+  const check = verifyAgainstPassages(
+    'Deferred actions reached 14 per cent of the log.',
+    passages,
+    passages,
+  )
+  assert.equal(check.ok, true, JSON.stringify(check.unsupported))
+})
+
+test('a magnitude suffix is part of the claim', () => {
+  // £4.61m and 4.61 are different assertions; the suffix cannot be dropped
+  // when comparing.
+  const passages = [passage('The ratio moved to 4.61 over the period.')]
+  const check = verifyAgainstPassages('Income was £4.61m.', passages, passages)
+  assert.equal(check.ok, false)
+})
+
+test('bare small integers are still not treated as claims', () => {
+  // The reason for the original threshold, which the widening had to preserve:
+  // "the 3 papers" is not a finding, and demanding it appear verbatim would
+  // reject sound answers.
+  const passages = [passage('The Board considered the finance and service reports.')]
+  const check = verifyAgainstPassages(
+    'The 2 reports were considered together, in section 3.',
+    passages,
+    passages,
+  )
+  assert.equal(check.ok, true, JSON.stringify(check.unsupported))
+})
