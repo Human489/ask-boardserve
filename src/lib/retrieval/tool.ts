@@ -22,11 +22,13 @@ function str(value: unknown, fallback: string): string {
 export const searchBoardPapers: ToolDefinition = {
   name: 'search_board_papers',
   description:
-    'Search the board papers and answer from what they say, with the paper and ' +
-    'section cited. Use for any question about what a paper states, recommends, ' +
-    'explains or discusses — reasons, narrative, context, risks, or a figure ' +
-    'quoted in a paper. Not for figures held in the attendance records, the ' +
-    'action log or the skills audit, which the other tools compute.',
+    'Answer from what the board papers SAY IN WORDS, citing the paper and section. ' +
+    'Use only for narrative: a recommendation, a reason, an explanation, a risk as ' +
+    'described in prose, or a figure that appears nowhere but in a paper. ' +
+    'NEVER use it for anything the structured files hold — skill scores, tenure ' +
+    'years, meeting counts, attendance, action fields, owners, due dates, statuses, ' +
+    'deferrals or risk references. Those are computed by the other tools, and asking ' +
+    'the papers for them produces a refusal that wrongly implies the data is missing.',
   parameters: {
     question: {
       type: 'string',

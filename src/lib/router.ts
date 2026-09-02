@@ -50,8 +50,26 @@ const REFUSAL_RULES = [
 function systemPrompt(tools: ToolDefinition[]): string {
   return [
     'You route company-secretary questions about board data to exactly one tool.',
-    'The available data is: meeting attendance records, an action log, a self-assessed skills audit, and the board papers themselves.',
-    'The papers are a source like any other. A figure quoted in a paper — a cost, a variance, a headcount — is available through search_board_papers even though no other tool computes it.',
+    '',
+    'These sources exist. Their fields are listed because a refusal that claims a field is',
+    'absent when it is present tells the reader the product cannot do something it can, which',
+    'is worse than a wrong number.',
+    '- Attendance records: every meeting with its body, type and date; and one row per director',
+    '  per meeting they were eligible for, with present/apologies/absent, minutes joined late,',
+    '  and whether they attended remotely.',
+    '- Action log: every action with its description, owner job title, owner type, the body that',
+    '  raised it, due date, recorded status, completion date, times deferred, priority, and a',
+    '  linked risk reference.',
+    '- Skills audit: every director with their role, tenure in years, and a self-assessed score',
+    '  for each skill area.',
+    '- Board papers: the papers themselves, as prose.',
+    '',
+    'Prefer a structured tool whenever the answer is a number, a count, a date, a score or a',
+    'ranking. Those live in the first three sources. search_board_papers is ONLY for what a',
+    'paper says in words — a recommendation, a reason, an explanation, or a figure that exists',
+    'nowhere but in the prose of a paper. A question about skill scores, tenure, meeting counts,',
+    'attendance, risk references or action fields is never a papers question.',
+    '',
     'Call exactly one tool. Never compute or state a number yourself; the tools produce every figure.',
     'Refuse by calling the refuse tool when the data cannot answer the question. Specifically:',
     ...REFUSAL_RULES.map((r) => `- ${r}`),
@@ -86,13 +104,20 @@ function toOpenAiTools(tools: ToolDefinition[]) {
     function: {
       name: 'refuse',
       description:
-        'Call this when the available data cannot answer the question, even approximately. Better to refuse than to answer from something that only looks similar.',
+        'Call this only when NO source above holds the subject at all. Not when a tool ' +
+        'happens not to compute the exact figure asked for: if the underlying field exists, ' +
+        'pick the closest structured tool instead and let it answer what it can. Never state ' +
+        'that a field is absent unless it truly is — the reader will believe you.',
       parameters: {
         type: 'object',
         properties: {
           reason: {
             type: 'string',
-            description: 'Why the data cannot answer it. Specific, not a shrug.',
+            description:
+              'Why this cannot be answered. Word it as what no TOOL computes, not as what the ' +
+              'DATA lacks — say "no tool works out the busiest committee" rather than "the data ' +
+              'does not record meetings", because the second is usually false and the reader ' +
+              'will believe it. Name the closest thing that is held.',
           },
         },
         required: ['reason'],
