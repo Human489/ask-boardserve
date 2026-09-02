@@ -1,5 +1,6 @@
 import { answerFromPassages } from '@/lib/retrieval/answer'
 import { searchPapers } from '@/lib/retrieval/search'
+import { verifyAgainstPassages } from '@/lib/retrieval/verify'
 import type { AnswerResult, ToolDefinition } from '@/lib/types'
 
 // The board-paper retrieval tool.
@@ -104,6 +105,26 @@ export const searchBoardPapers: ToolDefinition = {
       }
     }
 
+    // A prompt forbidding arithmetic is a request; this is the check. An early
+    // version reported an overspend of £132,000 that appeared in no paper,
+    // having subtracted two figures it was shown.
+    const check = verifyAgainstPassages(grounded.text, search.passages)
+    if (!check.ok) {
+      console.error(
+        `[retrieval] answer withheld: ${check.unsupported.join(', ')} not found in any passage`,
+      )
+      return {
+        tool: 'refusal',
+        headline: 'That answer could not be verified against the papers.',
+        reason:
+          `The answer included ${check.unsupported.join(', ')}, which does not appear in any ` +
+          `passage it was based on. A figure that cannot be traced to a paper is not reported, ` +
+          `because a reader has no way to check it.`,
+        alternative:
+          'Asking about one figure at a time usually returns something quotable. The attendance records, action log and skills audit compute their figures directly.',
+      }
+    }
+
     const papersCited = grounded.cited.length > 0 ? grounded.cited : []
     const sources = [...new Set(papersCited.map((c) => `${c.paperId}.md`))]
 
@@ -124,7 +145,7 @@ export const searchBoardPapers: ToolDefinition = {
       ],
       caveats: [
         'These are extracts, not whole papers. A paper may qualify elsewhere something an extract states plainly.',
-        'Every figure above is quoted from a paper, not computed. Where a paper is itself wrong or out of date, so is this.',
+        'Every figure above was checked against the passages it came from before this answer was shown. Figures are quoted, never calculated, so where a paper is itself wrong or out of date, so is this.',
         ...(papersCited.length === 0
           ? ['The answer cites no specific section, so it is harder to check against the source.']
           : []),

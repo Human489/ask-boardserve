@@ -93,11 +93,63 @@ function withBreadth<T extends { score: number; paperId: string }>(
   return kept.sort((a, b) => b.score - a.score)
 }
 
+/**
+ * Questions about the corpus as a whole rather than about a subject in it.
+ *
+ * "What themes recur across the papers" has no semantic anchor: no passage is
+ * about recurring themes, so retrieval returns whatever sits nearest those
+ * abstract words and the judge rightly says none of them states the answer.
+ * The question is not answered by finding the closest passage; it is answered
+ * by reading everything.
+ *
+ * These are English question shapes, not this organisation's vocabulary, so
+ * they travel to another dataset unchanged.
+ */
+const CORPUS_WIDE =
+  /\brecur|\bthemes?\b|\bin common\b|\bacross (the |all |recent )?(papers|documents|reports)\b|\boverall\b|\bpattern(s)?\b|\brunning through\b/
+
+export function isCorpusWide(question: string): boolean {
+  return CORPUS_WIDE.test(question.toLowerCase())
+}
+
 export async function searchPapers(
   dataset: Dataset,
   question: string,
   topK = 6,
 ): Promise<SearchResult> {
+  // A whole-corpus question reads the whole corpus. At a few thousand words
+  // that costs less than pretending retrieval can find an answer that is not
+  // in any single passage. If a corpus ever grows past what fits in context
+  // this needs a map-reduce instead, and the guard below is where to notice.
+  if (isCorpusWide(question)) {
+    const budget = 24_000
+    let used = 0
+    const whole: Passage[] = []
+    for (const paper of dataset.papers) {
+      if (used + paper.body.length > budget) break
+      used += paper.body.length
+      whole.push({
+        score: 1,
+        text: paper.body,
+        paperId: paper.id,
+        paperTitle: paper.title,
+        section: 'whole paper',
+      })
+    }
+    if (whole.length === dataset.papers.length) {
+      return {
+        passages: whole,
+        topScore: 1,
+        floor: 0,
+        offDomain: false,
+        missingTerms: [],
+        datasetMismatch: null,
+      }
+    }
+    // Too large to read whole; fall through to retrieval rather than answering
+    // a corpus-wide question from a partial corpus.
+  }
+
   const [vector] = await embed([question])
   // Over-fetch so there is something to diversify from.
   const matches = await queryVectors(vector, Math.max(topK * 3, 15))
