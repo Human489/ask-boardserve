@@ -515,3 +515,68 @@ test('an unmatched body returns a nil answer that says so, not a vacuous one', (
     'a nil result must not be described as a trend',
   )
 })
+
+// Filters exist because the tools answered a narrower question with their full
+// output: "which actions does the Head of IT own" returned every overdue action
+// in the log, and a question naming one director returned a full-year trend.
+// Correct data at the wrong scope reads as an answer and buries what was asked.
+
+test('overdue_actions can be filtered to one owner', () => {
+  const owners = [...new Set(dataset.actions.actions.map((a) => a.owner))]
+  const owner = owners[0]
+  const all = run('overdue_actions')
+  const filtered = run('overdue_actions', { owner })
+
+  assert.ok(filtered.headline.includes(owner), 'the headline must name the owner filtered to')
+  assert.equal(filtered.chart, null, 'one owner is one bar, which is padding not a finding')
+  const expected = dataset.actions.actions.filter(
+    (a) => a.owner === owner && a.due_date < dataset.asAt && a.status !== 'complete',
+  ).length
+  assert.equal(filtered.table?.rows.length ?? 0, expected)
+  assert.ok((all.table?.rows.length ?? 0) >= expected, 'filtering must narrow, not widen')
+})
+
+test('an owner that does not exist returns a caveated nil, not a crash or a full dump', () => {
+  const r = run('overdue_actions', { owner: 'Chief Gardener' })
+  assert.match(r.headline, /no action in the log is owned by/i)
+  assert.equal(r.table, null)
+  assert.ok(r.caveats.length > 0, 'a nil result still needs its caveat')
+})
+
+test('meetings_missed can be filtered to one director', () => {
+  const name = dataset.attendance.records[0].director_name
+  const r = run('meetings_missed', { director: name })
+
+  assert.ok(r.headline.includes(name))
+  assert.equal(r.chart, null, 'one director is one bar')
+  // A ranking sentence is nonsense for a single person.
+  assert.ok(!/missed the most|tie on/i.test(r.headline), r.headline)
+  assert.ok(!/whole dataset/i.test(r.headline), 'the rows are one director, not the dataset')
+
+  const own = dataset.attendance.records.filter((x) => x.director_name === name)
+  const attended = own.filter((x) => x.status === 'present').length
+  // Perfect attendance reads "attended all 15", anything else "attended 7 of 10".
+  const expected =
+    attended === own.length ? `all ${own.length}` : `${attended} of ${own.length}`
+  assert.ok(r.headline.includes(expected), `expected "${expected}" in: ${r.headline}`)
+})
+
+test('a filtered director with perfect attendance does not speak for the board', () => {
+  // Such a director produces no rows in the misses table, and the empty-result
+  // branch then said "every director attended every meeting" — true of them,
+  // read as a statement about everyone.
+  const perfect = dataset.attendance.director_summary.find(
+    (d) => d.overall_attendance_pct === 100,
+  )
+  if (!perfect) return
+  const r = run('meetings_missed', { director: perfect.director_name })
+  assert.ok(r.headline.startsWith(perfect.director_name), r.headline)
+  assert.ok(!/every director/i.test(r.headline), r.headline)
+})
+
+test('a director who does not exist returns a caveated nil', () => {
+  const r = run('meetings_missed', { director: 'Nobody Here' })
+  assert.match(r.headline, /no one named/i)
+  assert.equal(r.table, null)
+  assert.ok(r.caveats.length > 0)
+})

@@ -21,6 +21,10 @@ function num(v: unknown, fallback: number): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+function str(v: unknown, fallback: string): string {
+  return typeof v === 'string' && v.trim() ? v.trim() : fallback
+}
+
 function choice<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(v as T) ? (v as T) : fallback
 }
@@ -82,12 +86,57 @@ export const overdueActions: ToolDefinition = {
       enum: ['owner', 'committee'],
       default: 'owner',
     },
+    owner: {
+      type: 'string',
+      description:
+        'Restrict to actions owned by this job title, for questions like "what is overdue ' +
+        'for the Head of IT". Owners are roles, not people. Omit for all owners.',
+    },
   },
   required: [],
   run(dataset, args): ToolResult {
     const groupBy = choice(args.group_by, ['owner', 'committee'] as const, 'owner')
-    const all = dataset.actions.actions
     const asAt = dataset.asAt
+
+    // Without a filter the tool answered "which actions does the Head of IT own"
+    // with every overdue action in the log: the right data at the wrong scope,
+    // which reads as an answer and buries the one row that was asked for.
+    const wantedOwner = str(args.owner, '')
+    const knownOwners = [...new Set(dataset.actions.actions.map((a) => a.owner))].sort()
+    const matchedOwner = wantedOwner
+      ? knownOwners.find(
+          (o) =>
+            o.toLowerCase() === wantedOwner.toLowerCase() ||
+            o.toLowerCase().includes(wantedOwner.toLowerCase()),
+        ) ?? null
+      : null
+
+    if (wantedOwner && !matchedOwner) {
+      return {
+        tool: 'overdue_actions',
+        headline: `No action in the log is owned by "${wantedOwner}". The owners on record are ${list(
+          knownOwners,
+        )}.`,
+        chart: null,
+        table: null,
+        assumptions: [
+          'Owners are matched against the job titles recorded in the action log, not against director names.',
+        ],
+        caveats: [
+          'This is a nil return caused by an owner that does not appear in the log, not a finding that nothing is overdue.',
+        ],
+        provenance: {
+          asAt,
+          sources: ['actions.json'],
+          rowsConsidered: dataset.actions.actions.length,
+          derivation: `Compared "${wantedOwner}" against the ${knownOwners.length} owners recorded in the action log and found no match.`,
+        },
+      }
+    }
+
+    const all = matchedOwner
+      ? dataset.actions.actions.filter((a) => a.owner === matchedOwner)
+      : dataset.actions.actions
 
     const derived = all.filter((a) => isDerivedOverdue(a, asAt))
     const recorded = all.filter((a) => a.status === 'overdue')
@@ -150,11 +199,19 @@ export const overdueActions: ToolDefinition = {
 
     return {
       tool: 'overdue_actions',
-      headline:
-        `${derived.length} action${derived.length === 1 ? ' is' : 's are'} overdue when derived from due dates against ${asAt}, ` +
-        `against ${recorded.length} the log records as overdue, and ${disagreement}` +
-        (topGroup ? `; the heaviest ${groupBy} is ${topGroup.label} with ${topGroup.value}.` : '.'),
-      chart: {
+      headline: matchedOwner
+        ? `${derived.length} of ${matchedOwner}'s ${all.length} action${
+            all.length === 1 ? '' : 's'
+          } ${derived.length === 1 ? 'is' : 'are'} overdue against ${asAt}` +
+          (derived.length > 0
+            ? `: ${list(derived.map((a) => `${a.action_id}, ${a.description}`))}.`
+            : `, so nothing of theirs is outstanding past its due date.`)
+        : `${derived.length} action${derived.length === 1 ? ' is' : 's are'} overdue when derived from due dates against ${asAt}, ` +
+          `against ${recorded.length} the log records as overdue, and ${disagreement}` +
+          (topGroup ? `; the heaviest ${groupBy} is ${topGroup.label} with ${topGroup.value}.` : '.'),
+      // Filtered to one owner, the chart is a single bar — padding, not a
+      // finding. The listed actions are the answer.
+      chart: matchedOwner ? null : {
         kind: 'bar',
         title: `Overdue actions by ${groupBy}`,
         xLabel: groupBy === 'owner' ? 'Owner (job title)' : 'Body that raised it',

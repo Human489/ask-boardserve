@@ -489,11 +489,55 @@ export const meetingsMissed: ToolDefinition = {
   description:
     'Directors ranked by meetings missed, splitting apologies (advance notice) from ' +
     'absences (none), with the miss rate alongside the count. Use for "who has missed ' +
-    'the most meetings".',
-  parameters: {},
+    'the most meetings". Takes a director name to answer questions about one person.',
+  parameters: {
+    director: {
+      type: 'string',
+      description:
+        'Restrict to one director, for questions about a named person. Omit to rank everyone.',
+    },
+  },
   required: [],
-  run(dataset): ToolResult {
-    const rows = dataset.attendance.records
+  run(dataset, args): ToolResult {
+    // Without this, a question naming one director was answered with a
+    // full-year trend across every meeting: a real chart, correct figures, and
+    // not the question that was asked.
+    const wanted = str(args.director) ?? ''
+    const knownDirectors = [
+      ...new Set(dataset.attendance.records.map((r) => r.director_name)),
+    ].sort()
+    const matchedDirector = wanted
+      ? knownDirectors.find(
+          (n) =>
+            n.toLowerCase() === wanted.toLowerCase() ||
+            n.toLowerCase().includes(wanted.toLowerCase()),
+        ) ?? null
+      : null
+
+    if (wanted && !matchedDirector) {
+      return {
+        tool: 'meetings_missed',
+        headline: `No one named "${wanted}" appears in the attendance records. The directors on record are ${list(
+          knownDirectors,
+        )}.`,
+        chart: null,
+        table: null,
+        assumptions: ['Names are matched against the attendance records, not against any roster.'],
+        caveats: [
+          'This is a nil return caused by an unmatched name, not a finding that nobody missed a meeting.',
+        ],
+        provenance: {
+          asAt: dataset.asAt,
+          sources: ['attendance.json'],
+          rowsConsidered: dataset.attendance.records.length,
+          derivation: `Compared "${wanted}" against the ${knownDirectors.length} directors in the attendance records and found no match.`,
+        },
+      }
+    }
+
+    const rows = matchedDirector
+      ? dataset.attendance.records.filter((r) => r.director_name === matchedDirector)
+      : dataset.attendance.records
 
     const acc = new Map<
       string,
@@ -534,7 +578,27 @@ export const meetingsMissed: ToolDefinition = {
     }))
 
     let headline: string
-    if (stats.length === 0) {
+    // The single-director case is decided FIRST. A director with perfect
+    // attendance produces no rows in `stats`, and the empty branch below then
+    // says "every director attended every meeting" — true of that one person,
+    // and read as a statement about the whole board.
+    if (matchedDirector) {
+      // A ranking sentence is nonsense here: "missed the most" has nothing to be
+      // the most of, and "in the whole dataset" is untrue once the rows are one
+      // director's. Counted from the filtered rows, not from `stats`, which
+      // holds only directors who missed something.
+      const eligible = rows.length
+      const attended = rows.filter(isPresent).length
+      const apologies = rows.filter((r) => r.status === 'apologies').length
+      const absent = rows.filter((r) => r.status === 'absent').length
+      const missed = eligible - attended
+      headline =
+        missed === 0
+          ? `${matchedDirector} attended all ${eligible} meetings they were eligible for.`
+          : `${matchedDirector} attended ${attended} of ${eligible} meetings they were eligible for, ` +
+            `missing ${missed} — ${apologies} with advance notice and ${absent} without. ` +
+            `Their denominator is ${eligible} because committee rows exist only for that committee's members.`
+    } else if (stats.length === 0) {
       headline = 'Every director attended every meeting they were eligible for.'
     } else {
       const countClause =
@@ -561,7 +625,7 @@ export const meetingsMissed: ToolDefinition = {
     return {
       tool: 'meetings_missed',
       headline,
-      chart: {
+      chart: matchedDirector ? null : {
         kind: 'bar',
         title: 'Meetings missed, and how many without notice',
         xLabel: 'Director',
