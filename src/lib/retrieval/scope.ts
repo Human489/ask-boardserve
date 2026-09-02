@@ -56,13 +56,41 @@ function isStrongEvidence(term: string, columns: Set<string>): boolean {
 }
 
 /**
- * A question that explicitly asks about the documents is a papers question even
- * when it also names something structured: "what do the papers say about
- * digital and data" is legitimate, and blocking it would be the opposite
- * mistake.
+ * Meeting minutes, as opposed to a duration in minutes.
+ *
+ * A bare "minutes" caught "how many minutes late do directors join meetings?",
+ * which is a field the attendance rows hold. Exported because the router refuses
+ * minutes questions and must draw the same line: one definition, so the two
+ * cannot drift apart.
  */
-const ASKS_FOR_DOCUMENTS =
-  /\bpaper(s)?\b|\bdocument(s)?\b|\breport says\b|\bwritten\b|\bminute(s)?\b|\bsay(s)? about\b|\bwhat does the .* say\b/
+export const MEETING_MINUTES =
+  /\bminutes of (?:the |any |that |last |previous )*(?:meeting|board|committee)|\b(?:the|any|board|committee|meeting|draft|approved|signed) minutes\b|\bin the minutes\b/i
+
+/**
+ * A question that explicitly names the documents is a papers question even when
+ * it also names something structured: "what do the papers say about digital and
+ * data" is legitimate, and blocking it would be the opposite mistake.
+ */
+const NAMES_DOCUMENTS = new RegExp(
+  /\bpaper(s)?\b|\bdocument(s)?\b|\breport says\b/.source + '|' + MEETING_MINUTES.source,
+  'i',
+)
+
+/**
+ * Phrasings that ask what a source SAYS without naming which source. They read
+ * as documentary but are not on their own: "what does the skills audit say about
+ * digital and data" was sent to the papers, which answered that the papers do
+ * not cover it — implying the audit holds no such figure when it holds exactly
+ * that. So these only excuse a question that names no structured source.
+ */
+const ASKS_WHAT_A_SOURCE_SAYS = /\bwritten\b|\bsay(s)? about\b|\bwhat does the .* say\b/
+
+/**
+ * The structured files by name. These are schema names fixed by the dataset
+ * README for every organisation, not one board's vocabulary.
+ */
+const NAMES_STRUCTURED_SOURCE =
+  /\bskills?[- ](?:audit|matrix|record(s)?)\b|\battendance (?:record|log|data|register)(s)?\b|\baction(s)?[- ]log\b/
 
 /** Terms belonging to the structured files, drawn from the loaded dataset. */
 export function structuredVocabulary(dataset: Dataset): string[] {
@@ -99,11 +127,22 @@ export interface ScopeCheck {
 export function checkPapersScope(question: string, dataset: Dataset): ScopeCheck {
   const q = question.toLowerCase()
 
-  if (ASKS_FOR_DOCUMENTS.test(q)) {
+  // Naming the papers wins outright: the reader has said which source they want.
+  if (NAMES_DOCUMENTS.test(q)) {
+    return { belongsToStructuredData: false, matched: [] }
+  }
+
+  // "What does X say about Y" is documentary only while X is not one of the
+  // structured files. Naming one of those is the opposite instruction.
+  if (ASKS_WHAT_A_SOURCE_SAYS.test(q) && !NAMES_STRUCTURED_SOURCE.test(q)) {
     return { belongsToStructuredData: false, matched: [] }
   }
 
   const matched = structuredVocabulary(dataset).filter((term) => q.includes(term))
+  if (NAMES_STRUCTURED_SOURCE.test(q)) {
+    const source = q.match(NAMES_STRUCTURED_SOURCE)?.[0]?.trim()
+    if (source && !matched.includes(source)) matched.unshift(source)
+  }
   return { belongsToStructuredData: matched.length > 0, matched }
 }
 

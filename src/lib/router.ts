@@ -1,6 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { recordCall, recordFailure, usageFromResponse } from '@/lib/usage'
-import { checkClockAnchored, checkPapersScope } from '@/lib/retrieval/scope'
+import { MEETING_MINUTES, checkClockAnchored, checkPapersScope } from '@/lib/retrieval/scope'
 import type { Dataset, ToolDefinition } from '@/lib/types'
 
 // Routing only. This file never computes a figure and never writes a headline:
@@ -26,8 +26,12 @@ export interface RefusalRoute {
    * Which path produced the refusal. A refusal the model chose is a different
    * signal from one the offline classifier matched by keyword, and the UI must
    * not report the first as the second.
+   *
+   * 'guard' is neither: a deterministic check decided it, either before routing
+   * ran at all or by overruling whichever path did. Labelling those as the model
+   * or the classifier claimed a decision neither made.
    */
-  routedBy: 'model' | 'fallback'
+  routedBy: 'model' | 'fallback' | 'guard'
 }
 
 export type Route = ToolRoute | RefusalRoute
@@ -137,8 +141,23 @@ function toOpenAiTools(tools: ToolDefinition[]) {
 const PACK_PATTERNS =
   /\b(board )?pack(s)?\b|\bnotice period\b|\benough notice\b|\bcirculat|\bdespatch|\bdispatch|\bpage count\b|\bhow long are our\b/
 
-const MINUTES_PATTERNS =
-  /\bminute(s)?\b|\bresolved\b|\bresolution(s)?\b|\bwhat did we decide\b|\bwhat was decided\b|\bdecided\b|\bdecision(s) (taken|made)\b/
+/**
+ * Genuine meeting-minutes questions only.
+ *
+ * A bare "minutes" refused "how many minutes late do directors join meetings?"
+ * by saying the data holds no minutes — while the attendance rows record minutes
+ * joined late, and the router's own prompt advertises the field. A bare
+ * "decided" did the same to "which committee decided the most actions?", though
+ * the action log records the body that raised each one. A refusal must say what
+ * no TOOL computes, never that data is absent when it is present.
+ */
+const MINUTES_PATTERNS = new RegExp(
+  MEETING_MINUTES.source +
+    '|' +
+    /\bresolved\b|\bresolution(s)?\b|\bwhat did we decide\b|\bwhat (?:was|were) decided\b|\bwhat did the board decide\b|\bdecision(s)? (taken|made|reached)\b/
+      .source,
+  'i',
+)
 
 const RETRIEVAL_PATTERNS =
   /\bboard paper(s)?\b|\bpaper(s)?\b|\bdocument(s)?\b|\bcorpus\b|\bwhat do the .*say\b/
@@ -199,18 +218,33 @@ const TOOL_HINTS: Record<string, string[][]> = {
     ['trend'],
     ['over the year'],
     ['month'],
+    // A bare month or "when" is too generic to route on, but either alongside
+    // attendance is unmistakably this question.
+    ['month', 'attendance'],
     ['dip'],
   ],
   attendance_by_committee: [
     ['committee', 'attendance'],
     ['committee', 'lowest'],
     ['which committee', 'attend'],
+    // Asking how often each body met is this tool's rank_by=meetings mode; it
+    // had no hint at all and fell through to a refusal.
+    ['how many meetings'],
+    ['meetings', 'each'],
+    ['met', 'most'],
   ],
   meetings_missed: [
     ['missed', 'meeting'],
     ['missed', 'most'],
     ['eligible'],
+    // "absent" stays a half-weight hint on its own, and is deliberately NOT
+    // paired with a superlative: "who is absent from the staff car park most
+    // often" then routes here and answers about board meetings. Refusing
+    // "who was absent most often?" offline is the cost of that, and it is the
+    // cheaper mistake — the model path routes it correctly, and the fallback's
+    // job is to fail safe.
     ['absent'],
+    ['absent', 'meeting'],
     ['apolog'],
   ],
   overdue_actions: [
@@ -236,6 +270,8 @@ const TOOL_HINTS: Record<string, string[][]> = {
     ['outstanding', 'distribut'],
     ['across', 'owner'],
     ['concentrated'],
+    ['concentrated', 'work'],
+    ['concentrated', 'one'],
     ['spread'],
   ],
   deferred_more_than_once: [
@@ -307,13 +343,60 @@ function genericScore(q: string, tool: ToolDefinition): number {
   return n
 }
 
+/**
+ * What a matched hint group is worth.
+ *
+ * A group scored its own length, so a group holding one bare word scored 1 and
+ * cleared the refusal threshold on its own. That is how "when did the finance
+ * committee last meet?" reached the attendance-by-meeting chart on the strength
+ * of "when", and "which director has the longest commute?" reached the overdue
+ * actions on "longest": both answered a different question, confidently. A
+ * single ordinary English word is not evidence of a tool — it needs a second
+ * term, or a phrase specific enough that no other reading of it exists — so it
+ * is worth half, and something else must corroborate it.
+ */
+/**
+ * Terms that mean one thing in this domain and nothing else in ordinary speech.
+ *
+ * Halving the weight of every bare word stopped generic ones like "when" and
+ * "longest" carrying a route on their own, which was the point — but it also
+ * silenced honest questions built on unambiguous vocabulary, so "how many
+ * apologies were given?" started refusing. These are schema words rather than
+ * any one organisation's vocabulary, so naming them here does not tie the app
+ * to a dataset.
+ */
+const UNAMBIGUOUS = new Set([
+  'apolog',
+  'eligible',
+  'overdue',
+  'deferred',
+  'quorum',
+  'tenure',
+  'attendance',
+  'skills audit',
+])
+
+/**
+ * A hint group's contribution to a tool's score.
+ *
+ * A bare generic word is worth half, so it cannot alone clear the threshold
+ * below which the classifier refuses. Two of them together can, which is the
+ * intended behaviour: one loose word is a coincidence, two is a signal.
+ */
+function groupWeight(group: string[]): number {
+  if (group.length > 1) return group.length
+  const term = group[0]
+  if (term.includes(' ')) return 1
+  return UNAMBIGUOUS.has(term) ? 1 : 0.5
+}
+
 function scoreTools(q: string, tools: ToolDefinition[]): { tool: ToolDefinition; score: number }[] {
   return tools
     .map((tool) => {
       const groups = TOOL_HINTS[tool.name] ?? []
       let score = 0
       for (const group of groups) {
-        if (group.every((term) => q.includes(term))) score += group.length
+        if (group.every((term) => q.includes(term))) score += groupWeight(group)
       }
       return { tool, score: score + genericScore(q, tool) }
     })
@@ -481,10 +564,16 @@ export function fallbackRoute(question: string, tools: ToolDefinition[]): Route 
     return {
       kind: 'refusal',
       routedBy: 'fallback',
+      // Worded as what no TOOL does, not as what the DATA lacks. A single loose
+      // word no longer carries a route, so this refusal now catches questions
+      // that are half-recognised — and telling a reader the records hold
+      // nothing on a subject they do hold is the worse of the two failures.
       reason:
-        'Nothing in the attendance records, action log or skills audit answers this question.',
+        'No analysis here matches this question closely enough to answer it. The attendance ' +
+        'records, action log and skills audit are all loaded; what is missing is a tool that ' +
+        'computes this particular thing, so nothing is being claimed about what they contain.',
       alternative:
-        'Try asking about attendance, outstanding or overdue actions, or the board skills audit.',
+        'Asking it more specifically usually reaches one: by committee, by director, by what is overdue, or by skill area.',
     }
   }
 
@@ -625,8 +714,9 @@ export async function routeQuestion(
       const meetings = dataset.attendance.meetings
       const latest = meetings.map((m) => m.date).sort().at(-1)
       return {
+        // Decided before either routing path runs, so neither of them decided it.
         kind: 'refusal',
-        routedBy: 'fallback',
+        routedBy: 'guard',
         reason:
           `This asks about "${clock.phrase}", which is a moment on your calendar rather than ` +
           `in the data. These figures are a snapshot as at ${dataset.asAt}` +
@@ -657,6 +747,17 @@ export async function routeQuestion(
  * With no dataset the check cannot run, so the route passes through unchanged
  * rather than being blocked on a guess.
  */
+/**
+ * Exported under a test name because the argument it guards only ever arrives
+ * from the model path, which a test cannot drive deterministically.
+ */
+export const guardPapersRouteForTest = (
+  route: Route,
+  question: string,
+  tools: ToolDefinition[],
+  dataset?: Dataset,
+): Route => guardPapersRoute(route, question, tools, dataset)
+
 function guardPapersRoute(
   route: Route,
   question: string,
@@ -667,7 +768,27 @@ function guardPapersRoute(
   // AND computes, so naming structured data is expected of it, not a mistake.
   if (route.kind !== 'tool' || route.name !== 'search_board_papers' || !dataset) return route
 
-  const scope = checkPapersScope(question, dataset)
+  // Scope what the tool will actually be asked, not only what the reader typed.
+  // The model supplies this argument and may reformulate freely — coerceArgs
+  // accepts any string for it — so a rewrite that drops the structured wording
+  // would walk a blocked question straight past a check on the original text.
+  // Both are tested, and either one is enough to block.
+  const asked = typeof route.args.question === 'string' ? route.args.question : ''
+  const userScope = checkPapersScope(question, dataset)
+  const askedScope = asked.trim() ? checkPapersScope(asked, dataset) : userScope
+
+  // The reader's own wording is the authority. When only the rewrite looks
+  // structured, the rewrite is the problem: put the question back rather than
+  // refusing a legitimate documents question over a word the model chose.
+  if (!userScope.belongsToStructuredData && askedScope.belongsToStructuredData) {
+    console.warn(
+      `[router] the model rewrote a papers question into structured wording ` +
+        `(${askedScope.matched.join(', ')}); asking the papers what the reader asked`,
+    )
+    return { ...route, args: { ...route.args, question } }
+  }
+
+  const scope = userScope
   if (!scope.belongsToStructuredData) return route
 
   console.warn(
@@ -682,8 +803,9 @@ function guardPapersRoute(
   if (retry.kind === 'tool' && retry.name !== 'search_board_papers') return retry
 
   return {
+    // Written here, by a check, whatever routed the question in the first place.
     kind: 'refusal',
-    routedBy: route.routedBy,
+    routedBy: 'guard',
     reason:
       `This asks about ${scope.matched.slice(0, 3).join(', ')}, which is held in the ` +
       `attendance records, action log or skills audit rather than in the board papers. ` +

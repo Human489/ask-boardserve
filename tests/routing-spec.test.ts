@@ -85,10 +85,20 @@ test('the IQ refusal does not borrow the qualifications explanation', async () =
 // full headline, chart and provenance block about an unrelated subject — a
 // confidently wrong answer, which is worse than a visible failure.
 const MUST_REFUSE_OFFLINE: string[] = [
-  // Emptied as tools arrived: the tenure and forward-looking questions that
-  // once had to be refused by keyword now have tools that answer them, and are
-  // asserted in HYBRID_QUESTIONS and UPCOMING_QUESTIONS instead. Kept so a
-  // future misroute has somewhere obvious to be pinned.
+  // The tenure and forward-looking questions that once had to be refused by
+  // keyword now have tools, and are asserted in HYBRID_QUESTIONS and
+  // UPCOMING_QUESTIONS instead.
+  //
+  // These are the misroutes a single generic hint word used to produce. Each
+  // scored exactly 1 on one bare word and cleared the refusal threshold, then
+  // answered a different question with a full chart: "when" reached the
+  // attendance-by-meeting trend, "longest" the oldest overdue action. Nothing
+  // in the data speaks to either question, and refusing is the designed
+  // behaviour.
+  'When did the finance committee last meet?',
+  'Which director has the longest commute?',
+  'Which month were the offices repainted?',
+  'Who is absent from the staff car park most often?',
 ]
 
 for (const question of MUST_REFUSE_OFFLINE) {
@@ -202,3 +212,33 @@ test('the offline classifier cannot spot a document question that names no docum
   const route = fallbackRoute('Why did the hospice close the Ashcombe unit?', TOOLS)
   assert.equal(route.kind, 'refusal', 'must refuse rather than reach an unrelated tool')
 })
+
+// Weakening single generic hints so "when" and "longest" could not carry a
+// route on their own also silenced honest questions built on one word —
+// "who was absent most often?" and "how many apologies were given?" started
+// refusing. Refusing over misrouting is the right trade, but refusing a
+// question the product exists to answer is not; both halves are pinned here so
+// a future tightening cannot quietly take the second one with it.
+const MUST_STILL_ROUTE: [string, string][] = [
+  // "who was absent most often?" is deliberately absent from this list: see the
+  // comment on the meetings_missed hints. It refuses offline, on purpose.
+  ['who was absent from meetings most often?', 'meetings_missed'],
+  ['how many apologies were given?', 'meetings_missed'],
+  ['which month had the lowest attendance?', 'attendance_by_meeting'],
+  ['is the work concentrated on one person?', 'actions_distribution'],
+  ['how many meetings did each committee hold?', 'attendance_by_committee'],
+]
+
+for (const [question, expected] of MUST_STILL_ROUTE) {
+  test(`a natural question still reaches a tool offline: "${question}"`, async () => {
+    const routed = await routeQuestion(question, TOOLS)
+    assert.notEqual(
+      routed.kind,
+      'refusal',
+      `refused a question the product answers: ${
+        routed.kind === 'refusal' ? routed.reason : ''
+      }`,
+    )
+    if (routed.kind !== 'refusal') assert.equal(routed.name, expected)
+  })
+}

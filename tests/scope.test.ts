@@ -1,7 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { loadDataset } from '../src/lib/dataset/loader'
-import { checkClockAnchored, checkPapersScope, structuredVocabulary } from '../src/lib/retrieval/scope'
+import {
+  MEETING_MINUTES,
+  checkClockAnchored,
+  checkPapersScope,
+  structuredVocabulary,
+} from '../src/lib/retrieval/scope'
 
 // The papers tool became a catch-all: "who has the weakest Estates and assets
 // skill" was sent to the board papers, which do not hold the skills audit, and
@@ -116,3 +121,40 @@ for (const question of [
     )
   })
 }
+
+// Naming a STRUCTURED source is not asking for documents. "What does the skills
+// audit say about digital and data" was short-circuited by the "what does the
+// ... say" pattern, went to the papers, and came back "the board papers do not
+// answer this" — implying the audit holds no such figure when it holds exactly
+// that.
+for (const question of [
+  'What does the skills audit say about ',
+  'What is written in the skills audit about ',
+  'What does the attendance record say about ',
+]) {
+  test(`naming a structured source is not a documents question: ${question.slice(0, 40)}`, () => {
+    const scope = checkPapersScope(`${question}${dataset.skillNames[0]}?`, dataset)
+    assert.equal(scope.belongsToStructuredData, true)
+    assert.ok(scope.matched.length > 0, 'the deciding term should be reported')
+  })
+}
+
+test('naming the papers still wins, even alongside a structured source', () => {
+  // The reader has said which source they want. Blocking this would be the
+  // opposite mistake, and the papers tool refuses for itself if they are silent.
+  const scope = checkPapersScope(
+    'What do the board papers say about the skills audit?',
+    dataset,
+  )
+  assert.equal(scope.belongsToStructuredData, false)
+})
+
+test('a duration in minutes is not a meeting-minutes question', () => {
+  // The router refuses minutes questions, and used to refuse this one by
+  // claiming the data holds no minutes — while the attendance rows record
+  // minutes joined late.
+  assert.equal(MEETING_MINUTES.test('how many minutes late do directors join?'), false)
+  assert.equal(MEETING_MINUTES.test('average minutes joined late by committee'), false)
+  assert.equal(MEETING_MINUTES.test('what do the minutes of the last meeting say?'), true)
+  assert.equal(MEETING_MINUTES.test('can we see the board minutes?'), true)
+})

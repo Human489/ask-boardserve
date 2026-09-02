@@ -3,7 +3,8 @@ import test from 'node:test'
 import { TOOLS } from '../src/lib/analytics/registry'
 import { resetConfigCache } from '../src/lib/config'
 import { checkRateLimit, resetRateLimits } from '../src/lib/ratelimit'
-import { fallbackRoute } from '../src/lib/router'
+import { fallbackRoute, guardPapersRouteForTest, routeQuestion } from '../src/lib/router'
+import { loadDataset } from '../src/lib/dataset/loader'
 
 // Only the fallback classifier is tested. The model path is non-deterministic
 // and needs credentials; the fallback is what must hold when it is unavailable.
@@ -72,6 +73,55 @@ for (const q of REFUSALS) {
   })
 }
 
+// A refusal that claims a field is absent when the data holds it tells the
+// reader the product cannot do something it can. Both of these refused on a
+// bare keyword — "minutes" and "decided" — while the attendance rows record
+// minutes joined late and the action log records the body that raised each
+// action.
+const MUST_NOT_CLAIM_NO_MINUTES = [
+  'How many minutes late do directors join meetings?',
+  'Which committee decided the most actions?',
+  'What is the average minutes joined late?',
+]
+
+for (const q of MUST_NOT_CLAIM_NO_MINUTES) {
+  test(`does not refuse as a minutes question: ${q.slice(0, 48)}`, () => {
+    const r = fallbackRoute(q, TOOLS)
+    if (r.kind !== 'refusal') return
+    assert.ok(
+      !/no minutes in this dataset|no record of what was decided/i.test(r.reason),
+      `refused by claiming absent data: "${r.reason}"`,
+    )
+  })
+}
+
+// Genuine meeting-minutes questions must still refuse: there are no minutes.
+for (const q of [
+  'What do the minutes of the last board meeting say?',
+  'Can we see the board minutes?',
+  'What was resolved at the last meeting?',
+]) {
+  test(`still refuses a real minutes question: ${q.slice(0, 48)}`, () => {
+    const r = fallbackRoute(q, TOOLS)
+    assert.equal(r.kind, 'refusal')
+    if (r.kind !== 'refusal') return
+    assert.match(r.reason, /minutes/i)
+  })
+}
+
+test('a refusal never says the records hold nothing on a subject they hold', () => {
+  // The catch-all refusal fires more often now that one loose word cannot carry
+  // a route, so its wording matters more: it must describe what no TOOL
+  // computes, never what the data lacks.
+  const r = fallbackRoute('Which month were the offices repainted?', TOOLS)
+  assert.equal(r.kind, 'refusal')
+  if (r.kind !== 'refusal') return
+  assert.ok(
+    !/nothing in the attendance records/i.test(r.reason),
+    'this asserts an absence the router has not checked',
+  )
+})
+
 test('board paper questions route to retrieval, which decides for itself', () => {
   // Previously refused outright because retrieval did not exist. It now routes,
   // and whether the papers actually cover the subject is judged by the tool with
@@ -120,4 +170,73 @@ test('the 21st request in a window is denied with a sane Retry-After', async () 
 
   // The window rolls over.
   assert.equal((await checkRateLimit('1.2.3.4', t0 + 60_001)).allowed, true)
+})
+
+// The papers scope guard used to check the user's question while the tool ran
+// the model's rewritten one. coerceArgs accepts any string for that argument,
+// so a reformulation walked straight past the check.
+const dataset = loadDataset()
+
+test('the guard scopes the question the tool will actually receive', () => {
+  const skill = dataset.skillNames[0]
+  const routed = guardPapersRouteForTest(
+    {
+      kind: 'tool',
+      name: 'search_board_papers',
+      // A rewrite that names structured data, from a question that did not.
+      args: { question: `${skill} scores by director` },
+      routedBy: 'model',
+    },
+    'Tell me about our weakest area.',
+    TOOLS,
+    dataset,
+  )
+  assert.ok(
+    routed.kind !== 'tool' || routed.args.question !== `${skill} scores by director`,
+    'the rewritten structured question reached the papers unchecked',
+  )
+})
+
+test('a rewrite never overrules the reader: the papers are asked what was asked', () => {
+  // Where only the rewrite looks structured, the rewrite is the problem. The
+  // question goes to the papers in the reader's own words rather than being
+  // refused over a word the model chose.
+  const question = 'What do the board papers say about our estate?'
+  const routed = guardPapersRouteForTest(
+    {
+      kind: 'tool',
+      name: 'search_board_papers',
+      args: { question: `${dataset.skillNames[0]} scores` },
+      routedBy: 'model',
+    },
+    question,
+    TOOLS,
+    dataset,
+  )
+  assert.equal(routed.kind, 'tool')
+  if (routed.kind !== 'tool') return
+  assert.equal(routed.name, 'search_board_papers')
+  assert.equal(routed.args.question, question)
+})
+
+test('a refusal written by a check is not attributed to the model or the classifier', async () => {
+  // The UI cannot otherwise tell "the model refused" from "a deterministic
+  // check refused", and they are different signals.
+  const clock = await routeQuestion("What was attendance like at yesterday's meeting?", TOOLS, [], dataset)
+  assert.equal(clock.kind, 'refusal')
+  if (clock.kind !== 'refusal') return
+  assert.equal(clock.routedBy, 'guard')
+
+  const guarded = guardPapersRouteForTest(
+    {
+      kind: 'tool',
+      name: 'search_board_papers',
+      args: { question: `What is ${dataset.skills[0].director_name}'s tenure?` },
+      routedBy: 'model',
+    },
+    `What is ${dataset.skills[0].director_name}'s tenure?`,
+    TOOLS,
+    dataset,
+  )
+  if (guarded.kind === 'refusal') assert.equal(guarded.routedBy, 'guard')
 })

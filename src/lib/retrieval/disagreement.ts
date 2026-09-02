@@ -54,7 +54,10 @@ export interface Disagreement {
 }
 
 function toCount(token: string, boardSize: number): number | null {
-  if (/^half$/i.test(token)) return boardSize / 2
+  // "Half the Board" on an odd board is not a count of directors, and reporting
+  // that a paper says 7.5 accuses it of writing something no paper wrote. An
+  // unresolvable fraction is left alone, like any other ambiguous claim.
+  if (/^half$/i.test(token)) return boardSize % 2 === 0 ? boardSize / 2 : null
   const digits = Number.parseInt(token, 10)
   if (Number.isFinite(digits)) return digits
   return WORD_NUMBERS[token.toLowerCase()] ?? null
@@ -81,10 +84,26 @@ function computed(dataset: Dataset, skill: string) {
  * or below". Both halves are required: a number and the threshold it applies
  * to, so a sentence merely mentioning a skill is never treated as a claim.
  */
-const STRONG_CLAIM =
-  /\b(\w+)\s+(?:trustees?|directors?|members?)\s+scores?\s+4\s+or\s+5\b|\b(\w+)\s+(?:of\s+)?the\s+(?:board|trustees?)\s+scores?\s+4\s+or\s+(?:5|above)\b/i
-const WEAK_CLAIM =
-  /\b(\w+)\s+(?:trustees?|directors?|members?)\s+scores?\s+2\s+or\s+below\b|\b(\w+)\s+(?:of\s+)?the\s+(?:board|trustees?)\s+scores?\s+2\s+or\s+below\b|\b(\w+)\s+scores?\s+2\s+or\s+below\b/i
+/**
+ * The count is the word that OPENS the claim, never whichever word happens to
+ * sit nearest the threshold.
+ *
+ * "Three of the twelve trustees score 2 or below" captured "twelve", so the
+ * caveat told the reader the paper had said 12 where it had said three — the
+ * false accusation this module exists to avoid. The "of the N" group now
+ * swallows the board size, leaving the leading count as the capture.
+ */
+const OF_THE_WHOLE = '(?:\\s+(?:of|out of)\\s+(?:the\\s+)?(?:\\w+\\s+)?)?'
+const PEOPLE = '(?:trustees?|directors?|members?|board)'
+
+const STRONG_CLAIM = new RegExp(
+  `\\b(\\w+)${OF_THE_WHOLE}\\s*(?:the\\s+)?${PEOPLE}\\s+scores?\\s+4\\s+or\\s+(?:5|above)\\b`,
+  'i',
+)
+const WEAK_CLAIM = new RegExp(
+  `\\b(\\w+)${OF_THE_WHOLE}\\s*(?:the\\s+)?${PEOPLE}\\s+scores?\\s+2\\s+or\\s+below\\b`,
+  'i',
+)
 
 function firstCapture(match: RegExpMatchArray | null): string | null {
   if (!match) return null

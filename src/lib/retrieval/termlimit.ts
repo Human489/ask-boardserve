@@ -43,6 +43,21 @@ const PATTERNS: RegExp[] = [
   /term(?:s)? of (\w+|\d+) years/i,
 ]
 
+/**
+ * A sentence that states a NUMBER OF TERMS as well as a term length, or leaves
+ * the total open.
+ *
+ * "Trustees may serve three terms of three years" states a nine-year lifetime in
+ * two numbers, and every pattern above would read the three and report a
+ * three-year limit — dressed as a finding, with a chart, a table and an
+ * assumption quoting the sentence as its authority. Multiplying the two instead
+ * would be this file inventing a rule the paper did not state. Extracting
+ * nothing refuses cleanly and says why; extracting the wrong number is the
+ * plausible wrong answer this project exists to avoid.
+ */
+const COUNTS_TERMS =
+  /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|a|another|further|consecutive|successive|renewable|additional)\s+(?:consecutive\s+|successive\s+|further\s+|additional\s+)*terms\b|\b(?:may|can|could)\s+be\s+(?:renewed|extended|re-?appointed)\b|\brenewable\b|\brenewed once\b/i
+
 export interface TermLimit {
   /** Years a director may serve, as stated in a paper. */
   years: number
@@ -81,9 +96,12 @@ export function findTermLimit(passages: Passage[]): TermLimit | null {
       if (!match) continue
       const years = toNumber(match[1])
       if (years === null) continue
+      const sentence = sentenceAround(passage.text, match.index ?? 0)
+      // Ambiguity is a reason to say nothing, not to pick a reading.
+      if (COUNTS_TERMS.test(sentence)) continue
       return {
         years,
-        sentence: sentenceAround(passage.text, match.index ?? 0),
+        sentence,
         paperId: passage.paperId,
         paperTitle: passage.paperTitle,
         section: passage.section,
