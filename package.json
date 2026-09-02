@@ -12,7 +12,7 @@
     "smoke": "node scripts/smoke-api.mjs"
   },
   "dependencies": {
-    "next": "15.5.2",
+    "next": "^15.5.25",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "recharts": "2.15.4",
@@ -24,5 +24,8 @@
     "@types/react-dom": "19.1.7",
     "tsx": "^4.23.13",
     "typescript": "5.8.3"
+  },
+  "overrides": {
+    "postcss": "^8.5.26"
   }
 }
