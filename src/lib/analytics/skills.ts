@@ -1,5 +1,6 @@
 import type { DataPoint, Dataset, ToolDefinition, ToolResult } from '@/lib/types'
 import { allBodies, membersOf } from '@/lib/dataset/loader'
+import { disagreementsFor } from '@/lib/retrieval/disagreement'
 
 // Skills-audit tools.
 //
@@ -139,6 +140,13 @@ export const skillsGaps: ToolDefinition = {
         ? ` It ties with ${list(tiedWeakest.slice(1).map((s) => s.skill))} on the mean; CSV column order breaks the tie.`
         : ''
 
+    // Where a paper restates these figures and gets them wrong, say so. Silently
+    // preferring the computed number would leave a secretary reading one figure
+    // in a paper and another here with no idea which to trust — and the fact
+    // that a paper is wrong is itself a governance finding.
+    const reported = focus ? [focus.skill] : stats.slice(0, 3).map((x) => x.skill)
+    const conflicts = disagreementsFor(dataset, reported)
+
     const rank = stats.findIndex((x) => x.skill === focus?.skill) + 1
     const headline = focus
       ? `${focus.skill} averages ${focus.mean.toFixed(2)} across ${focus.n} directors, ` +
@@ -190,10 +198,19 @@ export const skillsGaps: ToolDefinition = {
           1 / Math.max(dataset.skills.length, 1),
         )} points.`,
         'A mean hides concentration: a skill held strongly by one or two people is a dependency, not a strength.',
+        // Both figures, with their sources. The reader decides, and either way
+        // knows the paper and the audit do not agree.
+        ...conflicts.map(
+          (c) =>
+            `A board paper disagrees with the audit here. ${c.paperTitle} says "${c.sentence}" — ` +
+            `that is ${c.paperSays} ${c.measure} for ${c.skill}, where the audit file gives ` +
+            `${c.dataSays}. The figures above are computed from the audit. The paper being ` +
+            `wrong is worth knowing in itself, and worth checking before either number is quoted.`,
+        ),
       ],
       provenance: {
         asAt: dataset.asAt,
-        sources: SOURCES,
+        sources: [...new Set([...SOURCES, ...conflicts.map((c) => `${c.paperId}.md`)])],
         rowsConsidered: dataset.skills.length,
         derivation:
           `Each of the ${dataset.skillNames.length} skill columns in the audit file was averaged across ` +

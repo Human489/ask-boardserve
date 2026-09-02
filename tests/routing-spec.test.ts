@@ -84,7 +84,11 @@ test('the IQ refusal does not borrow the qualifications explanation', async () =
 // tool. An audit found the offline classifier answering both of these with a
 // full headline, chart and provenance block about an unrelated subject — a
 // confidently wrong answer, which is worse than a visible failure.
-const MUST_REFUSE_OFFLINE = [
+const MUST_REFUSE_OFFLINE: string[] = [
+  // Emptied as tools arrived: the tenure and forward-looking questions that
+  // once had to be refused by keyword now have tools that answer them, and are
+  // asserted in HYBRID_QUESTIONS and UPCOMING_QUESTIONS instead. Kept so a
+  // future misroute has somewhere obvious to be pinned.
 ]
 
 for (const question of MUST_REFUSE_OFFLINE) {
