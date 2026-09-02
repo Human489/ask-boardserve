@@ -27,6 +27,10 @@ function num(v: unknown, fallback: number): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+function choice<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback
+}
+
 function str(v: unknown): string | undefined {
   return typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined
 }
@@ -377,10 +381,22 @@ export const attendanceByCommittee: ToolDefinition = {
   name: 'attendance_by_committee',
   description:
     'Attendance rate for each board or committee, ranked, with a per-body small-sample ' +
-    'caveat. Use for "which committees have the lowest attendance".',
-  parameters: {},
+    'caveat and how many times each met. Use for "which committees have the lowest ' +
+    'attendance" and, with rank_by set to meetings, for "which committee meets most ' +
+    'often" or "which is the busiest".',
+  parameters: {
+    rank_by: {
+      type: 'string',
+      description:
+        'Order and lead on attendance rate, or on how many times each body met. Both are ' +
+        'always shown; this decides which the answer is about.',
+      enum: ['attendance', 'meetings'],
+      default: 'attendance',
+    },
+  },
   required: [],
-  run(dataset): ToolResult {
+  run(dataset, args): ToolResult {
+    const rankBy = choice(args.rank_by, ['attendance', 'meetings'] as const, 'attendance')
     const rows = dataset.attendance.records
     const bodies = allBodies(dataset)
 
@@ -399,7 +415,11 @@ export const attendanceByCommittee: ToolDefinition = {
           swing: own.length > 0 ? Math.round((100 / own.length) * 10) / 10 : 0,
         }
       })
-      .sort((a, b) => a.rate - b.rate || a.body.localeCompare(b.body))
+      .sort((a, b) =>
+        rankBy === 'meetings'
+          ? b.meetings - a.meetings || a.body.localeCompare(b.body)
+          : a.rate - b.rate || a.body.localeCompare(b.body),
+      )
 
     const lowest = stats[0]
     const highest = stats[stats.length - 1]
@@ -407,8 +427,9 @@ export const attendanceByCommittee: ToolDefinition = {
 
     const points: DataPoint[] = stats.map((s) => ({
       label: s.body,
-      value: s.rate,
-      highlight: s.rate === lowest.rate,
+      value: rankBy === 'meetings' ? s.meetings : s.rate,
+      highlight:
+        rankBy === 'meetings' ? s.meetings === stats[0].meetings : s.rate === lowest.rate,
       detail: `${s.attended} of ${s.rows} seats across ${s.meetings} meeting${
         s.meetings === 1 ? '' : 's'
       }`,
@@ -451,15 +472,32 @@ export const attendanceByCommittee: ToolDefinition = {
 
     return {
       tool: 'attendance_by_committee',
-      headline: `${lowestClause}, against ${highest.body} at ${highest.rate}%, ${robustClause}.`,
+      headline:
+        rankBy === 'meetings'
+          ? (() => {
+              const busiest = stats[0]
+              const tied = stats.filter((x) => x.meetings === busiest.meetings)
+              const total = stats.reduce((n, x) => n + x.meetings, 0)
+              const lead =
+                tied.length > 1
+                  ? `${list(tied.map((x) => x.body))} met most often, ${busiest.meetings} times each`
+                  : `${busiest.body} met most often, ${busiest.meetings} times`
+              return (
+                `${lead}, out of ${total} meetings across ${stats.length} bodies — ` +
+                `${list(
+                  stats.slice(1).map((x) => `${x.body} ${x.meetings}`),
+                )}. Meeting count is not workload: a body may meet often and carry little.`
+              )
+            })()
+          : `${lowestClause}, against ${highest.body} at ${highest.rate}%, ${robustClause}.`,
       chart: {
         kind: 'bar',
-        title: 'Attendance by body',
+        title: rankBy === 'meetings' ? 'Meetings held by body' : 'Attendance by body',
         xLabel: 'Body',
-        yLabel: 'Attendance',
-        unit: 'percent',
+        yLabel: rankBy === 'meetings' ? 'Meetings held' : 'Attendance',
+        unit: rankBy === 'meetings' ? 'count' : 'percent',
         points,
-        seriesLabel: 'Present rate',
+        seriesLabel: rankBy === 'meetings' ? 'Meetings' : 'Present rate',
       },
       table: {
         columns: ['Body', 'Meetings', 'Seats', 'Present', 'Present rate %', 'One-miss swing (pp)'],

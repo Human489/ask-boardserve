@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { loadDataset } from '../src/lib/dataset/loader'
-import { checkPapersScope, structuredVocabulary } from '../src/lib/retrieval/scope'
+import { checkClockAnchored, checkPapersScope, structuredVocabulary } from '../src/lib/retrieval/scope'
 
 // The papers tool became a catch-all: "who has the weakest Estates and assets
 // skill" was sent to the board papers, which do not hold the skills audit, and
@@ -83,3 +83,35 @@ test('words too common to mean anything are excluded, unless they name a column'
     assert.ok(vocab.includes(column), `${column} is a column and must be recognised`)
   }
 })
+
+// A dated snapshot cannot answer a question anchored to the reader's calendar.
+// "What was attendance like at yesterday's meeting" previously returned a
+// full-year trend: a real chart, correct figures, and the false premise passed
+// without comment.
+for (const question of [
+  "What was attendance like at yesterday's meeting?",
+  'What is on the agenda next week?',
+  'How many meetings do we have this month?',
+  'Is anyone away tomorrow?',
+]) {
+  test(`clock-anchored, so unanswerable: ${question.slice(0, 44)}`, () => {
+    assert.equal(checkClockAnchored(question).anchored, true)
+  })
+}
+
+// Relative to the DATA, not the calendar — these are answerable and must not be
+// caught.
+for (const question of [
+  'Which meetings had unusually low attendance, and when?',
+  'What did we decide in the last three meetings?',
+  'What are the most recent overdue actions?',
+  'Which committee met most often this year?',
+]) {
+  test(`relative to the data, so answerable: ${question.slice(0, 44)}`, () => {
+    assert.equal(
+      checkClockAnchored(question).anchored,
+      false,
+      'this is relative to the dataset, not to today',
+    )
+  })
+}

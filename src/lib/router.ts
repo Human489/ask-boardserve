@@ -1,6 +1,6 @@
 import { getConfig } from '@/lib/config'
 import { recordCall, recordFailure, usageFromResponse } from '@/lib/usage'
-import { checkPapersScope } from '@/lib/retrieval/scope'
+import { checkClockAnchored, checkPapersScope } from '@/lib/retrieval/scope'
 import type { Dataset, ToolDefinition } from '@/lib/types'
 
 // Routing only. This file never computes a figure and never writes a headline:
@@ -583,6 +583,29 @@ export async function routeQuestion(
   history: HistoryTurn[] = [],
   dataset?: Dataset,
 ): Promise<Route> {
+  // A question anchored to the reader's clock cannot be answered by a dated
+  // snapshot, whichever tool it reaches. Decided before routing so the answer is
+  // not a real chart about a different period.
+  if (dataset) {
+    const clock = checkClockAnchored(question)
+    if (clock.anchored) {
+      const meetings = dataset.attendance.meetings
+      const latest = meetings.map((m) => m.date).sort().at(-1)
+      return {
+        kind: 'refusal',
+        routedBy: 'fallback',
+        reason:
+          `This asks about "${clock.phrase}", which is a moment on your calendar rather than ` +
+          `in the data. These figures are a snapshot as at ${dataset.asAt}` +
+          (latest ? `, and the most recent meeting in them was on ${latest}` : '') +
+          `, so nothing here can speak to it.`,
+        alternative: latest
+          ? `Asking about the meeting on ${latest}, or about the year as a whole, is answerable.`
+          : 'Asking about the period the data covers is answerable.',
+      }
+    }
+  }
+
   if (getConfig().hasModelCredentials) {
     const routed = await modelRoute(question, tools, history)
     if (routed) return guardPapersRoute(routed, question, tools, dataset)

@@ -580,3 +580,45 @@ test('a director who does not exist returns a caveated nil', () => {
   assert.equal(r.table, null)
   assert.ok(r.caveats.length > 0)
 })
+
+test('attendance_by_committee can rank on meetings held instead of attendance', () => {
+  const byRate = run('attendance_by_committee')
+  const byMeetings = run('attendance_by_committee', { rank_by: 'meetings' })
+
+  assert.equal(byRate.chart?.unit, 'percent')
+  assert.equal(byMeetings.chart?.unit, 'count')
+
+  // The busiest body, computed independently from the meetings list.
+  const counts = new Map<string, number>()
+  for (const m of dataset.attendance.meetings) {
+    counts.set(m.body, (counts.get(m.body) ?? 0) + 1)
+  }
+  const busiest = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
+  assert.equal(byMeetings.chart?.points[0].label, busiest[0])
+  assert.equal(byMeetings.chart?.points[0].value, busiest[1])
+  assert.ok(byMeetings.headline.includes(String(busiest[1])), byMeetings.headline)
+  // Meeting count is not workload, and the answer should not imply it is.
+  assert.match(byMeetings.headline, /not workload/i)
+})
+
+test('skills_gaps can lead on one named skill', () => {
+  const skill = dataset.skillNames[0]
+  const r = run('skills_gaps', { skill })
+
+  assert.ok(r.headline.startsWith(skill), r.headline)
+  // The mean, computed independently from the CSV.
+  const scores = dataset.skills.map((d) => d.scores[skill])
+  const mean = scores.reduce((a, b) => a + b, 0) / scores.length
+  assert.ok(r.headline.includes(mean.toFixed(2)), `expected ${mean.toFixed(2)} in: ${r.headline}`)
+  const strong = scores.filter((n) => n >= 4).length
+  const weak = scores.filter((n) => n <= 2).length
+  assert.ok(r.headline.includes(`${strong} at 4 or above`), r.headline)
+  assert.ok(r.headline.includes(`${weak} at 2 or below`), r.headline)
+})
+
+test('a skill that is not in the audit returns a caveated nil', () => {
+  const r = run('skills_gaps', { skill: 'Underwater basket weaving' })
+  assert.match(r.headline, /not one of the skill areas/i)
+  assert.equal(r.chart, null)
+  assert.ok(r.caveats.length > 0)
+})

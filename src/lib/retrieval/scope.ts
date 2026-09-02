@@ -86,3 +86,30 @@ export function checkPapersScope(question: string, dataset: Dataset): ScopeCheck
   const matched = structuredVocabulary(dataset).filter((term) => q.includes(term))
   return { belongsToStructuredData: matched.length > 0, matched }
 }
+
+/**
+ * Questions anchored to the reader's clock rather than to the data.
+ *
+ * The dataset is a snapshot with an as-at date. "What was attendance like at
+ * yesterday's meeting" cannot be answered by it at any point in the future, and
+ * the tools happily returned a full-year trend instead: a real chart, correct
+ * figures, and a different question. Worse, the answer never mentioned that no
+ * meeting took place yesterday, so the false premise passed unremarked.
+ *
+ * Only wording tied to the real-world present is caught. "Recent", "latest" and
+ * "the last three meetings" are all answerable relative to the data itself and
+ * are deliberately not here.
+ */
+const CLOCK_ANCHORED =
+  /\byesterday\b|\btoday\b|\btomorrow\b|\bthis (week|month|morning|afternoon)\b|\blast night\b|\bnext (week|month|quarter|year)\b|\bright now\b|\bcurrently scheduled\b|\bso far this (week|month)\b/
+
+export interface ClockCheck {
+  anchored: boolean
+  /** The phrase that decided it, for the refusal wording. */
+  phrase: string | null
+}
+
+export function checkClockAnchored(question: string): ClockCheck {
+  const match = question.toLowerCase().match(CLOCK_ANCHORED)
+  return { anchored: match !== null, phrase: match ? match[0] : null }
+}

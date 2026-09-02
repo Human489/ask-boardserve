@@ -71,11 +71,54 @@ export const skillsGaps: ToolDefinition = {
   description:
     'Board-wide skills coverage: per-skill mean plus how many directors score 4 or above ' +
     'and how many score 2 or below. Use for "where are our skills gaps" or "which skills ' +
-    'are weakest".',
-  parameters: {},
+    'are weakest", and, with a skill named, for "what is our average score in X" or ' +
+    '"who is strong on X".',
+  parameters: {
+    skill: {
+      type: 'string',
+      description:
+        'Name one skill area to lead on it rather than on the weakest overall. Must be one ' +
+        'of the skill columns in the audit. Omit to rank every skill.',
+    },
+  },
   required: [],
-  run(dataset): ToolResult {
+  run(dataset, args): ToolResult {
     const stats = skillStats(dataset)
+
+    // Asking for one skill's average previously fell through to the whole-board
+    // ranking, which answers a different question. The skill is matched against
+    // the audit's own columns, so a second organisation's columns work unchanged.
+    const wanted = str(args.skill) ?? ''
+    const focus = wanted
+      ? stats.find(
+          (candidate) =>
+            candidate.skill.toLowerCase() === wanted.toLowerCase() ||
+            candidate.skill.toLowerCase().includes(wanted.toLowerCase()) ||
+            wanted.toLowerCase().includes(candidate.skill.toLowerCase()),
+        ) ?? null
+      : null
+
+    if (wanted && !focus) {
+      return {
+        tool: 'skills_gaps',
+        headline: `"${wanted}" is not one of the skill areas assessed. The audit covers ${list(
+          dataset.skillNames,
+        )}.`,
+        chart: null,
+        table: null,
+        assumptions: ['Skill areas are the columns of the audit file, whatever they are called.'],
+        caveats: [
+          'This is a nil return caused by an unrecognised skill name, not a finding that the board has no gaps.',
+        ],
+        provenance: {
+          asAt: dataset.asAt,
+          sources: ['skills-audit.csv'],
+          rowsConsidered: dataset.skills.length,
+          derivation: `Compared "${wanted}" against the ${dataset.skillNames.length} skill columns in the audit and found no match.`,
+        },
+      }
+    }
+
     const weakest = stats[0]
     const strongest = stats[stats.length - 1]
     const tiedWeakest = stats.filter((s) => s.mean === weakest.mean)
@@ -96,18 +139,28 @@ export const skillsGaps: ToolDefinition = {
         ? ` It ties with ${list(tiedWeakest.slice(1).map((s) => s.skill))} on the mean; CSV column order breaks the tie.`
         : ''
 
-    const headline =
-      `${weakest.skill} is the weakest area at a self-assessed mean of ${weakest.mean.toFixed(
+    const rank = stats.findIndex((x) => x.skill === focus?.skill) + 1
+    const headline = focus
+      ? `${focus.skill} averages ${focus.mean.toFixed(2)} across ${focus.n} directors, ` +
+        `with ${focus.strong} at ${STRONG} or above and ${focus.weak} at ${WEAK} or below. ` +
+        `That ranks ${rank} of ${stats.length} skill areas, ${
+          rank === 1
+            ? 'the weakest on the board'
+            : rank === stats.length
+              ? 'the strongest on the board'
+              : `between ${stats[rank - 2].skill} and ${stats[rank].skill}`
+        }.`
+      : `${weakest.skill} is the weakest area at a self-assessed mean of ${weakest.mean.toFixed(
         2,
       )}, with ${weakest.weak} of ${weakest.n} directors at ${WEAK} or below and only ${
         weakest.strong
       } at ${STRONG} or above, against ${strongest.skill} as the strongest at ${strongest.mean.toFixed(
         2,
       )}.` +
-      tieClause +
-      (thinnest.skill === weakest.skill
-        ? ''
-        : ` The thinnest coverage is elsewhere: only ${thinnest.strong} of ${thinnest.n} directors reach ${STRONG} in ${thinnest.skill}.`)
+        tieClause +
+        (thinnest.skill === weakest.skill
+          ? ''
+          : ` The thinnest coverage is elsewhere: only ${thinnest.strong} of ${thinnest.n} directors reach ${STRONG} in ${thinnest.skill}.`)
 
     return {
       tool: 'skills_gaps',
