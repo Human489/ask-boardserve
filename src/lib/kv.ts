@@ -69,21 +69,49 @@ export async function kvGet(key: string): Promise<string | null> {
   })
 }
 
-/** Writes with a time-to-live so nothing has to be cleaned up later. */
-export async function kvPut(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+/**
+ * Writes a value. A TTL of null means no expiry.
+ *
+ * The rate limiter wants a TTL so its windows clean themselves up; a pinned
+ * dashboard wants the opposite — a pin that quietly evaporated after a month
+ * would be a worse failure than never having saved it.
+ */
+export async function kvPut(
+  key: string,
+  value: string,
+  ttlSeconds: number | null,
+): Promise<boolean> {
   const url = base()
   if (!url) return false
   // Cloudflare rejects a TTL below 60 seconds.
-  const ttl = Math.max(60, Math.round(ttlSeconds))
+  const query =
+    ttlSeconds === null ? '' : `?expiration_ttl=${Math.max(60, Math.round(ttlSeconds))}`
   const result = await withTimeout(async (signal) => {
     const body = new FormData()
     body.set('value', value)
     body.set('metadata', '{}')
-    const res = await fetch(
-      `${url}/values/${encodeURIComponent(key)}?expiration_ttl=${ttl}`,
-      { method: 'PUT', headers: authHeader(), body, signal },
-    )
+    const res = await fetch(`${url}/values/${encodeURIComponent(key)}${query}`, {
+      method: 'PUT',
+      headers: authHeader(),
+      body,
+      signal,
+    })
     return res.ok
+  })
+  return result === true
+}
+
+export async function kvDelete(key: string): Promise<boolean> {
+  const url = base()
+  if (!url) return false
+  const result = await withTimeout(async (signal) => {
+    const res = await fetch(`${url}/values/${encodeURIComponent(key)}`, {
+      method: 'DELETE',
+      headers: authHeader(),
+      signal,
+    })
+    // Deleting a key that was never there is a success, not a failure.
+    return res.ok || res.status === 404
   })
   return result === true
 }

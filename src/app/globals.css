@@ -114,6 +114,12 @@
   box-sizing: border-box;
 }
 
+/* The inactive view is hidden with the attribute rather than unmounted, and
+   display:flex on .chat would otherwise win. */
+[hidden] {
+  display: none !important;
+}
+
 html,
 body {
   margin: 0;
@@ -949,4 +955,225 @@ table.answer-table {
   height: 10px;
   border-radius: 1px;
   transform: rotate(45deg);
+}
+
+/* ------------------------------------------------------- view switch */
+
+.masthead-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.view-switch {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+}
+
+.view-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.view-tab:hover:not([aria-current]) {
+  color: var(--ink);
+}
+
+/* The current view carries a raised surface and a border as well as the weight
+   change, so it does not depend on colour alone. */
+.view-tab[aria-current] {
+  background: var(--surface);
+  border-color: var(--hairline-strong);
+  color: var(--ink);
+  font-weight: 600;
+  cursor: default;
+}
+
+.view-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------- card actions */
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+.card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 11px;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.card-action:hover:not(:disabled) {
+  border-color: var(--ink-2);
+  color: var(--ink);
+}
+
+.card-action:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------- dashboard */
+
+.dashboard {
+  flex: 1;
+  overflow-y: auto;
+  padding: 32px 24px 48px;
+}
+
+.dashboard-inner {
+  max-width: var(--measure);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.dashboard-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dashboard-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.dashboard-sub {
+  margin: 0;
+  color: var(--ink-2);
+  max-width: var(--measure-prose);
+}
+
+.dashboard-notice,
+.dashboard-error,
+.dashboard-empty {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  max-width: var(--measure-prose);
+}
+
+.dashboard-notice {
+  background: var(--notice-bg);
+  border: 1px solid var(--notice-edge);
+  color: var(--ink-2);
+}
+
+.dashboard-notice code {
+  font-size: 12px;
+}
+
+.dashboard-error {
+  background: var(--error-bg);
+  border: 1px solid var(--error-edge);
+  color: var(--error-ink);
+}
+
+.dashboard-empty {
+  background: var(--surface);
+  border: 1px dashed var(--hairline-strong);
+  color: var(--ink-2);
+}
+
+.pinned {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The question is what the reader recognises the card by, so it labels the
+   card from above rather than hiding inside the provenance. */
+.pinned-question {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.provenance-pinned {
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+@media (max-width: 640px) {
+  .masthead-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .dashboard {
+    padding: 20px 16px 40px;
+  }
+}
+
+.composer-error {
+  max-width: var(--measure);
+  margin: 0 auto 10px;
+  padding: 9px 12px;
+  background: var(--error-bg);
+  border: 1px solid var(--error-edge);
+  border-radius: var(--radius-sm);
+  color: var(--error-ink);
+  font-size: 13px;
 }

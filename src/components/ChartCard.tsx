@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import BoardChart from './BoardChart'
 import { UnavailableMark } from './marks'
 import { isRefusal } from '@/lib/types'
@@ -71,9 +72,16 @@ function FallbackNotice() {
 export default function ChartCard({
   result,
   routedBy,
+  actions,
+  note,
 }: {
   result: AnswerResult
   routedBy?: 'model' | 'fallback'
+  /** Controls the surrounding view owns — pinning here, refresh and remove on
+   *  the dashboard. The card renders the row; it does not know what is in it. */
+  actions?: ReactNode
+  /** A line about this card's provenance as a pin, e.g. when it was frozen. */
+  note?: ReactNode
 }) {
   // A refusal is a correct answer — it gets its own calm treatment, deliberately
   // unlike the error card.
@@ -93,6 +101,7 @@ export default function ChartCard({
           </p>
         )}
         {routedBy === 'fallback' && <FallbackNotice />}
+        {actions && <div className="card-actions">{actions}</div>}
       </article>
     )
   }
@@ -137,6 +146,7 @@ export default function ChartCard({
       {routedBy === 'fallback' && <FallbackNotice />}
 
       <div className="provenance">
+        {note}
         <dl>
           <dt>As at</dt>
           <dd>{provenance.asAt}</dd>
@@ -148,6 +158,8 @@ export default function ChartCard({
           <dd>{provenance.derivation}</dd>
         </dl>
       </div>
+
+      {actions && <div className="card-actions">{actions}</div>}
     </article>
   )
 }

@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Message from './Message'
 import type { Turn } from './Message'
+import { PinMark } from './marks'
+import { pinKey, type PinsState } from './usePins'
 import { isRefusal } from '@/lib/types'
 import type { AnswerResult } from '@/lib/types'
 
@@ -20,6 +22,8 @@ interface AskSuccess {
   result: AnswerResult
   question: string
   routedBy: 'model' | 'fallback'
+  /** Absent for a refusal: there is no tool behind it to re-run. */
+  routedTo?: { tool: string; args: Record<string, unknown> }
 }
 
 interface AskFailure {
@@ -53,9 +57,11 @@ function historyFrom(turns: Turn[]): { role: 'user' | 'assistant'; content: stri
 interface ChatProps {
   credential: string
   onRejected: () => void
+  pins: PinsState
+  hidden: boolean
 }
 
-export default function Chat({ credential, onRejected }: ChatProps) {
+export default function Chat({ credential, onRejected, pins, hidden }: ChatProps) {
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
   const [inFlight, setInFlight] = useState(false)
@@ -119,6 +125,7 @@ export default function Chat({ credential, onRejected }: ChatProps) {
                   status: 'answered',
                   result: success.result,
                   routedBy: success.routedBy,
+                  routedTo: success.routedTo,
                   error: undefined,
                 }
               : turn,
@@ -200,8 +207,39 @@ export default function Chat({ credential, onRejected }: ChatProps) {
     }
   }
 
+  /** A refusal has no figures, so there is nothing to pin. */
+  const pinControl = (turn: Turn) => {
+    const routed = turn.routedTo
+    if (!routed || !turn.result || isRefusal(turn.result)) return null
+    const key = pinKey(routed.tool, routed.args)
+    const alreadyPinned = pins.pinnedKeys.has(key)
+    const busy = pins.busyKey === key
+
+    return (
+      <button
+        type="button"
+        className="card-action"
+        // Unpinning from here would need the pin's id, which the transcript
+        // does not hold; the dashboard owns removal. So once pinned this
+        // states the fact rather than offering a toggle that half works.
+        disabled={alreadyPinned || busy || pins.busyKey !== null}
+        onClick={() =>
+          void pins.add({
+            question: turn.question,
+            tool: routed.tool,
+            args: routed.args,
+            routedBy: turn.routedBy,
+          })
+        }
+      >
+        <PinMark filled={alreadyPinned} />
+        {alreadyPinned ? 'On the dashboard' : busy ? 'Pinning…' : 'Pin to dashboard'}
+      </button>
+    )
+  }
+
   return (
-    <div className="chat">
+    <div className="chat" hidden={hidden}>
       <div className="transcript">
         {turns.length === 0 ? (
           <div className="empty">
@@ -229,7 +267,13 @@ export default function Chat({ credential, onRejected }: ChatProps) {
         ) : (
           <div className="transcript-inner" ref={transcriptInner}>
             {turns.map((turn) => (
-              <Message key={turn.id} turn={turn} busy={inFlight} onRetry={retry} />
+              <Message
+                key={turn.id}
+                turn={turn}
+                busy={inFlight}
+                actions={pinControl(turn)}
+                onRetry={retry}
+              />
             ))}
           </div>
         )}
@@ -240,6 +284,17 @@ export default function Chat({ credential, onRejected }: ChatProps) {
       </p>
 
       <div className="composer">
+        {/* A pin is initiated from this view, so its failure has to be reported
+            in this view. It sits inside the composer so it picks up the same
+            gutter and measure as the field below it. */}
+        {pins.error && (
+          <p className="composer-error" role="alert">
+            {pins.error}{' '}
+            <button type="button" className="link-button" onClick={pins.dismissError}>
+              Dismiss
+            </button>
+          </p>
+        )}
         <div className="composer-inner">
           <textarea
             ref={textarea}

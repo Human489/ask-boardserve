@@ -230,6 +230,120 @@ async function main() {
     )
   }
 
+  // ------------------------------------------------------ pinned dashboard
+  console.log('\nPinned dashboard')
+  {
+    const asJson = async (method, body) => {
+      const res = await fetch(`${BASE}/api/pins`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      return { res, json: await res.json().catch(() => null) }
+    }
+
+    // Start from a known state: clear anything this suite left behind before.
+    const initial = await asJson('GET')
+    for (const pin of initial.json?.pins ?? []) {
+      if (/^smoke:/.test(pin.question)) await asJson('DELETE', { id: pin.id })
+    }
+
+    {
+      const res = await fetch(`${BASE}/api/pins`)
+      check('the dashboard refuses without a passcode', res.status === 401, `got ${res.status}`)
+    }
+
+    const pinned = await asJson('POST', {
+      question: 'smoke: who is below our attendance threshold?',
+      tool: 'attendance_below_threshold',
+      args: { threshold: 80 },
+    })
+    check(
+      'an analysis can be pinned',
+      pinned.res.status === 200 && Array.isArray(pinned.json?.pins),
+      `status ${pinned.res.status} ${String(pinned.json?.error ?? '').slice(0, 80)}`,
+    )
+
+    const mine = (pinned.json?.pins ?? []).find((p) => /^smoke: who/.test(p.question))
+    check(
+      'the pinned card carries figures the server computed',
+      Boolean(mine?.result?.headline) && Boolean(mine?.result?.provenance?.asAt),
+      `headline=${String(mine?.result?.headline).slice(0, 60)}`,
+    )
+    check(
+      'the pin records the tool and arguments a refresh will re-run',
+      mine?.tool === 'attendance_below_threshold' && mine?.args?.threshold === 80,
+      JSON.stringify({ tool: mine?.tool, args: mine?.args }),
+    )
+
+    {
+      // The governing rule: a figure the client supplied must never reach the
+      // dashboard. The route recomputes, so an injected headline is discarded.
+      const forged = await asJson('POST', {
+        question: 'smoke: forged figures',
+        tool: 'attendance_below_threshold',
+        args: { threshold: 55 },
+        result: { headline: 'FORGED', provenance: { asAt: '1999-01-01' } },
+      })
+      const stored = (forged.json?.pins ?? []).find((p) => p.question === 'smoke: forged figures')
+      check(
+        'a client-supplied result is ignored in favour of the computed one',
+        forged.res.status === 200 && Boolean(stored) && stored.result.headline !== 'FORGED',
+        `stored headline=${String(stored?.result?.headline).slice(0, 60)}`,
+      )
+      if (stored) await asJson('DELETE', { id: stored.id })
+    }
+
+    {
+      const duplicate = await asJson('POST', {
+        question: 'smoke: the same thing again',
+        tool: 'attendance_below_threshold',
+        args: { threshold: 80 },
+      })
+      check(
+        'the same analysis cannot be pinned twice',
+        duplicate.res.status === 409,
+        `got ${duplicate.res.status}`,
+      )
+    }
+
+    {
+      const refreshed = await asJson('PATCH', { id: mine?.id })
+      const after = (refreshed.json?.pins ?? []).find((p) => p.id === mine?.id)
+      check(
+        'a pin can be refreshed in place',
+        refreshed.res.status === 200 && Boolean(after?.refreshedAt) && after?.tool === mine?.tool,
+        `status ${refreshed.res.status} refreshedAt=${after?.refreshedAt ?? 'none'}`,
+      )
+    }
+
+    {
+      const missing = await asJson('PATCH', { id: 'does-not-exist' })
+      check(
+        'refreshing a pin that is gone reports it rather than erroring',
+        missing.res.status === 404,
+        `got ${missing.res.status}`,
+      )
+    }
+
+    {
+      const unknown = await asJson('POST', {
+        question: 'smoke: not a real analysis',
+        tool: 'no_such_tool',
+        args: {},
+      })
+      check('an unknown analysis is rejected', unknown.res.status === 400, `got ${unknown.res.status}`)
+    }
+
+    {
+      const removed = await asJson('DELETE', { id: mine?.id })
+      const left = (removed.json?.pins ?? []).some((p) => p.id === mine?.id)
+      check('a pin can be removed', removed.res.status === 200 && !left, `status ${removed.res.status}`)
+    }
+  }
   // -------------------------------------------------------- rate limiting
   console.log('\nRate limiting')
   {

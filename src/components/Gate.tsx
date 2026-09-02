@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useState } from 'react'
-import Chat from './Chat'
+import Masthead from './Masthead'
+import Workspace from './Workspace'
 
 // The passcode lives in React state and nowhere else — no cookie, no
 // localStorage, no sessionStorage. A refresh loses it and returns here, which
@@ -55,51 +56,54 @@ export default function Gate() {
     setError('That passcode is no longer accepted. Enter it again to continue.')
   }, [])
 
-  if (credential) return <Chat credential={credential} onRejected={signOut} />
+  if (credential) return <Workspace credential={credential} onRejected={signOut} />
 
   return (
-    <div className="gate">
-      <form
-        className="gate-card"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void signIn()
-        }}
-      >
-        <h2 className="gate-title">Enter your passcode</h2>
-        <p className="gate-sub">
-          Ask BoardServe holds board attendance, action and skills data. Access is by
-          passcode, and access ends when you close or refresh this page.
-        </p>
-
-        <label className="gate-label" htmlFor="passcode">
-          Passcode
-        </label>
-        <input
-          id="passcode"
-          className="gate-input"
-          type="password"
-          value={passcode}
-          autoFocus
-          autoComplete="off"
-          disabled={checking}
-          onChange={(event) => setPasscode(event.target.value)}
-        />
-
-        {error ? (
-          <p className="gate-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-
-        <button
-          type="submit"
-          className="gate-button"
-          disabled={checking || passcode.trim().length === 0}
+    <div className="shell">
+      <Masthead />
+      <div className="gate">
+        <form
+          className="gate-card"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void signIn()
+          }}
         >
-          {checking ? 'Checking…' : 'Continue'}
-        </button>
-      </form>
+          <h2 className="gate-title">Enter your passcode</h2>
+          <p className="gate-sub">
+            Ask BoardServe holds board attendance, action and skills data. Access is by
+            passcode, and access ends when you close or refresh this page.
+          </p>
+
+          <label className="gate-label" htmlFor="passcode">
+            Passcode
+          </label>
+          <input
+            id="passcode"
+            className="gate-input"
+            type="password"
+            value={passcode}
+            autoFocus
+            autoComplete="off"
+            disabled={checking}
+            onChange={(event) => setPasscode(event.target.value)}
+          />
+
+          {error ? (
+            <p className="gate-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <button
+            type="submit"
+            className="gate-button"
+            disabled={checking || passcode.trim().length === 0}
+          >
+            {checking ? 'Checking…' : 'Continue'}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }

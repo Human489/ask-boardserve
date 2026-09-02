@@ -129,5 +129,14 @@ export async function POST(req: Request) {
     )
   }
 
-  return NextResponse.json({ ok: true, result, question: asked, routedBy: route.routedBy })
+  // The tool and arguments travel back with the answer so the client can pin
+  // it. Pinning re-runs them server-side; what the client holds is a label for
+  // the analysis, not the figures.
+  return NextResponse.json({
+    ok: true,
+    result,
+    question: asked,
+    routedBy: route.routedBy,
+    routedTo: { tool: tool.name, args: route.args },
+  })
 }

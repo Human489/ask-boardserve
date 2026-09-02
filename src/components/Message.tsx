@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import ChartCard from './ChartCard'
 import { WarningMark } from './marks'
 import type { AnswerResult } from '@/lib/types'
@@ -17,6 +18,8 @@ export interface Turn {
   status: 'pending' | 'answered' | 'failed'
   result?: AnswerResult
   routedBy?: 'model' | 'fallback'
+  /** The tool and arguments that produced this answer, so it can be pinned. */
+  routedTo?: { tool: string; args: Record<string, unknown> }
   error?: TurnError
 }
 
@@ -70,10 +73,13 @@ function ErrorCard({
 export default function Message({
   turn,
   busy,
+  actions,
   onRetry,
 }: {
   turn: Turn
   busy: boolean
+  /** Controls for an answered turn, supplied by the view (pinning). */
+  actions?: ReactNode
   onRetry: (turn: Turn) => void
 }) {
   return (
@@ -93,7 +99,7 @@ export default function Message({
       )}
 
       {turn.status === 'answered' && turn.result && (
-        <ChartCard result={turn.result} routedBy={turn.routedBy} />
+        <ChartCard result={turn.result} routedBy={turn.routedBy} actions={actions} />
       )}
 
       {turn.status === 'failed' && turn.error && (
