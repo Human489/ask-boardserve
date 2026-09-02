@@ -388,10 +388,23 @@ export const committeeSkillsGaps: ToolDefinition = {
       return { body, members, meetings, stats, partial, overall }
     })
 
+    // A body whose members are absent from the skills audit scores 0.00 on every
+    // skill, because a missing score reads as zero. It would then sort first and
+    // be announced as carrying the widest gap "across its 0 inferred members" —
+    // a fabricated worst-in-class finding about a body nobody rated.
+    //
+    // Not reachable on a dataset whose attendance and audit name the same
+    // people, which is why no test caught it; entirely reachable on one where a
+    // committee attendee is missing from the audit. Such a body is excluded from
+    // the ranking and reported instead, because "this cannot be rated" is the
+    // honest answer and "this is the worst" is not.
+    const rateable = perBody.filter((b) => b.members.length > 0 && b.stats.length > 0)
+    const unrateable = perBody.filter((b) => b.members.length === 0 || b.stats.length === 0)
+
     // Rank bodies by their mean across every skill. Ranking on the single weakest
     // skill instead would reward a body that is uniformly thin over one with a
     // single hole, which is the opposite of what a gap question asks.
-    const ranked = [...perBody].sort(
+    const ranked = [...rateable].sort(
       (a, b) => a.overall - b.overall || a.body.localeCompare(b.body),
     )
     const worst = ranked[0]
@@ -463,6 +476,16 @@ export const committeeSkillsGaps: ToolDefinition = {
     const caveats: string[] = [
       SELF_ASSESSMENT_CAVEAT,
       'There is no membership roster in the dataset: membership is inferred from which directors have eligibility rows for each body.',
+      // Stated rather than silently dropped: a body missing from the ranking
+      // is a hole in the answer, and a reader comparing bodies needs to know
+      // one is absent rather than assume it was rated and came out fine.
+      ...(unrateable.length > 0
+        ? [
+            `${list(
+              unrateable.map((b) => b.body),
+            )} could not be rated: none of its inferred members appear in the skills audit, so it is left out of the ranking rather than scored zero.`,
+          ]
+        : []),
     ]
     for (const b of ranked) {
       if (b.partial.length > 0) {

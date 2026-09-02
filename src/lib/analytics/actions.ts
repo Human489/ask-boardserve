@@ -598,17 +598,19 @@ export const actionsDistribution: ToolDefinition = {
       ...maybe(ownerCaveat(dataset, unresolved)),
       'Counts treat every action as equal weight; the log records priority but not effort or size.',
     ]
-    for (const s of stats) {
-      if (s.total < 5) {
-        caveats.push(
-          `${s.label} has only ${s.total} unresolved row${
-            s.total === 1 ? '' : 's'
-          }, so one completion would move its share by ${
-            unresolved.length > 0 ? Math.round((100 / unresolved.length) * 10) / 10 : 0
-          } percentage points.`,
-        )
-        break
-      }
+    // One sentence covering every thin group, rather than one caveat each.
+    // This loop used to `break` after the first, so the largest small group was
+    // qualified and every smaller one — the ones a single completion moves
+    // furthest — was silently left unqualified.
+    const thin = stats.filter((s) => s.total < 5)
+    if (thin.length > 0) {
+      const move =
+        unresolved.length > 0 ? Math.round((100 / unresolved.length) * 10) / 10 : 0
+      caveats.push(
+        `${list(
+          thin.map((s) => `${s.label} (${s.total})`),
+        )} hold fewer than 5 unresolved rows each, so one completion moves any of their shares by about ${move} percentage points.`,
+      )
     }
 
     return {

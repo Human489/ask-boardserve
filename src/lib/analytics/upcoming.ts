@@ -51,7 +51,10 @@ export const upcomingUnprepared: ToolDefinition = {
     const asAt = dataset.asAt
 
     const due = dataset.actions.actions
-      .filter((a) => a.due_date > asAt && daysBetween(asAt, a.due_date) <= within)
+      // Inclusive of the as-at date. Overdue is due_date < asAt, so an action
+      // due exactly ON the as-at date was neither overdue nor upcoming — it
+      // fell through both tools and appeared in no answer at all.
+      .filter((a) => a.due_date >= asAt && daysBetween(asAt, a.due_date) <= within)
       .sort((a, b) => a.due_date.localeCompare(b.due_date))
 
     const notStarted = due.filter((a) => a.status === NOT_STARTED)

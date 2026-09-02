@@ -892,3 +892,46 @@ test('a single body in scope makes no claim about a ranking', () => {
     'claimed another body would rank first, with no other body in scope',
   )
 })
+
+test('an action due exactly on the as-at date is not invisible to every tool', async () => {
+  // Overdue is due_date < asAt and upcoming was due_date > asAt, so an action
+  // due exactly ON the as-at date fell through both and appeared in no answer.
+  // Latent on this dataset, which has no such row — so it is constructed.
+  const base = loadDataset()
+  const sample = base.actions.actions[0]
+  const onTheDay = { ...sample, action_id: 'BOUNDARY-1', due_date: base.asAt, status: 'in progress' as const }
+  const dataset = {
+    ...base,
+    actions: { ...base.actions, actions: [...base.actions.actions, onTheDay] },
+  }
+
+  const overdue = asComputed('overdue_actions', getTool('overdue_actions')!.run(dataset, {}))
+  // Hybrid and async: it reads a fact from a paper before computing.
+  const upcoming = await getTool('upcoming_unprepared')!.run(dataset, { within_days: 30 })
+  const inOverdue = JSON.stringify(overdue.table?.rows ?? []).includes('BOUNDARY-1')
+  const inUpcoming = JSON.stringify(upcoming).includes('BOUNDARY-1')
+
+  assert.ok(
+    inOverdue || inUpcoming,
+    'an action due on the as-at date must appear somewhere, not fall between the two tools',
+  )
+  // It is due today, not past due, so upcoming is the correct home for it.
+  assert.equal(inOverdue, false, 'due today is not yet overdue')
+})
+
+test('every thin group is qualified, not just the largest', () => {
+  const dataset = loadDataset()
+  const r = asComputed('actions_distribution', getTool('actions_distribution')!.run(dataset, {}))
+  const thin = (r.table?.rows ?? []).filter((row) => typeof row[1] === 'number' && (row[1] as number) < 5)
+  if (thin.length < 2) return
+
+  const text = r.caveats.join(' ')
+  // The loop used to `break` after the first, so the groups a single completion
+  // moves furthest — the smallest ones — went unqualified.
+  for (const row of thin) {
+    assert.ok(
+      text.includes(String(row[0])),
+      `${row[0]} holds ${row[1]} rows but is not qualified: ${text}`,
+    )
+  }
+})
