@@ -87,12 +87,33 @@ export default function ChartCard({
 
   const { headline, chart, table, assumptions, caveats, provenance } = result
 
+  // Paper citations are references, not data. Rendered as a table they read as
+  // a two-column dataset with nothing in it; rendered as a list they read as
+  // "where this came from", which is what a secretary needs in order to go and
+  // check the paper.
+  const isCitation = result.tool === 'search_board_papers' && table !== null
+
   return (
     <article className="card">
       <h2 className="headline">{headline}</h2>
 
       {chart && chart.points.length > 0 && <BoardChart spec={chart} />}
-      {table && table.rows.length > 0 && <AnswerTable spec={table} />}
+
+      {isCitation ? (
+        <div className="citations">
+          <p className="citations-label">Drawn from</p>
+          <ul className="citation-list">
+            {table.rows.map((row, i) => (
+              <li key={`${String(row[0])}-${String(row[1])}-${i}`} className="citation">
+                <span className="citation-paper">{String(row[0])}</span>
+                {row[1] ? <span className="citation-section">{String(row[1])}</span> : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        table && table.rows.length > 0 && <AnswerTable spec={table} />
+      )}
 
       {(assumptions.length > 0 || caveats.length > 0) && (
         <div className="notes">

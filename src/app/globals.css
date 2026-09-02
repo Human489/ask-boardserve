@@ -764,3 +764,56 @@ table.answer-table {
 .gate-button:not(:disabled):hover {
   filter: brightness(1.06);
 }
+
+/* ------------------------------------------------------ paper citations
+   References to a board paper, not a dataset. A two-column table with no
+   numbers in it reads as data; a list reads as "where this came from". */
+
+.citations {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+}
+
+.citations-label {
+  margin: 0 0 9px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.citation-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.citation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  padding-left: 11px;
+  border-left: 2px solid var(--hairline-strong);
+}
+
+.citation-paper {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.citation-section {
+  color: var(--ink-2);
+}
+
+.citation-section::before {
+  content: '§ ';
+  color: var(--ink-muted);
+}

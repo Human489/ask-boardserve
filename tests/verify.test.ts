@@ -76,3 +76,15 @@ test('an answer with no figures at all passes', () => {
   )
   assert.equal(r.ok, true)
 })
+
+test('a figure ending a sentence is not rejected for its full stop', () => {
+  // "£412,000." captured the full stop, normalised to "412000." and matched
+  // nothing — rejecting a correct, properly sourced answer.
+  const r = verifyAgainstPassages('The unit cost £412,000.', FINANCE)
+  assert.equal(r.ok, true, r.unsupported.join(', '))
+})
+
+test('a figure followed by a comma is not rejected either', () => {
+  const r = verifyAgainstPassages('Pay costs were £3.86m, above budget.', FINANCE)
+  assert.equal(r.ok, true, r.unsupported.join(', '))
+})

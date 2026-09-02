@@ -26,7 +26,11 @@ export interface Verification {
  * £4.61m, 11.4, 14 per cent, 2026, £412,000.
  */
 function numericTokens(text: string): string[] {
-  return text.match(/\d[\d,.]*\s*(?:m\b|k\b|bn\b)?/gi) ?? []
+  const raw = text.match(/\d[\d,.]*\s*(?:m\b|k\b|bn\b)?/gi) ?? []
+  // A figure ending a sentence captures the full stop: "£412,000." normalised
+  // to "412000." and matched nothing, rejecting a correct, sourced answer.
+  // Trailing separators are punctuation, never part of the number.
+  return raw.map((token) => token.replace(/[.,\s]+$/, '')).filter(Boolean)
 }
 
 /** Comparable form: digits only, so £412,000 and 412000 match. */

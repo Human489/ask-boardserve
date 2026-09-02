@@ -50,7 +50,8 @@ const REFUSAL_RULES = [
 function systemPrompt(tools: ToolDefinition[]): string {
   return [
     'You route company-secretary questions about board data to exactly one tool.',
-    'The available data is: meeting attendance records, an action log, and a self-assessed skills audit.',
+    'The available data is: meeting attendance records, an action log, a self-assessed skills audit, and the board papers themselves.',
+    'The papers are a source like any other. A figure quoted in a paper — a cost, a variance, a headcount — is available through search_board_papers even though no other tool computes it.',
     'Call exactly one tool. Never compute or state a number yourself; the tools produce every figure.',
     'Refuse by calling the refuse tool when the data cannot answer the question. Specifically:',
     ...REFUSAL_RULES.map((r) => `- ${r}`),
