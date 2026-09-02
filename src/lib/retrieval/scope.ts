@@ -18,8 +18,42 @@ import type { Dataset } from '@/lib/types'
 // attendance records, risk and action references from the log — so it travels
 // to another organisation unchanged.
 
-/** Words too common to be evidence of anything. */
-const AMBIGUOUS = new Set(['board', 'strategy', 'risk', 'people', 'finance', 'audit'])
+/**
+ * Field names from the schema, which the dataset README fixes for every
+ * organisation. These are schema vocabulary, not one board's vocabulary, so
+ * listing them does not tie the code to a dataset.
+ */
+const SCHEMA_FIELDS = [
+  'tenure',
+  'apologies',
+  'attended remotely',
+  'times deferred',
+  'owner type',
+  'due date',
+  'skill score',
+  'self-assessed',
+]
+
+/**
+ * Whether a term is strong enough evidence on its own.
+ *
+ * This used to be a list of words to ignore — board, finance, audit, people —
+ * but those were chosen by reading THIS organisation's committee names. Another
+ * board would have different ones, and its own weak words would go uncaught, so
+ * the list quietly tied the code to a dataset.
+ *
+ * Derived instead. A term counts when it is more than one word, or names a
+ * skill column, or carries a digit (an action or risk reference), or is long
+ * enough to be distinctive. A short single word like "board" or "risk" appears
+ * in half the questions a secretary asks and proves nothing.
+ */
+function isStrongEvidence(term: string, columns: Set<string>): boolean {
+  if (columns.has(term)) return true
+  if (SCHEMA_FIELDS.includes(term)) return true
+  if (term.includes(' ')) return true
+  if (/\d/.test(term)) return true
+  return term.length >= 9
+}
 
 /**
  * A question that explicitly asks about the documents is a papers question even
@@ -34,39 +68,25 @@ const ASKS_FOR_DOCUMENTS =
 export function structuredVocabulary(dataset: Dataset): string[] {
   const terms = new Set<string>()
 
-  // Skill columns are kept whatever they are called, even when the name is an
-  // everyday word like "Strategy". A vague mention of strategy would otherwise
-  // slip past, and a question that genuinely wants the papers escapes earlier
-  // via ASKS_FOR_DOCUMENTS anyway.
+  // Skill columns are kept whatever they are called, including when the name is
+  // an ordinary English word. Such a column would otherwise slip past as too
+  // common to count, and a question that genuinely wants the papers escapes
+  // earlier via ASKS_FOR_DOCUMENTS anyway.
   const columns = new Set(dataset.skillNames.map((s) => s.toLowerCase()))
   for (const skill of columns) terms.add(skill)
   for (const body of allBodies(dataset)) terms.add(body.toLowerCase())
   for (const row of dataset.skills) terms.add(row.director_name.toLowerCase())
 
-  // Identifier shapes rather than the identifiers themselves: SAH-A014, R03.
+  // The action and risk references this dataset actually uses, read from the
+  // log rather than assumed — their format differs between organisations.
   for (const action of dataset.actions.actions) {
     terms.add(action.action_id.toLowerCase())
     if (action.linked_risk) terms.add(action.linked_risk.toLowerCase())
   }
 
-  // Field names a secretary might use directly.
-  for (const field of [
-    'tenure',
-    'apologies',
-    'attended remotely',
-    'times deferred',
-    'owner type',
-    'due date',
-    'skill score',
-    'self-assessed',
-  ]) {
-    terms.add(field)
-  }
+  for (const field of SCHEMA_FIELDS) terms.add(field)
 
-  // The ambiguity filter applies to everything EXCEPT a skill column: "board"
-  // is a body name and means nothing on its own, but a column called "Board
-  // effectiveness" would be real vocabulary.
-  return [...terms].filter((t) => t.length > 2 && (columns.has(t) || !AMBIGUOUS.has(t)))
+  return [...terms].filter((t) => t.length > 2 && isStrongEvidence(t, columns))
 }
 
 export interface ScopeCheck {

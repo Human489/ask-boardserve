@@ -413,9 +413,25 @@ test('no tool output contains NaN or Infinity', () => {
   }
 })
 
-test('no organisation-specific value is hard-coded in the tool source', async () => {
+test('no organisation-specific value is hard-coded anywhere an answer is produced', async () => {
   const { readFileSync } = await import('node:fs')
-  const files = ['attendance', 'actions', 'skills', 'registry']
+  // Retrieval was added later and was never covered by this test. Its scope
+  // guard held a list of words — board, finance, audit, people — chosen by
+  // reading THIS organisation's committee names, which is exactly the leak this
+  // test exists to catch.
+  const files = [
+    'analytics/attendance',
+    'analytics/actions',
+    'analytics/skills',
+    'analytics/registry',
+    'retrieval/scope',
+    'retrieval/search',
+    'retrieval/chunk',
+    'retrieval/tool',
+    'retrieval/answer',
+    'retrieval/verify',
+    'router',
+  ]
   const banned = [
     ...dataset.skills.map((s) => s.director_name),
     ...dataset.skillNames,
@@ -423,12 +439,21 @@ test('no organisation-specific value is hard-coded in the tool source', async ()
     ...[...new Set(dataset.attendance.meetings.map((m) => m.body))].filter(
       (b) => b !== 'Board',
     ),
+    // Identifier prefixes: SAH-, R03 and so on differ between organisations.
+    ...[...new Set(dataset.actions.actions.map((a) => a.action_id.split('-')[0]))],
+    dataset.organisation,
   ]
   for (const f of files) {
-    const src = readFileSync(new URL(`../src/lib/analytics/${f}.ts`, import.meta.url), 'utf8')
+    const src = readFileSync(new URL(`../src/lib/${f}.ts`, import.meta.url), 'utf8')
     for (const term of banned) {
       assert.ok(!src.includes(term), `${f}.ts must not hard-code "${term}"`)
     }
+  }
+
+  // Only the analytics layer is barred from the clock; retrieval measures
+  // timeouts and the usage meter stamps a date, neither of which is an answer.
+  for (const f of files.filter((x) => x.startsWith('analytics/'))) {
+    const src = readFileSync(new URL(`../src/lib/${f}.ts`, import.meta.url), 'utf8')
     assert.ok(!/Date\.now\(\)|new Date\(/.test(src), `${f}.ts must not read the system clock`)
   }
 })
