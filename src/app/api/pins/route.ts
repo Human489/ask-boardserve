@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { ANALYTICS_TOOLS, getTool } from '@/lib/analytics/registry'
 import { clientIp, rejectUnauthorised } from '@/lib/apiauth'
-import { loadDataset } from '@/lib/dataset/loader'
+import { activeDatasetId, resolveDataset } from '@/lib/datasets'
 import { addPin, listPins, MAX_PINS, removePin, replacePin, type Pin } from '@/lib/pins'
 import { checkRateLimit } from '@/lib/ratelimit'
 import { coerceArgs } from '@/lib/router'
@@ -38,6 +38,36 @@ async function throttled(req: Request): Promise<NextResponse | null> {
     },
     { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
   )
+}
+
+
+/**
+ * Which dataset's pins this request concerns.
+ *
+ * Resolved the same way the answer path resolves its dataset, so the dashboard
+ * always shows pins belonging to the dataset the app is currently answering
+ * from — never a mixture, and never another organisation's figures.
+ */
+async function pinScope(): Promise<
+  { ok: true; datasetId: string } | { ok: false; status: number; error: string }
+> {
+  const active = await activeDatasetId()
+  if (!active.ok) {
+    return { ok: false, status: 502, error: 'The dashboard could not be read just now. Try again in a moment.' }
+  }
+  if (active.value) return { ok: true, datasetId: active.value }
+  const resolved = await resolveDataset()
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      status: resolved.reason === 'none' ? 409 : 502,
+      error:
+        resolved.reason === 'none'
+          ? 'No dataset is loaded, so there is no dashboard yet.'
+          : 'The dashboard could not be read just now. Try again in a moment.',
+    }
+  }
+  return { ok: true, datasetId: resolved.id }
 }
 
 function fail(status: number, error: string, extra: Record<string, unknown> = {}) {
@@ -98,17 +128,18 @@ async function compute(
     }
   }
 
-  let dataset
-  try {
-    dataset = loadDataset()
-  } catch (e) {
-    logDetail('loadDataset', e)
+  const resolved = await resolveDataset()
+  if (!resolved.ok) {
     return {
       ok: false,
-      status: 500,
-      error: 'The dataset could not be read, so the figures could not be computed.',
+      status: resolved.reason === 'none' ? 409 : 502,
+      error:
+        resolved.reason === 'none'
+          ? 'No dataset is loaded, so there are no figures to pin.'
+          : 'The dataset could not be read, so the figures could not be computed.',
     }
   }
+  const dataset = resolved.dataset
 
   try {
     // The same coercion the router applies to model-supplied arguments: drop
@@ -163,7 +194,9 @@ export async function GET(req: Request) {
 
   const limited = await throttled(req)
   if (limited) return limited
-  const { pins, durable, reachable } = await listPins()
+  const scope = await pinScope()
+  if (!scope.ok) return fail(scope.status, scope.error)
+  const { pins, durable, reachable } = await listPins(scope.datasetId)
   // Reporting an outage as an empty dashboard would tell the reader their pins
   // are gone. Say the store could not be read instead.
   if (!reachable) {
@@ -206,7 +239,9 @@ export async function POST(req: Request) {
   // Capacity and duplication are checked BEFORE the analysis runs. Computing
   // first meant a request that ends in a 409 had already paid for a tool run,
   // which for the paper tool is two model calls spent to store nothing.
-  const current = await listPins()
+  const scope = await pinScope()
+  if (!scope.ok) return fail(scope.status, scope.error)
+  const current = await listPins(scope.datasetId)
   if (!current.reachable) {
     return fail(502, 'The dashboard could not be read, so nothing was pinned. Try again.')
   }
@@ -224,7 +259,7 @@ export async function POST(req: Request) {
   const computed = await compute(tool, parsedArgs.args)
   if (!computed.ok) return fail(computed.status, computed.error)
 
-  const outcome = await addPin({
+  const outcome = await addPin(scope.datasetId, {
     id: newId(),
     question: question.trim().slice(0, MAX_QUESTION_CHARS),
     // How the question originally reached this tool. A pin is re-run by tool
@@ -271,7 +306,9 @@ export async function PATCH(req: Request) {
   const { id } = (body ?? {}) as { id?: unknown }
   if (typeof id !== 'string' || id === '') return fail(400, 'Which pin should be refreshed?')
 
-  const { pins, reachable } = await listPins()
+  const scope = await pinScope()
+  if (!scope.ok) return fail(scope.status, scope.error)
+  const { pins, reachable } = await listPins(scope.datasetId)
   if (!reachable) {
     return fail(502, 'The dashboard could not be read, so nothing was refreshed. Try again.')
   }
@@ -284,7 +321,7 @@ export async function PATCH(req: Request) {
   const computed = await compute(existing.tool, existing.args)
   if (!computed.ok) return fail(computed.status, computed.error)
 
-  const outcome = await replacePin(id, {
+  const outcome = await replacePin(scope.datasetId, id, {
     ...existing,
     ...computed.pin,
     refreshedAt: new Date().toISOString(),
@@ -321,7 +358,9 @@ export async function DELETE(req: Request) {
   const { id } = (body ?? {}) as { id?: unknown }
   if (typeof id !== 'string' || id === '') return fail(400, 'Which pin should be removed?')
 
-  const outcome = await removePin(id)
+  const scope = await pinScope()
+  if (!scope.ok) return fail(scope.status, scope.error)
+  const outcome = await removePin(scope.datasetId, id)
   if (!outcome.ok) {
     if (outcome.reason === 'unreachable') {
       // Not the same as "already gone": we do not know what is there, so
@@ -330,7 +369,7 @@ export async function DELETE(req: Request) {
     }
     if (outcome.reason === 'not-found') {
       // Already gone is the state the caller wanted, so this is not an error.
-      const { pins, durable } = await listPins()
+      const { pins, durable } = await listPins(scope.datasetId)
       return NextResponse.json({ ok: true, pins, durable })
     }
     return fail(502, 'The dashboard could not be saved. Nothing was changed — try again.')

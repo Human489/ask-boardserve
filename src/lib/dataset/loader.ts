@@ -92,33 +92,35 @@ function parseSkills(csv: string): { rows: SkillsRow[]; skillNames: string[] } {
   return { rows, skillNames }
 }
 
-function parsePapers(dir: string): BoardPaper[] {
-  const files = readdirSync(dir)
+function parsePapers(files: DatasetFiles): BoardPaper[] {
+  return Object.keys(files)
     .filter((f) => f.startsWith('paper-') && f.endsWith('.md'))
     .sort()
-  return files.map((filename) => {
-    const body = readFileSync(join(dir, filename), 'utf8')
-    // First markdown heading is the title; fall back to the filename.
-    const m = body.match(/^#\s+(.+)$/m)
-    return {
-      id: filename.replace(/\.md$/, ''),
-      filename,
-      title: m ? m[1].trim() : filename.replace(/\.md$/, ''),
-      body,
-    }
-  })
+    .map((filename) => {
+      const body = files[filename]
+      // First markdown heading is the title; fall back to the filename.
+      const m = body.match(/^#\s+(.+)$/m)
+      return {
+        id: filename.replace(/\.md$/, ''),
+        filename,
+        title: m ? m[1].trim() : filename.replace(/\.md$/, ''),
+        body,
+      }
+    })
 }
 
-function readJson<T>(path: string, label: string): T {
-  let raw: string
-  try {
-    raw = readFileSync(path, 'utf8')
-  } catch {
-    throw new Error(
-      `Could not read ${label} at ${path}. The dataset is gitignored — ` +
-        `place it at ./dataset or set DATASET_PATH.`,
-    )
-  }
+/**
+ * A dataset as a set of named files, which is the form both sources produce:
+ * read off disk in development, or unpacked from an uploaded archive.
+ */
+export type DatasetFiles = Record<string, string>
+
+/** The files a dataset cannot do without. Papers are matched by prefix. */
+export const REQUIRED_FILES = ['attendance.json', 'actions.json', 'skills-audit.csv']
+
+function parseJson<T>(files: DatasetFiles, label: string): T {
+  const raw = files[label]
+  if (raw === undefined) throw new Error(`The dataset is missing ${label}.`)
   try {
     return JSON.parse(raw) as T
   } catch (e) {
@@ -126,37 +128,81 @@ function readJson<T>(path: string, label: string): T {
   }
 }
 
-let cached: Dataset | null = null
-
-export function loadDataset(): Dataset {
-  if (cached) return cached
-
-  const dir = datasetDir()
-  const attendance = readJson<AttendanceFile>(join(dir, 'attendance.json'), 'attendance.json')
-  const actions = readJson<ActionsFile>(join(dir, 'actions.json'), 'actions.json')
-
-  let skillsCsv: string
-  try {
-    skillsCsv = readFileSync(join(dir, 'skills-audit.csv'), 'utf8')
-  } catch {
-    throw new Error(`Could not read skills-audit.csv at ${dir}`)
+/**
+ * Builds a dataset from already-read files.
+ *
+ * Parsing is separated from reading so that an uploaded archive and the local
+ * directory go through exactly the same code. If they did not, an upload could
+ * be accepted that the app then could not answer from — and the failure would
+ * appear later, as a broken question rather than a rejected file.
+ */
+export function buildDataset(files: DatasetFiles): Dataset {
+  for (const name of REQUIRED_FILES) {
+    if (files[name] === undefined) throw new Error(`The dataset is missing ${name}.`)
   }
-  const { rows: skills, skillNames } = parseSkills(skillsCsv)
+
+  const attendance = parseJson<AttendanceFile>(files, 'attendance.json')
+  const actions = parseJson<ActionsFile>(files, 'actions.json')
+  const { rows: skills, skillNames } = parseSkills(files['skills-audit.csv'])
+
+  const papers = parsePapers(files)
+  if (papers.length === 0) {
+    throw new Error('The dataset contains no board papers (expected paper-*.md).')
+  }
 
   // The as-at date comes from the data, never from the system clock. Taking it
   // from the clock makes every date-dependent test rot as the month turns.
   const asAt = actions.as_at ?? actions.generated ?? attendance.generated
-  if (!asAt) throw new Error('No as_at or generated date found in the dataset')
+  if (!asAt) throw new Error('No as_at or generated date found in the dataset.')
 
-  cached = {
-    organisation: attendance.organisation ?? actions.organisation,
-    asAt,
-    attendance,
-    actions,
-    skills,
-    skillNames,
-    papers: parsePapers(dir),
+  const organisation = attendance.organisation ?? actions.organisation
+  if (!organisation) throw new Error('No organisation name found in the dataset.')
+
+  return { organisation, asAt, attendance, actions, skills, skillNames, papers }
+}
+
+let cached: Dataset | null = null
+
+/** True when a dataset directory is present on disk. */
+export function localDatasetExists(): boolean {
+  try {
+    const dir = datasetDir()
+    const names = readdirSync(dir)
+    return REQUIRED_FILES.every((f) => names.includes(f))
+  } catch {
+    return false
   }
+}
+
+/** Reads the local directory into the same file map an upload produces. */
+function readLocalFiles(): DatasetFiles {
+  const dir = datasetDir()
+  let names: string[]
+  try {
+    names = readdirSync(dir)
+  } catch {
+    throw new Error(
+      `Could not read the dataset at ${dir}. The dataset is gitignored — ` +
+        `place it at ./dataset, set DATASET_PATH, or upload one.`,
+    )
+  }
+  const files: DatasetFiles = {}
+  for (const name of names) {
+    if (REQUIRED_FILES.includes(name) || (name.startsWith('paper-') && name.endsWith('.md'))) {
+      files[name] = readFileSync(join(dir, name), 'utf8')
+    }
+  }
+  return files
+}
+
+/**
+ * The dataset on local disk. Still synchronous, because development and the
+ * whole test suite depend on it being so; uploaded datasets are resolved
+ * separately and asynchronously.
+ */
+export function loadDataset(): Dataset {
+  if (cached) return cached
+  cached = buildDataset(readLocalFiles())
   return cached
 }
 

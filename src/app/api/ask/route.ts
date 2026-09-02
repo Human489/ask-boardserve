@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getTool, TOOLS } from '@/lib/analytics/registry'
-import { loadDataset } from '@/lib/dataset/loader'
+import { resolveDataset } from '@/lib/datasets'
 import { checkRateLimit } from '@/lib/ratelimit'
 import { routeQuestion, type HistoryTurn } from '@/lib/router'
 import { clientIp, rejectUnauthorised } from '@/lib/apiauth'
@@ -74,16 +74,25 @@ export async function POST(req: Request) {
   }
   const asked = question.trim()
 
-  let dataset
+  // Having no dataset is a first run, not a fault. It is reported with a flag
+  // the client can act on — by asking for one — rather than as a 500 that says
+  // the app is broken when it is simply empty.
+  let resolved
   try {
-    dataset = loadDataset()
+    resolved = await resolveDataset()
   } catch (e) {
-    logDetail('loadDataset', e)
-    return fail(
-      500,
-      'The dataset could not be read. Check that ./dataset exists and contains attendance.json, actions.json and skills-audit.csv, or set DATASET_PATH.',
-    )
+    logDetail('resolveDataset', e)
+    return fail(500, 'The dataset could not be read. Try again in a moment.')
   }
+  if (!resolved.ok) {
+    if (resolved.reason === 'none') {
+      return fail(409, 'No dataset is loaded yet. Upload one to start asking questions.', {
+        needsDataset: true,
+      })
+    }
+    return fail(502, 'The dataset store could not be reached. Try again in a moment.')
+  }
+  const dataset = resolved.dataset
 
   let route
   try {
@@ -103,7 +112,13 @@ export async function POST(req: Request) {
       reason: route.reason,
       alternative: route.alternative,
     }
-    return NextResponse.json({ ok: true, result, question: asked, routedBy: route.routedBy })
+    return NextResponse.json({
+      ok: true,
+      result,
+      question: asked,
+      routedBy: route.routedBy,
+      datasetId: resolved.id,
+    })
   }
 
   const tool = getTool(route.name)
@@ -135,5 +150,6 @@ export async function POST(req: Request) {
     question: asked,
     routedBy: route.routedBy,
     routedTo: { tool: tool.name, args: route.args },
+    datasetId: resolved.id,
   })
 }

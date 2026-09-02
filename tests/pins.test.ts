@@ -17,6 +17,9 @@ delete process.env.CF_KV_NAMESPACE_ID
 delete process.env.CF_ACCOUNT_ID
 delete process.env.CF_API_TOKEN
 
+// Pins are stored per dataset, so every call names one.
+const DS = 'test-dataset'
+
 function result(headline: string): ToolResult {
   return {
     tool: 'attendance_by_director',
@@ -49,9 +52,9 @@ function pin(id: string, args: Record<string, unknown> = {}): Pin {
 
 test('a pin is stored and read back newest first', async () => {
   resetPins()
-  await addPin(pin('a', { body: 'Board' }))
-  await addPin(pin('b', { body: 'Audit' }))
-  const { pins } = await listPins()
+  await addPin(DS, pin('a', { body: 'Board' }))
+  await addPin(DS, pin('b', { body: 'Audit' }))
+  const { pins } = await listPins(DS)
   assert.deepEqual(
     pins.map((p) => p.id),
     ['b', 'a'],
@@ -60,7 +63,7 @@ test('a pin is stored and read back newest first', async () => {
 
 test('pins are not durable when KV is unconfigured, and say so', async () => {
   resetPins()
-  const { durable } = await listPins()
+  const { durable } = await listPins(DS)
   // The UI tells the reader their pins are only held in memory. If this ever
   // reports true without KV, that warning silently disappears.
   assert.equal(durable, false)
@@ -68,47 +71,47 @@ test('pins are not durable when KV is unconfigured, and say so', async () => {
 
 test('the same analysis cannot be pinned twice', async () => {
   resetPins()
-  await addPin(pin('a', { threshold: 80 }))
-  const second = await addPin(pin('b', { threshold: 80 }))
+  await addPin(DS, pin('a', { threshold: 80 }))
+  const second = await addPin(DS, pin('b', { threshold: 80 }))
   assert.equal(second.ok, false)
   assert.equal(second.ok === false && second.reason, 'duplicate')
-  const { pins } = await listPins()
+  const { pins } = await listPins(DS)
   assert.equal(pins.length, 1)
 })
 
 test('the same tool with different arguments is a different pin', async () => {
   resetPins()
-  await addPin(pin('a', { threshold: 80 }))
-  const second = await addPin(pin('b', { threshold: 75 }))
+  await addPin(DS, pin('a', { threshold: 80 }))
+  const second = await addPin(DS, pin('b', { threshold: 75 }))
   assert.equal(second.ok, true)
-  const { pins } = await listPins()
+  const { pins } = await listPins(DS)
   assert.equal(pins.length, 2)
 })
 
 test('the dashboard refuses a pin past its cap rather than dropping the oldest', async () => {
   resetPins()
   for (let i = 0; i < MAX_PINS; i++) {
-    const outcome = await addPin(pin(`p${i}`, { n: i }))
+    const outcome = await addPin(DS, pin(`p${i}`, { n: i }))
     assert.equal(outcome.ok, true, `pin ${i} fits`)
   }
-  const overflow = await addPin(pin('one-too-many', { n: MAX_PINS }))
+  const overflow = await addPin(DS, pin('one-too-many', { n: MAX_PINS }))
   assert.equal(overflow.ok, false)
   assert.equal(overflow.ok === false && overflow.reason, 'full')
   // Silently evicting the oldest pin would lose something the reader chose to
   // keep. The cap is reported instead.
-  const { pins } = await listPins()
+  const { pins } = await listPins(DS)
   assert.equal(pins.length, MAX_PINS)
   assert.ok(pins.some((p) => p.id === 'p0'))
 })
 
 test('removing a pin leaves the rest in order', async () => {
   resetPins()
-  await addPin(pin('a', { n: 1 }))
-  await addPin(pin('b', { n: 2 }))
-  await addPin(pin('c', { n: 3 }))
-  const outcome = await removePin('b')
+  await addPin(DS, pin('a', { n: 1 }))
+  await addPin(DS, pin('b', { n: 2 }))
+  await addPin(DS, pin('c', { n: 3 }))
+  const outcome = await removePin(DS, 'b')
   assert.equal(outcome.ok, true)
-  const { pins } = await listPins()
+  const { pins } = await listPins(DS)
   assert.deepEqual(
     pins.map((p) => p.id),
     ['c', 'a'],
@@ -117,37 +120,37 @@ test('removing a pin leaves the rest in order', async () => {
 
 test('removing a pin that is not there reports not-found', async () => {
   resetPins()
-  await addPin(pin('a'))
-  const outcome = await removePin('nope')
+  await addPin(DS, pin('a'))
+  const outcome = await removePin(DS, 'nope')
   assert.equal(outcome.ok, false)
   assert.equal(outcome.ok === false && outcome.reason, 'not-found')
 })
 
 test('removing the last pin empties the dashboard', async () => {
   resetPins()
-  await addPin(pin('a'))
-  const outcome = await removePin('a')
+  await addPin(DS, pin('a'))
+  const outcome = await removePin(DS, 'a')
   assert.equal(outcome.ok, true)
-  const { pins } = await listPins()
+  const { pins } = await listPins(DS)
   assert.equal(pins.length, 0)
 })
 
 test('refreshing replaces a snapshot in place, keeping its position', async () => {
   resetPins()
-  await addPin(pin('a', { n: 1 }))
-  await addPin(pin('b', { n: 2 }))
-  await addPin(pin('c', { n: 3 }))
+  await addPin(DS, pin('a', { n: 1 }))
+  await addPin(DS, pin('b', { n: 2 }))
+  await addPin(DS, pin('c', { n: 3 }))
 
-  const { pins: before } = await listPins()
+  const { pins: before } = await listPins(DS)
   const target = before.find((p) => p.id === 'b')!
-  const outcome = await replacePin('b', {
+  const outcome = await replacePin(DS, 'b', {
     ...target,
     result: result('refreshed headline'),
     refreshedAt: '2026-09-02T12:00:00.000Z',
   })
   assert.equal(outcome.ok, true)
 
-  const { pins } = await listPins()
+  const { pins } = await listPins(DS)
   // Position matters: a refreshed card jumping to the top of the dashboard
   // would look like a new pin.
   assert.deepEqual(
@@ -164,7 +167,7 @@ test('refreshing replaces a snapshot in place, keeping its position', async () =
 
 test('refreshing a pin that is not there reports not-found', async () => {
   resetPins()
-  const outcome = await replacePin('nope', pin('nope'))
+  const outcome = await replacePin(DS, 'nope', pin('nope'))
   assert.equal(outcome.ok, false)
   assert.equal(outcome.ok === false && outcome.reason, 'not-found')
 })

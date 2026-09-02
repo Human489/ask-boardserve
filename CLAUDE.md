@@ -62,7 +62,11 @@ responding to clicks. `rm -rf .next` and restart. This has happened three times.
 ## The dataset
 
 **Not in the repo — gitignored, and must never be committed.** Place it at
-`./dataset` or set `DATASET_PATH`. It holds `attendance.json`, `actions.json`,
+`./dataset` or set `DATASET_PATH`.
+
+That is the development source. The deployed app has no such directory, so a
+dataset gets in by being **uploaded as a .zip** and is kept in KV; see "Dataset
+sources" below. It holds `attendance.json`, `actions.json`,
 `skills-audit.csv` and three `paper-*.md` board papers.
 
 `.gitignore` uses `/dataset/`, anchored. An unanchored `dataset/` also matches
@@ -76,6 +80,36 @@ That includes second-hand knowledge. Working notes that described `dataset-b`'s
 contents have been moved out of the repo rather than kept around, so nothing in
 this tree carries its figures. If you find such notes, do not read them into
 context — the test is only worth running blind.
+
+## Dataset sources
+
+Three ways in, resolved in this order by `resolveDataset()` in `src/lib/datasets.ts`:
+
+1. **An uploaded dataset**, stored in KV and pointed at by `datasets:v1:active`.
+2. **The local directory** (`DATASET_PATH`, else `./dataset`) — development and
+   the whole test suite.
+3. **Nothing**, which is a first run rather than a fault: `/api/ask` answers 409
+   with `needsDataset` and the UI sends the reader to the Data view.
+
+`POST /api/datasets` takes a `.zip`, extracts only the files a dataset is made
+of (basename-matched, so zipping the folder works), parses it with the *same*
+parser the local directory uses, and refuses anything that will not parse —
+before storing it. What is stored is the file map, not the parsed dataset, so a
+parser change applies to datasets already uploaded.
+
+**Uploading requires KV, and refuses without it.** The in-memory fallback pins
+use cannot serve this: each route handler is its own module instance, so a
+dataset held in one route's memory is invisible to the route that answers
+questions. Measured, not assumed — an upload with KV unconfigured reported
+success and the next question was still answered from the local directory.
+
+**Pins are stored per dataset** (`pins:v1:<datasetId>`). A pinned card refreshed
+under a different dataset would recompute against another organisation and go on
+showing the same question above different figures.
+
+**A dataset swap clears the transcript.** Prior answers' headlines are sent back
+to the model as routing context, so carrying them across a swap would route a
+question about one organisation while the model reads a sentence about another.
 
 ## Architecture
 

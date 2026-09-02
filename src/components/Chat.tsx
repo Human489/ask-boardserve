@@ -59,9 +59,21 @@ interface ChatProps {
   onRejected: () => void
   pins: PinsState
   hidden: boolean
+  /** Identifies the dataset answering. A change clears the transcript. */
+  datasetKey: string
+  needsDataset: boolean
+  onGoToData: () => void
 }
 
-export default function Chat({ credential, onRejected, pins, hidden }: ChatProps) {
+export default function Chat({
+  credential,
+  onRejected,
+  pins,
+  hidden,
+  datasetKey,
+  needsDataset,
+  onGoToData,
+}: ChatProps) {
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
   const [inFlight, setInFlight] = useState(false)
@@ -88,6 +100,26 @@ export default function Chat({ credential, onRejected, pins, hidden }: ChatProps
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     newest.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' })
   }, [turnCount])
+
+  // A dataset swap starts a new conversation.
+  //
+  // Prior answers' headlines are sent back to the model as context, so it picks
+  // the next tool partly from what it already answered. Carrying those across a
+  // swap would route a question about one organisation while the model reads a
+  // sentence about another. The figures are always recomputed server-side, so
+  // nothing wrong could reach the screen — but the routing could be steered by
+  // a board that is no longer loaded, and a transcript mixing two organisations
+  // invites being read as one.
+  const firstRender = useRef(true)
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false
+      return
+    }
+    setTurns([])
+    turnsRef.current = []
+    setDraft('')
+  }, [datasetKey])
 
   // Answers arrive asynchronously into a card the reader may not be looking at.
   // The pending skeleton already announces itself; this announces the finding.
@@ -241,7 +273,18 @@ export default function Chat({ credential, onRejected, pins, hidden }: ChatProps
   return (
     <div className="chat" hidden={hidden}>
       <div className="transcript">
-        {turns.length === 0 ? (
+        {needsDataset ? (
+          <div className="empty">
+            <p className="empty-lede">No dataset is loaded yet.</p>
+            <p className="empty-sub">
+              Answers are computed from a dataset, and none has been uploaded. Add one and
+              every question here is answered from it.
+            </p>
+            <button type="button" className="send" onClick={onGoToData}>
+              Add a dataset
+            </button>
+          </div>
+        ) : turns.length === 0 ? (
           <div className="empty">
             <p className="empty-lede">Ask a question of your board data.</p>
             <p className="empty-sub">

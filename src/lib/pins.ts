@@ -36,7 +36,17 @@ export interface Pin {
   datasetAsAt: string
 }
 
-const KEY = 'pins:v1'
+/**
+ * Pins are stored per dataset.
+ *
+ * A pinned card is a figure about one organisation. Refreshing it re-runs its
+ * tool against whatever dataset is active, so a single shared list would let a
+ * card pinned from one organisation quietly recompute against another and go on
+ * displaying the same question above different figures. Keying by dataset means
+ * switching shows that dataset's own pins, and switching back restores the
+ * first set exactly as it was.
+ */
+const KEY = (datasetId: string) => `pins:v1:${datasetId}`
 
 /**
  * A dashboard is something a reader scans, so it has an end. Past a couple of
@@ -50,7 +60,7 @@ export const MAX_PINS = 24
 // for the lifetime of the server process, which is honest for local development
 // and is reported to the caller so the UI can say so rather than implying they
 // are saved.
-let memory: Pin[] = []
+const memory = new Map<string, Pin[]>()
 
 /** A stored entry has to look like a pin before the UI is handed it. */
 function isPin(value: unknown): value is Pin {
@@ -94,9 +104,11 @@ export interface PinStore {
   reachable: boolean
 }
 
-export async function listPins(): Promise<PinStore> {
-  if (!kvAvailable()) return { pins: memory, durable: false, reachable: true }
-  const read = await kvRead(KEY)
+export async function listPins(datasetId: string): Promise<PinStore> {
+  if (!kvAvailable()) {
+    return { pins: memory.get(datasetId) ?? [], durable: false, reachable: true }
+  }
+  const read = await kvRead(KEY(datasetId))
   // An unreachable store reports itself rather than presenting as empty. This
   // is the difference between "you have no pins" and "we could not ask".
   if (!read.ok) return { pins: [], durable: true, reachable: false }
@@ -104,13 +116,13 @@ export async function listPins(): Promise<PinStore> {
   return { pins: parse(read.value), durable: true, reachable: true }
 }
 
-async function write(pins: Pin[]): Promise<boolean> {
+async function write(datasetId: string, pins: Pin[]): Promise<boolean> {
   if (!kvAvailable()) {
-    memory = pins
+    memory.set(datasetId, pins)
     return true
   }
   // Permanent: no TTL. A pin that expired on its own would be a silent loss.
-  return kvPut(KEY, JSON.stringify(pins), null)
+  return kvPut(KEY(datasetId), JSON.stringify(pins), null)
 }
 
 export type AddOutcome =
@@ -127,8 +139,8 @@ export type AddOutcome =
  * practical one, and the alternative (a key per pin plus a list operation on
  * every read) costs a round trip per card for a collision that will not happen.
  */
-export async function addPin(pin: Pin): Promise<AddOutcome> {
-  const { pins, durable, reachable } = await listPins()
+export async function addPin(datasetId: string, pin: Pin): Promise<AddOutcome> {
+  const { pins, durable, reachable } = await listPins(datasetId)
   // Writing here would replace every existing pin with just this one, because
   // an unreadable list looks exactly like an empty one.
   if (!reachable) return { ok: false, reason: 'unreachable' }
@@ -143,7 +155,7 @@ export async function addPin(pin: Pin): Promise<AddOutcome> {
   if (pins.length >= MAX_PINS) return { ok: false, reason: 'full' }
 
   const next = [pin, ...pins]
-  if (!(await write(next))) return { ok: false, reason: 'write-failed' }
+  if (!(await write(datasetId, next))) return { ok: false, reason: 'write-failed' }
   return { ok: true, pins: next, durable }
 }
 
@@ -151,37 +163,41 @@ export type MutateOutcome =
   | { ok: true; pins: Pin[]; durable: boolean }
   | { ok: false; reason: 'not-found' | 'write-failed' | 'unreachable' }
 
-export async function removePin(id: string): Promise<MutateOutcome> {
-  const { pins, durable, reachable } = await listPins()
+export async function removePin(datasetId: string, id: string): Promise<MutateOutcome> {
+  const { pins, durable, reachable } = await listPins(datasetId)
   if (!reachable) return { ok: false, reason: 'unreachable' }
   const next = pins.filter((p) => p.id !== id)
   if (next.length === pins.length) return { ok: false, reason: 'not-found' }
   if (next.length === 0) {
     // Leave no empty array behind to be read back on every load.
     if (kvAvailable()) {
-      if (!(await kvDelete(KEY))) return { ok: false, reason: 'write-failed' }
+      if (!(await kvDelete(KEY(datasetId)))) return { ok: false, reason: 'write-failed' }
     } else {
-      memory = []
+      memory.delete(datasetId)
     }
     return { ok: true, pins: [], durable }
   }
-  if (!(await write(next))) return { ok: false, reason: 'write-failed' }
+  if (!(await write(datasetId, next))) return { ok: false, reason: 'write-failed' }
   return { ok: true, pins: next, durable }
 }
 
 /** Replaces one pin's frozen snapshot in place, keeping its position. */
-export async function replacePin(id: string, updated: Pin): Promise<MutateOutcome> {
-  const { pins, durable, reachable } = await listPins()
+export async function replacePin(
+  datasetId: string,
+  id: string,
+  updated: Pin,
+): Promise<MutateOutcome> {
+  const { pins, durable, reachable } = await listPins(datasetId)
   if (!reachable) return { ok: false, reason: 'unreachable' }
   const index = pins.findIndex((p) => p.id === id)
   if (index === -1) return { ok: false, reason: 'not-found' }
   const next = [...pins]
   next[index] = updated
-  if (!(await write(next))) return { ok: false, reason: 'write-failed' }
+  if (!(await write(datasetId, next))) return { ok: false, reason: 'write-failed' }
   return { ok: true, pins: next, durable }
 }
 
 /** Test seam. Clears only the in-process layer. */
 export function resetPins(): void {
-  memory = []
+  memory.clear()
 }

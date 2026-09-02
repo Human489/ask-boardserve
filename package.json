@@ -12,6 +12,7 @@
     "smoke": "node scripts/smoke-api.mjs"
   },
   "dependencies": {
+    "fflate": "^0.8.3",
     "next": "^15.5.25",
     "react": "19.1.1",
     "react-dom": "19.1.1",

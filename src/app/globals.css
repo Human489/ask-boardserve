@@ -1172,3 +1172,121 @@ table.answer-table {
   color: var(--error-ink);
   font-size: 13px;
 }
+
+/* ------------------------------------------------------------- datasets */
+
+.masthead-dataset {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.masthead-dataset strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.upload {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+.upload-label {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.upload-hint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+  max-width: var(--measure-prose);
+}
+
+.upload-hint code {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.upload-input {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink-2);
+  max-width: 100%;
+}
+
+/* The file picker's own button is a browser surface; give it the same shape as
+   every other secondary control rather than leaving it at the platform default. */
+.upload-input::file-selector-button {
+  font: inherit;
+  font-size: 13px;
+  min-height: 32px;
+  padding: 0 12px;
+  margin-right: 10px;
+  background: transparent;
+  color: var(--ink-2);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.upload-input:not(:disabled)::file-selector-button:hover {
+  border-color: var(--ink-2);
+  color: var(--ink);
+}
+
+.upload-status {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  max-width: var(--measure-prose);
+}
+
+.dataset-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.dataset-main {
+  flex: 1;
+  min-width: 200px;
+}
+
+.dataset-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+/* "In use" is a word, not a colour: which dataset is answering is too important
+   to be carried by a tint alone. */
+.dataset-active {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border-radius: 99px;
+  padding: 2px 8px;
+}
+
+.dataset-meta {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}

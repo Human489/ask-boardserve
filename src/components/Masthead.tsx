@@ -1,6 +1,6 @@
 'use client'
 
-export type View = 'ask' | 'dashboard'
+export type View = 'ask' | 'dashboard' | 'data'
 
 /**
  * The masthead is present on the passcode screen too, so the view switch is a
@@ -11,10 +11,13 @@ export default function Masthead({
   view,
   onView,
   pinCount,
+  organisation,
 }: {
   view?: View
   onView?: (view: View) => void
   pinCount?: number
+  /** The dataset currently answering. Shown so a swap is never invisible. */
+  organisation?: string | null
 }) {
   const showSwitch = view !== undefined && onView !== undefined
 
@@ -28,6 +31,11 @@ export default function Masthead({
               A companion to BoardServe&rsquo;s analytics, not a replacement — for the
               questions a fixed dashboard was never built to answer.
             </p>
+            {organisation && (
+              <p className="masthead-dataset">
+                Answering from <strong>{organisation}</strong>
+              </p>
+            )}
           </div>
 
           {showSwitch && (
@@ -56,6 +64,14 @@ export default function Masthead({
                     <span className="sr-only"> pinned charts</span>
                   </span>
                 )}
+              </button>
+              <button
+                type="button"
+                className="view-tab"
+                aria-current={view === 'data' ? 'page' : undefined}
+                onClick={() => onView('data')}
+              >
+                Data
               </button>
             </nav>
           )}
