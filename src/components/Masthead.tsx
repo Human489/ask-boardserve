@@ -41,12 +41,15 @@ export default function Masthead({
           {showSwitch && (
             // Two buttons rather than a segmented novelty: this is a pair of
             // views, and the current one is stated with aria-current so it is
-            // not carried by the highlight alone.
+            // not carried by the highlight alone. The value is "true", not
+            // "page" — nothing navigates, these are views of one page, and
+            // "page" would have a screen reader announce a location change
+            // that did not happen.
             <nav className="view-switch" aria-label="View">
               <button
                 type="button"
                 className="view-tab"
-                aria-current={view === 'ask' ? 'page' : undefined}
+                aria-current={view === 'ask' ? 'true' : undefined}
                 onClick={() => onView('ask')}
               >
                 Ask
@@ -54,7 +57,7 @@ export default function Masthead({
               <button
                 type="button"
                 className="view-tab"
-                aria-current={view === 'dashboard' ? 'page' : undefined}
+                aria-current={view === 'dashboard' ? 'true' : undefined}
                 onClick={() => onView('dashboard')}
               >
                 Dashboard
@@ -68,7 +71,7 @@ export default function Masthead({
               <button
                 type="button"
                 className="view-tab"
-                aria-current={view === 'data' ? 'page' : undefined}
+                aria-current={view === 'data' ? 'true' : undefined}
                 onClick={() => onView('data')}
               >
                 Data

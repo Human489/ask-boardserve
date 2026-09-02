@@ -215,9 +215,48 @@ export function flaggedHatchDefs(id: string, palette: Palette) {
   )
 }
 
+/* The second series was distinguished from the first by hue alone: the two
+   measured 1.17:1 apart in light and 1.07:1 in dark, so to a reader who cannot
+   separate blue from green — or to anyone printing the answer — the chart had
+   one series drawn twice. Bars get a pattern, lines get a dash, and the legend
+   repeats whichever applies.
+
+   Not a component, for the same reason as flaggedHatchDefs above: recharts'
+   renderByOrder drops children whose type is a function, so a <defs> wrapped in
+   one never reaches the SVG and every bar pointing at the pattern renders as
+   nothing at all. */
+export function seriesTwoPatternDefs(id: string, palette: Palette) {
+  return (
+    <defs key="series-two-pattern">
+      <pattern
+        id={id}
+        width="6"
+        height="6"
+        patternUnits="userSpaceOnUse"
+        // The opposite diagonal to the flagged hatch, so the two patterns are
+        // told apart by direction and not only by their colour.
+        patternTransform="rotate(-45)"
+      >
+        <rect width="6" height="6" fill={palette.series2} />
+        <line x1="0" y1="0" x2="0" y2="6" stroke={palette.surface} strokeWidth="1.6" />
+      </pattern>
+    </defs>
+  )
+}
+
 /** Matches the SVG hatch in CSS so the legend and the chart cannot drift. */
 function hatchSwatch(palette: Palette): string {
   return `repeating-linear-gradient(45deg, ${palette.highlight} 0 2px, ${palette.surface} 2px 4px)`
+}
+
+/** The legend twin of seriesTwoPatternDefs. */
+function seriesTwoSwatch(palette: Palette): string {
+  return `repeating-linear-gradient(-45deg, ${palette.series2} 0 2px, ${palette.surface} 2px 3px)`
+}
+
+/** The legend twin of the second line's dash pattern. */
+function dashedSwatch(palette: Palette): string {
+  return `repeating-linear-gradient(90deg, ${palette.series2} 0 7px, transparent 7px 11px)`
 }
 
 // --------------------------------------------------------------------- chart
@@ -227,7 +266,12 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
   const narrow = useIsNarrow()
   // Several answer cards sit on the page at once, each with its own SVG. A
   // shared pattern id would resolve to whichever chart mounted first.
-  const hatchId = `flagged-hatch-${useId().replace(/[^\w-]/g, '')}`
+  const uid = useId().replace(/[^\w-]/g, '')
+  const hatchId = `flagged-hatch-${uid}`
+  const seriesTwoId = `series-two-${uid}`
+  const titleId = `chart-title-${uid}`
+  const descId = `chart-desc-${uid}`
+  const tableId = `chart-table-${uid}`
 
   const hasSecond = useMemo(
     () => spec.points.some((p) => typeof p.value2 === 'number'),
@@ -255,23 +299,38 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
       ? 250
       : 300
 
+  const isLine = spec.kind === 'line'
+
   const legendEntries: {
     label: string
     color: string
     fill?: string
-    shape?: 'diamond'
+    shape?: 'diamond' | 'line'
   }[] = []
   if (palette) {
     if (hasSecond) {
-      legendEntries.push({ label: seriesLabel, color: palette.series1 })
-      legendEntries.push({ label: series2Label ?? 'Second series', color: palette.series2 })
+      // The swatches carry the second signal, not just the colour: a solid rule
+      // against a dashed one for lines, a flat block against a hatched one for
+      // bars. A legend that repeated only the hue would leave the reader with
+      // two entries they cannot tell apart on the chart.
+      legendEntries.push({
+        label: seriesLabel,
+        color: palette.series1,
+        shape: isLine ? 'line' : undefined,
+      })
+      legendEntries.push({
+        label: series2Label ?? 'Second series',
+        color: palette.series2,
+        fill: isLine ? dashedSwatch(palette) : seriesTwoSwatch(palette),
+        shape: isLine ? 'line' : undefined,
+      })
     }
     if (hasHighlight) {
       legendEntries.push({
         label: 'Flagged',
         color: palette.highlight,
         fill: spec.kind === 'bar' ? hatchSwatch(palette) : undefined,
-        shape: spec.kind === 'line' ? 'diamond' : undefined,
+        shape: isLine ? 'diamond' : undefined,
       })
     }
   }
@@ -280,10 +339,49 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
     ? `${spec.xLabel} (vertical) · ${spec.yLabel} (horizontal)`
     : `${spec.xLabel} (horizontal) · ${spec.yLabel} (vertical)`
 
+  // A description of the shape of the chart, for a reader who cannot see it.
+  // Computed from the points rather than written, so it cannot describe a chart
+  // other than the one drawn — the same reason the headline is computed by the
+  // tool rather than narrated.
+  const flaggedCount = spec.points.filter((p) => p.highlight).length
+  const values = spec.points.map((p) => p.value)
+  const description = [
+    `${spec.kind === 'line' ? 'Line' : 'Bar'} chart.`,
+    `${spec.points.length} ${spec.points.length === 1 ? 'point' : 'points'}.`,
+    `${axisCaption}.`,
+    values.length > 0
+      ? `${seriesLabel} from ${formatValue(Math.min(...values), spec.unit)} to ${formatValue(Math.max(...values), spec.unit)}.`
+      : '',
+    hasSecond ? `A second series, ${series2Label ?? 'second series'}, is drawn dashed.` : '',
+    flaggedCount > 0
+      ? `${flaggedCount} ${flaggedCount === 1 ? 'point is' : 'points are'} flagged.`
+      : '',
+    spec.reference ? `A reference line marks ${spec.reference.label}.` : '',
+    'The figures follow in a table.',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  // Whether the table needs a notes column at all — `detail` and the flag are
+  // otherwise reachable only by hovering a tooltip with a mouse.
+  const hasNotes = spec.points.some((p) => p.detail || p.highlight)
+
   return (
-    <div className="chart-block">
-      <p className="chart-title">{spec.title}</p>
+    // Grouped and named, so the chart is announced as one thing with a title
+    // rather than as loose paragraphs followed by an unlabelled graphic.
+    <div
+      className="chart-block"
+      role="group"
+      aria-labelledby={titleId}
+      aria-describedby={descId}
+    >
+      <p className="chart-title" id={titleId}>
+        {spec.title}
+      </p>
       <p className="chart-axis-note">{axisCaption}</p>
+      <p className="sr-only" id={descId}>
+        {description}
+      </p>
 
       <div className="chart-frame" style={{ height }}>
         {palette && (
@@ -291,6 +389,14 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
             {spec.kind === 'line' ? (
               <LineChart
                 data={spec.points}
+                // Off by default in recharts 2.x, which leaves the SVG with no
+                // role, no tab stop and no title — the chart existed for a
+                // mouse only. On, it also gives the points arrow-key
+                // navigation, which is the only way to reach the tooltip (and
+                // so `detail` and the unrounded values) without one.
+                accessibilityLayer
+                title={spec.title}
+                desc={description}
                 margin={{ top: 8, right: 18, bottom: longestLabel > 8 ? 46 : 14, left: 4 }}
               >
                 <CartesianGrid stroke={palette.grid} vertical={false} />
@@ -390,9 +496,25 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
                     dataKey="value2"
                     stroke={palette.series2}
                     strokeWidth={2}
-                    strokeLinecap="round"
+                    // Dashed, and marked with squares rather than the first
+                    // series' circles. The two series colours are 1.17:1 apart
+                    // in light and 1.07:1 in dark, so hue alone identified
+                    // neither of them; the dash and the shape do.
+                    strokeDasharray="7 4"
+                    strokeLinecap="butt"
                     strokeLinejoin="round"
-                    dot={{ r: 4, fill: palette.series2, stroke: 'var(--surface)', strokeWidth: 2 }}
+                    dot={(props: LineDotProps) => (
+                      <rect
+                        key={`dot2-${props.index}`}
+                        x={(props.cx ?? 0) - 4}
+                        y={(props.cy ?? 0) - 4}
+                        width={8}
+                        height={8}
+                        fill={palette.series2}
+                        stroke="var(--surface)"
+                        strokeWidth={2}
+                      />
+                    )}
                     activeDot={{ r: 5 }}
                     isAnimationActive={false}
                   />
@@ -401,6 +523,9 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
             ) : (
               <BarChart
                 data={spec.points}
+                accessibilityLayer
+                title={spec.title}
+                desc={description}
                 layout={horizontal ? 'vertical' : 'horizontal'}
                 margin={
                   horizontal
@@ -416,6 +541,7 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
                 barGap={2}
               >
                 {flaggedHatchDefs(hatchId, palette)}
+                {seriesTwoPatternDefs(seriesTwoId, palette)}
                 <CartesianGrid
                   stroke={palette.grid}
                   vertical={horizontal}
@@ -529,7 +655,11 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
                   <Bar
                     dataKey="value2"
                     maxBarSize={24}
-                    fill={palette.series2}
+                    // Hatched on the opposite diagonal to the flagged bars, so
+                    // the second series is not identified by its colour alone.
+                    fill={`url(#${seriesTwoId})`}
+                    stroke={palette.series2}
+                    strokeWidth={1}
                     radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
                     isAnimationActive={false}
                   />
@@ -540,14 +670,51 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
         )}
       </div>
 
+      {/* The tooltip was the only place `detail` and the unrounded figures
+          appeared, and it opens on hover. This is the same data as a table, so
+          it can be read, navigated cell by cell, and copied into a board paper
+          without a mouse. Visually hidden because the chart above already says
+          it to anyone who can see it. */}
+      <table className="sr-only" id={tableId}>
+        <caption>{spec.title}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{spec.xLabel}</th>
+            <th scope="col">{seriesLabel}</th>
+            {hasSecond && <th scope="col">{series2Label ?? 'Second series'}</th>}
+            {hasNotes && <th scope="col">Notes</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {spec.points.map((point, i) => (
+            <tr key={i}>
+              <th scope="row">{point.label}</th>
+              <td>{formatValue(point.value, spec.unit)}</td>
+              {hasSecond && (
+                <td>
+                  {typeof point.value2 === 'number'
+                    ? formatValue(point.value2, spec.unit)
+                    : 'Not applicable'}
+                </td>
+              )}
+              {hasNotes && (
+                <td>
+                  {[point.highlight ? 'Flagged' : '', point.detail ?? '']
+                    .filter(Boolean)
+                    .join('. ')}
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
       {legendEntries.length > 0 && (
         <div className="chart-legend">
           {legendEntries.map((entry) => (
             <span className="legend-item" key={entry.label}>
               <span
-                className={
-                  entry.shape === 'diamond' ? 'legend-swatch is-diamond' : 'legend-swatch'
-                }
+                className={`legend-swatch${entry.shape ? ` is-${entry.shape}` : ''}`}
                 style={{ background: entry.fill ?? entry.color }}
               />
               {entry.label}

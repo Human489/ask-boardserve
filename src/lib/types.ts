@@ -184,6 +184,16 @@ export interface RefusalResult {
 
 export type AnswerResult = ToolResult | RefusalResult
 
+/**
+ * How a question reached its answer.
+ *
+ * 'guard' is a refusal only: a deterministic check — the papers scope rule, the
+ * clock-anchoring rule — decided it, before or instead of either routing path.
+ * The UI must not describe that as the offline classifier having been used,
+ * which is what a two-value union forced it to imply.
+ */
+export type RoutedBy = 'model' | 'fallback' | 'guard'
+
 export function isRefusal(r: AnswerResult): r is RefusalResult {
   return r.tool === 'refusal'
 }

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import BoardChart from './BoardChart'
 import { UnavailableMark } from './marks'
 import { isRefusal } from '@/lib/types'
-import type { AnswerResult, TableSpec } from '@/lib/types'
+import type { AnswerResult, RoutedBy, TableSpec } from '@/lib/types'
 
 function NoteList({ label, items }: { label: string; items: string[] }) {
   if (items.length === 0) return null
@@ -74,15 +74,23 @@ export default function ChartCard({
   routedBy,
   actions,
   note,
+  headingLevel = 2,
 }: {
   result: AnswerResult
-  routedBy?: 'model' | 'fallback'
+  routedBy?: RoutedBy
+  /** The card's headline is a heading, and its level depends on what encloses
+   *  it: in the transcript it sits directly under the page, on the dashboard it
+   *  sits under the "Pinned charts" heading. A card whose headline is a sibling
+   *  of the section title reads as another section rather than as its content. */
+  headingLevel?: 2 | 3
   /** Controls the surrounding view owns — pinning here, refresh and remove on
    *  the dashboard. The card renders the row; it does not know what is in it. */
   actions?: ReactNode
   /** A line about this card's provenance as a pin, e.g. when it was frozen. */
   note?: ReactNode
 }) {
+  const Headline = (headingLevel === 3 ? 'h3' : 'h2') as 'h2' | 'h3'
+
   // A refusal is a correct answer — it gets its own calm treatment, deliberately
   // unlike the error card.
   if (isRefusal(result)) {
@@ -92,7 +100,7 @@ export default function ChartCard({
           <UnavailableMark />
           Not answerable from this data
         </p>
-        <h2 className="headline">{result.headline}</h2>
+        <Headline className="headline">{result.headline}</Headline>
         <p className="refusal-body">{result.reason}</p>
         {result.alternative && (
           <p className="refusal-alt">
@@ -116,7 +124,7 @@ export default function ChartCard({
 
   return (
     <article className="card">
-      <h2 className="headline">{headline}</h2>
+      <Headline className="headline">{headline}</Headline>
 
       {chart && chart.points.length > 0 && <BoardChart spec={chart} />}
 

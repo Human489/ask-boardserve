@@ -1,7 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { recordCall, recordFailure, usageFromResponse } from '@/lib/usage'
 import { MEETING_MINUTES, checkClockAnchored, checkPapersScope } from '@/lib/retrieval/scope'
-import type { Dataset, ToolDefinition } from '@/lib/types'
+import type { Dataset, RoutedBy, ToolDefinition } from '@/lib/types'
 
 // Routing only. This file never computes a figure and never writes a headline:
 // it decides which tool runs, with which arguments, or that nothing can answer.
@@ -31,7 +31,7 @@ export interface RefusalRoute {
    * ran at all or by overruling whichever path did. Labelling those as the model
    * or the classifier claimed a decision neither made.
    */
-  routedBy: 'model' | 'fallback' | 'guard'
+  routedBy: RoutedBy
 }
 
 export type Route = ToolRoute | RefusalRoute

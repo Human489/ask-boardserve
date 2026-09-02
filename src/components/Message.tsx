@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import ChartCard from './ChartCard'
 import { WarningMark } from './marks'
-import type { AnswerResult } from '@/lib/types'
+import type { AnswerResult, RoutedBy } from '@/lib/types'
 
 export interface TurnError {
   message: string
@@ -17,7 +17,7 @@ export interface Turn {
   question: string
   status: 'pending' | 'answered' | 'failed'
   result?: AnswerResult
-  routedBy?: 'model' | 'fallback'
+  routedBy?: RoutedBy
   /** The tool and arguments that produced this answer, so it can be pinned. */
   routedTo?: { tool: string; args: Record<string, unknown> }
   error?: TurnError
@@ -63,7 +63,17 @@ function ErrorCard({
           You can try again in {wait} {wait === 1 ? 'second' : 'seconds'}.
         </p>
       )}
-      <button type="button" className="retry" onClick={onRetry} disabled={busy}>
+      {/* aria-disabled, not disabled: this is the button the reader just
+          pressed, and removing it from the tab order sends focus to <body>. */}
+      <button
+        type="button"
+        className="retry"
+        aria-disabled={busy}
+        onClick={() => {
+          if (busy) return
+          onRetry()
+        }}
+      >
         {busy ? 'Waiting…' : 'Retry'}
       </button>
     </article>
@@ -89,14 +99,10 @@ export default function Message({
         {turn.question}
       </p>
 
-      {turn.status === 'pending' && (
-        <>
-          <p className="sr-only" role="status">
-            Working out the answer.
-          </p>
-          <AnswerSkeleton />
-        </>
-      )}
+      {/* The pending state used to announce itself from a role="status" that
+          was inserted already carrying its text, which most screen readers do
+          not read. Chat announces it through the app-level region instead. */}
+      {turn.status === 'pending' && <AnswerSkeleton />}
 
       {turn.status === 'answered' && turn.result && (
         <ChartCard result={turn.result} routedBy={turn.routedBy} actions={actions} />

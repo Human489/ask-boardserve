@@ -18,9 +18,19 @@
   --ink-muted: #6b6963;
 
   --hairline: rgba(11, 11, 11, 0.1);
-  --hairline-strong: #c3c2b7;
+  /* The only visible boundary of the composer, the passcode field and every
+     outline button, so it is a user-interface component under 1.4.11 and has
+     to hold 3:1 — against the sunken surface too, which is the darkest ground
+     it lands on. The previous #c3c2b7 measured 1.75:1 on --surface, which on
+     the passcode screen left the field (on --plane, 1.02:1 from the card)
+     with nothing at all marking where it was. Now 3.40:1 on --surface,
+     3.31:1 on --plane, 3.09:1 on --surface-sunken. */
+  --hairline-strong: #8a8a7e;
   --grid: #e1e0d9;
-  --axis: #b4b3a8;
+  /* An axis line is a graphical object needed to read the chart, so it takes
+     the same 3:1. The previous #b4b3a8 measured 2.06:1. Now 3.30:1 on
+     --surface, the card the charts sit on. */
+  --axis: #8d8c80;
 
   /* Series and accent share one blue: the accent needs 4.5:1 under white
      button text, which is stricter than the 3:1 a chart mark needs, so the
@@ -75,9 +85,12 @@
     --ink-muted: #898781;
 
     --hairline: rgba(255, 255, 255, 0.12);
-    --hairline-strong: #383835;
+    /* Same 3:1 as light. Was #383835 at 1.48:1 on --surface; now 3.20:1 on
+       --surface, 3.57:1 on --plane, 3.41:1 on --surface-sunken. */
+    --hairline-strong: #6a6a63;
     --grid: #2c2c2a;
-    --axis: #4d4d48;
+    /* Was #4d4d48 at 2.05:1; now 3.34:1 on --surface. */
+    --axis: #6d6d66;
 
     --series-1: #3987e5;
     --series-2: #199e70;
@@ -199,6 +212,43 @@ textarea {
   min-height: 100dvh;
 }
 
+/* The masthead is short, but without a skip link the only route past it is
+   through it, and there was no landmark to skip to either. */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -100px;
+  z-index: 20;
+  padding: 9px 14px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: top 120ms var(--ease-out);
+}
+
+/* :focus, not :focus-visible — a skip link is reached only by keyboard, and
+   :focus-visible is not applied consistently to programmatic focus, which left
+   the link stuck off-screen while it held focus. */
+.skip-link:focus {
+  top: 12px;
+}
+
+/* <main> replaces the bare <div> that used to hold the views, so it has to
+   carry the flex behaviour the views relied on. tabIndex="-1" makes it a skip
+   target; it keeps the shared focus ring, because landing somewhere invisible
+   is the failure the skip link is meant to avoid. */
+.views {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .masthead {
   border-bottom: 1px solid var(--hairline);
   background: var(--surface);
@@ -291,12 +341,13 @@ textarea {
   transition: border-color 120ms ease, color 120ms ease;
 }
 
-.example:hover:not(:disabled) {
+.example:hover:not(:disabled):not([aria-disabled='true']) {
   border-color: var(--hairline-strong);
   color: var(--ink);
 }
 
-.example:disabled {
+.example:disabled,
+.example[aria-disabled='true'] {
   cursor: default;
   opacity: 0.6;
 }
@@ -372,6 +423,22 @@ textarea {
 
 .chart-frame {
   width: 100%;
+}
+
+/* accessibilityLayer makes the chart a tab stop, and it puts tabIndex and role
+   on the <svg> (recharts-surface), not on the wrapper div — so that is where
+   the ring has to go. An outline on an SVG is clipped by its own box, hence the
+   ring on the wrapper as well. Nothing here may set outline:none: a focusable
+   chart with no visible focus is exactly the defect this replaced. */
+.chart-frame .recharts-surface:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.chart-frame .recharts-wrapper:has(.recharts-surface:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .chart-legend {
@@ -611,13 +678,19 @@ table.answer-table {
   transition: border-color 120ms ease, color 120ms ease;
 }
 
-.retry:hover:not(:disabled) {
+.retry:hover:not(:disabled):not([aria-disabled='true']) {
   border-color: var(--ink-2);
 }
 
 .retry:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Inert, but still focusable and still legible — see .card-action above. */
+.retry[aria-disabled='true'] {
+  cursor: default;
+  color: var(--ink-muted);
 }
 
 /* --------------------------------------------------------------- loading */
@@ -735,7 +808,8 @@ table.answer-table {
   border-color: var(--accent);
 }
 
-.composer-input:disabled {
+.composer-input:disabled,
+.composer-input:read-only {
   opacity: 0.6;
 }
 
@@ -750,7 +824,8 @@ table.answer-table {
   cursor: pointer;
 }
 
-.send:disabled {
+.send:disabled,
+.send[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
 }
@@ -853,7 +928,8 @@ table.answer-table {
   border-color: var(--accent);
 }
 
-.gate-input:disabled {
+.gate-input:disabled,
+.gate-input:read-only {
   opacity: 0.6;
 }
 
@@ -881,7 +957,8 @@ table.answer-table {
   cursor: pointer;
 }
 
-.gate-button:disabled {
+.gate-button:disabled,
+.gate-button[aria-disabled='true'] {
   opacity: 0.45;
   cursor: default;
 }
@@ -941,6 +1018,16 @@ table.answer-table {
 .citation-section::before {
   content: '§ ';
   color: var(--ink-muted);
+}
+
+/* A line series is a rule, not a block — and the second series' rule is dashed,
+   which is the signal that tells it apart from the first without colour. The
+   dashes come from the inline gradient so the legend and the chart cannot
+   drift apart. */
+.legend-swatch.is-line {
+  width: 20px;
+  height: 3px;
+  border-radius: 1px;
 }
 
 /* The flagged legend swatch mirrors the mark it stands for: a hatch beside the
@@ -1041,7 +1128,7 @@ table.answer-table {
   transition: border-color 120ms ease, color 120ms ease;
 }
 
-.card-action:hover:not(:disabled) {
+.card-action:hover:not(:disabled):not([aria-disabled='true']) {
   border-color: var(--ink-2);
   color: var(--ink);
 }
@@ -1051,10 +1138,26 @@ table.answer-table {
   opacity: 0.55;
 }
 
+/* These controls are made inert with aria-disabled rather than `disabled`, so
+   they keep their tab stop and the reader keeps their place. That means the
+   label stays readable — and it has to: "On the dashboard" is the only thing
+   telling the reader the pin worked, and at the old 0.55 opacity it measured
+   2.65:1. --ink-muted is 5.35:1 on --surface in light and 4.85:1 in dark. */
+.card-action[aria-disabled='true'] {
+  cursor: default;
+  color: var(--ink-muted);
+}
+
 .link-button {
   background: none;
   border: none;
-  padding: 0;
+  /* 2.5.8 wants 24px of target. The bare button was about 20px tall, so the
+     padding is real rather than cosmetic; inline-flex keeps it sitting on the
+     sentence's baseline box rather than pushing the line apart. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 2px;
   color: inherit;
   font: inherit;
   text-decoration: underline;
@@ -1155,6 +1258,13 @@ table.answer-table {
   .masthead-row {
     flex-direction: column;
     gap: 12px;
+    /* Stacked, the switch would otherwise take the full width of the column
+       and read as a toolbar spanning the screen rather than as three tabs. */
+    align-items: flex-start;
+  }
+
+  .view-switch {
+    align-self: flex-start;
   }
 
   .dashboard {

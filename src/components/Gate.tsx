@@ -60,8 +60,11 @@ export default function Gate() {
 
   return (
     <div className="shell">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <Masthead />
-      <div className="gate">
+      <main id="main-content" className="gate" tabIndex={-1}>
         <form
           className="gate-card"
           onSubmit={(event) => {
@@ -85,7 +88,10 @@ export default function Gate() {
             value={passcode}
             autoFocus
             autoComplete="off"
-            disabled={checking}
+            // readOnly rather than disabled: this is the focused element while
+            // the check runs, and disabling it drops it out of the tab order,
+            // which throws focus to <body> with nothing to restore it to.
+            readOnly={checking}
             onChange={(event) => setPasscode(event.target.value)}
           />
 
@@ -98,12 +104,14 @@ export default function Gate() {
           <button
             type="submit"
             className="gate-button"
-            disabled={checking || passcode.trim().length === 0}
+            // Same reason as the field: the button that was just pressed must
+            // not vanish from the tab order under the reader's focus.
+            aria-disabled={checking || passcode.trim().length === 0}
           >
             {checking ? 'Checking…' : 'Continue'}
           </button>
         </form>
-      </div>
+      </main>
     </div>
   )
 }

@@ -6,7 +6,7 @@ import type { Turn } from './Message'
 import { PinMark } from './marks'
 import { pinKey, type PinsState } from './usePins'
 import { isRefusal } from '@/lib/types'
-import type { AnswerResult } from '@/lib/types'
+import type { AnswerResult, RoutedBy } from '@/lib/types'
 
 const EXAMPLES = [
   'Who is below our attendance threshold, and on which committee?',
@@ -21,7 +21,7 @@ interface AskSuccess {
   ok: true
   result: AnswerResult
   question: string
-  routedBy: 'model' | 'fallback'
+  routedBy: RoutedBy
   /** Absent for a refusal: there is no tool behind it to re-run. */
   routedTo?: { tool: string; args: Record<string, unknown> }
 }
@@ -63,6 +63,9 @@ interface ChatProps {
   datasetKey: string
   needsDataset: boolean
   onGoToData: () => void
+  /** The app-level live region, owned by Workspace. See Announcer.tsx for why
+   *  it cannot live in this component. */
+  announce: (text: string) => void
 }
 
 export default function Chat({
@@ -73,6 +76,7 @@ export default function Chat({
   datasetKey,
   needsDataset,
   onGoToData,
+  announce,
 }: ChatProps) {
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
@@ -121,11 +125,31 @@ export default function Chat({
     setDraft('')
   }, [datasetKey])
 
-  // Answers arrive asynchronously into a card the reader may not be looking at.
-  // The pending skeleton already announces itself; this announces the finding.
+  // Answers arrive asynchronously into a card the reader may not be looking at
+  // — possibly not even in this view. The announcement goes to the app-level
+  // region rather than one nested in `.chat`, which is removed from the
+  // accessibility tree whenever another view is showing.
   const latest = turns[turns.length - 1]
-  const announcement =
+  const latestId = latest?.id
+  const latestStatus = latest?.status
+  const latestHeadline =
     latest && latest.status === 'answered' && latest.result ? latest.result.headline : ''
+  useEffect(() => {
+    if (latestStatus === 'answered' && latestHeadline) announce(latestHeadline)
+    else if (latestStatus === 'pending') announce('Working out the answer.')
+  }, [latestId, latestStatus, latestHeadline, announce])
+
+  // The pin button relabels itself to "On the dashboard" and stops responding,
+  // which is the only feedback a pin succeeded — and it is feedback nobody
+  // hears. Announce the outcome from the pinned set actually growing, rather
+  // than from the click, so a pin that failed says nothing and leaves the
+  // error alert to speak instead.
+  const pinnedCount = pins.pinnedKeys.size
+  const priorPinned = useRef(pinnedCount)
+  useEffect(() => {
+    if (pinnedCount > priorPinned.current) announce('Pinned to the dashboard.')
+    priorPinned.current = pinnedCount
+  }, [pinnedCount, announce])
 
   const run = useCallback(async (turnId: string, question: string, priorTurns: Turn[]) => {
     setInFlight(true)
@@ -247,6 +271,8 @@ export default function Chat({
     const alreadyPinned = pins.pinnedKeys.has(key)
     const busy = pins.busyKey === key
 
+    const inert = alreadyPinned || busy || pins.busyKey !== null
+
     return (
       <button
         type="button"
@@ -254,15 +280,26 @@ export default function Chat({
         // Unpinning from here would need the pin's id, which the transcript
         // does not hold; the dashboard owns removal. So once pinned this
         // states the fact rather than offering a toggle that half works.
-        disabled={alreadyPinned || busy || pins.busyKey !== null}
-        onClick={() =>
+        //
+        // aria-disabled rather than disabled, because this is the control the
+        // reader just pressed: `disabled` removes it from the tab order under
+        // their focus, which lands them on <body> with no way back, and the
+        // change from "Pin to dashboard" to "On the dashboard" happens on an
+        // element they can no longer reach to hear it. The click handler
+        // no-ops instead, and the outcome is spoken.
+        aria-disabled={inert}
+        onClick={() => {
+          if (inert) return
           void pins.add({
             question: turn.question,
             tool: routed.tool,
             args: routed.args,
-            routedBy: turn.routedBy,
+            // Only a tool route can be pinned, and a tool route is never
+            // 'guard' — that value belongs to refusals decided by a
+            // deterministic check, and a refusal has no figures to pin.
+            routedBy: turn.routedBy === 'fallback' ? 'fallback' : 'model',
           })
-        }
+        }}
       >
         <PinMark filled={alreadyPinned} />
         {alreadyPinned ? 'On the dashboard' : busy ? 'Pinning…' : 'Pin to dashboard'}
@@ -299,7 +336,11 @@ export default function Chat({
                   type="button"
                   key={example}
                   className="example"
-                  disabled={inFlight}
+                  // aria-disabled: `ask` already refuses while a question is in
+                  // flight, so the button can stay focusable and keep the
+                  // reader's place instead of disappearing from the tab order
+                  // the instant they press it.
+                  aria-disabled={inFlight}
                   onClick={() => ask(example)}
                 >
                   {example}
@@ -322,10 +363,6 @@ export default function Chat({
         )}
       </div>
 
-      <p className="sr-only" role="status" aria-live="polite">
-        {announcement}
-      </p>
-
       <div className="composer">
         {/* A pin is initiated from this view, so its failure has to be reported
             in this view. It sits inside the composer so it picks up the same
@@ -344,7 +381,9 @@ export default function Chat({
             className="composer-input"
             value={draft}
             rows={1}
-            disabled={inFlight}
+            // readOnly, not disabled: the composer holds focus when Enter is
+            // pressed, and disabling it there drops focus to <body>.
+            readOnly={inFlight}
             placeholder="Ask a question…"
             aria-label="Your question"
             onChange={(event) => {
@@ -358,7 +397,9 @@ export default function Chat({
           <button
             type="button"
             className="send"
-            disabled={inFlight || draft.trim().length === 0}
+            // Same as the example buttons — the send button is by definition
+            // the focused control at the moment it would be disabled.
+            aria-disabled={inFlight || draft.trim().length === 0}
             onClick={() => ask(draft)}
           >
             {inFlight ? 'Asking…' : 'Ask'}

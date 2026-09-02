@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { RemoveMark } from './marks'
 import type { DatasetsState } from './useDatasets'
 
@@ -18,9 +18,12 @@ function describe(count: number, one: string, many: string): string {
 export default function DatasetsView({
   datasets,
   hidden,
+  announce,
 }: {
   datasets: DatasetsState
   hidden: boolean
+  /** The app-level live region, owned by Workspace. */
+  announce: (text: string) => void
 }) {
   const input = useRef<HTMLInputElement>(null)
   const {
@@ -40,6 +43,21 @@ export default function DatasetsView({
   } = datasets
 
   const localActive = activeId === null || activeId === ''
+
+  // Same reason as elsewhere: a role="status" that is inserted already holding
+  // its text is not announced by most screen readers, and these statuses sit
+  // inside a view that is removed from the accessibility tree when hidden.
+  useEffect(() => {
+    if (busy) announce('Reading the archive and checking it is a dataset.')
+  }, [busy, announce])
+
+  useEffect(() => {
+    if (error) announce(error)
+  }, [error, announce])
+
+  useEffect(() => {
+    if (lastUploaded && !busy) announce(`Loaded ${lastUploaded.organisation}.`)
+  }, [lastUploaded, busy, announce])
 
   return (
     <div className="dashboard" hidden={hidden}>
@@ -83,12 +101,12 @@ export default function DatasetsView({
             }}
           />
           {busy && (
-            <p className="upload-status" role="status">
+            <p className="upload-status">
               Reading the archive and checking it is a dataset…
             </p>
           )}
           {lastUploaded && !busy && (
-            <p className="upload-status" role="status">
+            <p className="upload-status">
               Loaded {lastUploaded.organisation} — {describe(lastUploaded.directorCount, 'director', 'directors')},{' '}
               {describe(lastUploaded.actionCount, 'action', 'actions')},{' '}
               {describe(lastUploaded.paperCount, 'paper', 'papers')}, as at {lastUploaded.asAt}.
@@ -105,12 +123,6 @@ export default function DatasetsView({
             <button type="button" className="link-button" onClick={() => void reload()}>
               Reload
             </button>
-          </p>
-        )}
-
-        {loading && items.length === 0 && (
-          <p className="sr-only" role="status">
-            Loading datasets.
           </p>
         )}
 
@@ -133,12 +145,19 @@ export default function DatasetsView({
                 deployment.
               </p>
             </div>
+            {/* aria-disabled throughout this view rather than disabled: `busy`
+                is set by pressing one of these very buttons, and disabling the
+                pressed control removes it from the tab order, which drops the
+                reader's focus onto <body> with nothing to restore it to. */}
             {!localActive && (
               <button
                 type="button"
                 className="card-action"
-                disabled={busy}
-                onClick={() => void activate('local')}
+                aria-disabled={busy}
+                onClick={() => {
+                  if (busy) return
+                  void activate('local')
+                }}
               >
                 Use this
               </button>
@@ -165,8 +184,11 @@ export default function DatasetsView({
                 <button
                   type="button"
                   className="card-action"
-                  disabled={busy}
-                  onClick={() => void activate(dataset.id)}
+                  aria-disabled={busy}
+                  onClick={() => {
+                    if (busy) return
+                    void activate(dataset.id)
+                  }}
                 >
                   Use this
                 </button>
@@ -174,8 +196,11 @@ export default function DatasetsView({
               <button
                 type="button"
                 className="card-action"
-                disabled={busy}
-                onClick={() => void remove(dataset.id)}
+                aria-disabled={busy}
+                onClick={() => {
+                  if (busy) return
+                  void remove(dataset.id)
+                }}
               >
                 <RemoveMark />
                 Remove

@@ -4,7 +4,11 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Bar, BarChart, Cell } from 'recharts'
 
-import { flaggedHatchDefs, type Palette } from '../src/components/BoardChart'
+import BoardChart, {
+  flaggedHatchDefs,
+  seriesTwoPatternDefs,
+  type Palette,
+} from '../src/components/BoardChart'
 
 // PRODUCT.md requires that chart colour is never the only carrier of meaning,
 // so a flagged bar is filled with a hatch pattern rather than a flat red.
@@ -73,4 +77,68 @@ test('wrapping the same defs in a component loses the pattern', () => {
   }
   const markup = render(<Wrapped />, 'url(#wrapped)')
   assert.ok(!markup.includes('<pattern'), 'a component child is dropped by recharts')
+})
+
+// ---------------------------------------------------------------------------
+// The second series had the same defect the flagged mark did: it was
+// distinguished from the first by hue alone. Measured 1.26:1 apart in light and
+// 1.07:1 in dark, which is no separation at all for a colour-deficient reader,
+// and the legend repeated the failure rather than resolving it.
+
+test('the second series pattern reaches the rendered SVG', () => {
+  const markup = renderToStaticMarkup(
+    <BarChart width={300} height={200} data={data}>
+      {seriesTwoPatternDefs('series2-test', palette)}
+      <Bar dataKey="value" isAnimationActive={false} fill="url(#series2-test)" />
+    </BarChart>,
+  )
+  assert.match(markup, /<pattern[^>]*id="series2-test"/)
+  assert.ok(markup.includes('url(#series2-test)'))
+})
+
+test('the two patterns differ by direction, not only by colour', () => {
+  const flagged = renderToStaticMarkup(
+    <svg>{flaggedHatchDefs('a', palette)}</svg>,
+  )
+  const second = renderToStaticMarkup(
+    <svg>{seriesTwoPatternDefs('b', palette)}</svg>,
+  )
+  // Printed, or seen by someone who cannot separate the hues, the hatch
+  // direction is what tells them apart.
+  const angle = (m: string) => m.match(/rotate\((-?\d+)\)/)?.[1]
+  assert.ok(angle(flagged), 'the flagged hatch has a direction')
+  assert.ok(angle(second), 'the second series hatch has a direction')
+  assert.notEqual(angle(flagged), angle(second))
+})
+
+test('both defs are raw SVG elements recharts will keep', () => {
+  for (const el of [flaggedHatchDefs('x', palette), seriesTwoPatternDefs('y', palette)]) {
+    assert.equal(typeof (el as React.ReactElement).type, 'string')
+  }
+})
+
+test('a chart carries its data in text, not only in pixels', () => {
+  const spec = {
+    kind: 'bar' as const,
+    title: 'Attendance by director',
+    xLabel: 'Director',
+    yLabel: 'Attendance',
+    unit: 'percent' as const,
+    seriesLabel: 'Board',
+    series2Label: 'Committee',
+    points: [
+      { label: 'A', value: 70, value2: 60, highlight: true, detail: '7 of 10 attended' },
+      { label: 'B', value: 95, value2: 88 },
+    ],
+    reference: { value: 80, label: '80% threshold' },
+  }
+  const html = renderToStaticMarkup(<BoardChart spec={spec} />)
+  // The tooltip was the only place `detail` and unrounded values appeared, and
+  // it is reachable by mouse alone.
+  assert.ok(html.includes('7 of 10 attended'), 'tooltip-only detail must exist in text')
+  assert.match(html, /role="group"/)
+  assert.match(html, /aria-labelledby/)
+  assert.match(html, /aria-describedby/)
+  assert.ok(/Flagged/.test(html), 'a flagged point is named, not only coloured')
+  assert.ok(html.includes('Committee'), 'the second series is named in the text alternative')
 })
