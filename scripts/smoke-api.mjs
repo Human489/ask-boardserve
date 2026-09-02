@@ -102,8 +102,8 @@ async function main() {
     check('unauthenticated /api/ask is refused', res.status === 401, `got ${res.status}`)
   }
   {
-    const { res } = await post('/api/ask', { question: 'test' }, 'deadbeefdeadbeef')
-    check('forged token is refused', res.status === 401, `got ${res.status}`)
+    const { res } = await post('/api/ask', { question: 'test' }, 'not-the-passcode')
+    check('a wrong credential is refused', res.status === 401, `got ${res.status}`)
   }
   {
     const { res } = await post('/api/login', { passcode: `${PASSCODE}x` })
@@ -111,17 +111,20 @@ async function main() {
   }
 
   const { res: loginRes, json: loginJson } = await post('/api/login', { passcode: PASSCODE })
-  check('correct passcode signs in', loginRes.status === 200 && !!loginJson?.token)
+  check('correct passcode is accepted', loginRes.status === 200 && loginJson?.ok === true)
+  check(
+    'sign-in issues nothing to store',
+    loginJson?.token === undefined,
+    'a token came back; auth is meant to be stateless',
+  )
   check(
     'sign-in sets no cookie',
     !loginRes.headers.has('set-cookie'),
     loginRes.headers.get('set-cookie') ?? '',
   )
-  const token = loginJson?.token
-  if (!token) {
-    console.error('\nCannot continue without a token.')
-    process.exit(1)
-  }
+  // The passcode itself is the credential: there is no session to hold, so
+  // nothing has to survive between the login call and the questions.
+  const token = PASSCODE
 
   // ---------------------------------------------------------- validation
   console.log('\nValidation')

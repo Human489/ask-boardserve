@@ -3,12 +3,16 @@
 import { useCallback, useState } from 'react'
 import Chat from './Chat'
 
-// The session token lives in React state and nowhere else — no cookie, no
+// The passcode lives in React state and nowhere else — no cookie, no
 // localStorage, no sessionStorage. A refresh loses it and returns here, which
 // is the intended behaviour for now.
+//
+// It is the passcode itself rather than a session token because a token would
+// need a server-side store to validate against, and that store is the thing
+// that made the first request after a cold start fail.
 
 export default function Gate() {
-  const [token, setToken] = useState<string | null>(null)
+  const [credential, setCredential] = useState<string | null>(null)
   const [passcode, setPasscode] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
@@ -25,13 +29,13 @@ export default function Gate() {
         body: JSON.stringify({ passcode: supplied }),
       })
       const body = (await res.json().catch(() => null)) as
-        | { ok: true; token: string }
+        | { ok: true }
         | { ok: false; error: string }
         | null
 
       if (res.ok && body && body.ok) {
+        setCredential(supplied)
         setPasscode('')
-        setToken(body.token)
         return
       }
       setError(
@@ -45,13 +49,13 @@ export default function Gate() {
     }
   }, [passcode, checking])
 
-  /** Called when the API reports the session has expired mid-conversation. */
+  /** Called when the API rejects the passcode mid-conversation. */
   const signOut = useCallback(() => {
-    setToken(null)
-    setError('Your session has ended. Enter the passcode again to continue.')
+    setCredential(null)
+    setError('That passcode is no longer accepted. Enter it again to continue.')
   }, [])
 
-  if (token) return <Chat token={token} onSessionExpired={signOut} />
+  if (credential) return <Chat credential={credential} onRejected={signOut} />
 
   return (
     <div className="gate">
@@ -65,7 +69,7 @@ export default function Gate() {
         <h2 className="gate-title">Enter your passcode</h2>
         <p className="gate-sub">
           Ask BoardServe holds board attendance, action and skills data. Access is by
-          passcode, and your session ends when you close or refresh this page.
+          passcode, and access ends when you close or refresh this page.
         </p>
 
         <label className="gate-label" htmlFor="passcode">

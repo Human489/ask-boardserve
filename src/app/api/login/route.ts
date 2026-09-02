@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getConfig } from '@/lib/config'
 import { checkRateLimit } from '@/lib/ratelimit'
-import { login } from '@/lib/session'
+import { isAuthorised } from '@/lib/auth'
 
-// Sessions live in a Node-side Map, so this cannot run on the edge.
+// Reads APP_PASSCODE, so it runs on the Node runtime.
 export const runtime = 'nodejs'
 
 const MAX_PASSCODE_CHARS = 200
@@ -53,15 +53,15 @@ export async function POST(req: Request) {
     )
   }
 
-  const token = login(supplied)
-  if (!token) {
+  if (!isAuthorised(supplied)) {
     return NextResponse.json(
       { ok: false, error: 'That passcode was not recognised.' },
       { status: 401 },
     )
   }
 
-  // The token goes in the response body, not a Set-Cookie header, so the
-  // browser stores nothing and a refresh returns to the passcode screen.
-  return NextResponse.json({ ok: true, token })
+  // Nothing is issued and nothing is stored. This endpoint exists only so the
+  // passcode can be checked before the chat is shown, rather than the user
+  // discovering it was wrong when their first question fails.
+  return NextResponse.json({ ok: true })
 }

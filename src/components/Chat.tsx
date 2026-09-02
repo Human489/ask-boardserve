@@ -51,11 +51,11 @@ function historyFrom(turns: Turn[]): { role: 'user' | 'assistant'; content: stri
 }
 
 interface ChatProps {
-  token: string
-  onSessionExpired: () => void
+  credential: string
+  onRejected: () => void
 }
 
-export default function Chat({ token, onSessionExpired }: ChatProps) {
+export default function Chat({ credential, onRejected }: ChatProps) {
   const [turns, setTurns] = useState<Turn[]>([])
   const [draft, setDraft] = useState('')
   const [inFlight, setInFlight] = useState(false)
@@ -80,7 +80,7 @@ export default function Chat({ token, onSessionExpired }: ChatProps) {
         headers: {
           'Content-Type': 'application/json',
           // Held in memory by Gate; never persisted anywhere.
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${credential}`,
         },
         body: JSON.stringify({ question, history: historyFrom(priorTurns) }),
       })
@@ -110,10 +110,11 @@ export default function Chat({ token, onSessionExpired }: ChatProps) {
         return
       }
 
-      // A 401 means the in-memory session is gone. Hand control back to the
-      // gate rather than showing an error the user cannot act on here.
+      // A 401 means the passcode is no longer accepted — it changed on the
+      // server, or was never right. Hand control back to the gate rather than
+      // showing an error the user cannot act on here.
       if (response.status === 401) {
-        onSessionExpired()
+        onRejected()
         return
       }
 
@@ -143,7 +144,7 @@ export default function Chat({ token, onSessionExpired }: ChatProps) {
     } finally {
       setInFlight(false)
     }
-  }, [token, onSessionExpired])
+  }, [credential, onRejected])
 
   const ask = useCallback(
     (question: string) => {
