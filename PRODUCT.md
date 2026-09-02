@@ -100,8 +100,9 @@ merits.
 - A real dataset of one fictional organisation: twelve months of attendance for ten
   directors, around forty actions, a ten-by-ten skills audit, and three board
   papers. It is gitignored and must never be committed.
-- A second organisation's dataset exists for a zero-code-change test and has
-  deliberately not been opened.
+- A second organisation's dataset exists for a zero-code-change test. It is not
+  to be opened until that test is run, and the test is only meaningful run
+  blind.
 - Measured results held in `CLAUDE.md`: routing accuracy, retrieval calibration,
   and the checks that were built, measured and rejected.
 

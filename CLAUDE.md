@@ -70,7 +70,12 @@ responding to clicks. `rm -rf .next` and restart. This has happened three times.
 
 Do not open `dataset-b` (a second organisation, for the zero-code-change test)
 until that test is being run honestly. Reading it early spoils the only chance to
-run it.
+run it, and the value of the test is entirely in not knowing what is in there.
+
+That includes second-hand knowledge. Working notes that described `dataset-b`'s
+contents have been moved out of the repo rather than kept around, so nothing in
+this tree carries its figures. If you find such notes, do not read them into
+context — the test is only worth running blind.
 
 ## Architecture
 
@@ -296,8 +301,6 @@ git archive main | tar -x -C /tmp/vercel-repro && cd /tmp/vercel-repro && npm ci
 - **"Which committees have the greatest skills gaps" depends on the metric** — by
   mean it is People Committee, by single weakest skill it is Clinical Governance.
   Ranks by mean, shows the weakest skill as a second series.
-- **`docs/question-set.md` is untracked and contains unverified `dataset-b`
-  claims** that were not produced by opening it in this repo. Treat with suspicion.
 
 ## Environment
 
