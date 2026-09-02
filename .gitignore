@@ -8,6 +8,12 @@
 /data/private/
 *.dataset.json
 
+# A zipped dataset is still the dataset. Uploading one leaves an archive lying
+# in the working tree, and it is only ever one `git add -A` away from being
+# committed. Matching the file suffix cannot catch src/lib/dataset/, so this one
+# does not need anchoring.
+dataset*.zip
+
 # Environment variables / secrets
 .env
 .env.*
