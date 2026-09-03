@@ -296,6 +296,12 @@ export const attendanceByMeeting: ToolDefinition = {
       }
     })
 
+    // Meetings that actually had someone eligible. A meeting listed with no
+    // eligibility rows has no attendance to measure, and including it dragged
+    // the smallest-size figure to zero, which is what produced an "Infinity"
+    // percentage-point swing in the caveat below.
+    const sized = series.filter((m) => m.eligible > 0)
+
     // "One meeting's noise" is the swing caused by a single extra absence at
     // the typical meeting size. Any movement smaller than that is not a signal.
     const meanSize =
@@ -421,11 +427,21 @@ export const attendanceByMeeting: ToolDefinition = {
         'Apologies count as non-attendance.',
       ],
       caveats: [
-        `Each point is a single meeting of ${
-          series.length ? Math.min(...series.map((s) => s.eligible)) : 0
-        } to ${series.length ? Math.max(...series.map((s) => s.eligible)) : 0} seats, so one absence moves a point by up to ${
-          series.length ? Math.round((100 / Math.min(...series.map((s) => s.eligible))) * 10) / 10 : 0
-        } percentage points.`,
+        // Only meetings that had eligibility rows can carry a swing. Dividing
+        // by the smallest eligibility across every meeting produced "one
+        // absence moves a point by up to Infinity percentage points" as soon as
+        // one listed meeting had no rows at all.
+        ...(sized.length > 0
+          ? [
+              `Each point is a single meeting of ${Math.min(
+                ...sized.map((m) => m.eligible),
+              )} to ${Math.max(
+                ...sized.map((m) => m.eligible),
+              )} seats, so one absence moves a point by up to ${
+                Math.round((100 / Math.min(...sized.map((m) => m.eligible))) * 10) / 10
+              } percentage points.`,
+            ]
+          : []),
         'Bodies meet on different cycles, so consecutive points are not evenly spaced in time.',
       ],
       provenance: {
@@ -465,7 +481,15 @@ export const attendanceByCommittee: ToolDefinition = {
     const rows = dataset.attendance.records
     const bodies = allBodies(dataset)
 
+    // Bodies come from the meeting list, rates from the eligibility rows, and
+    // pct(0, 0) is 0 — so a body with a meeting but no rows was ranked at "0%"
+    // and announced as the lowest attender, beneath bodies with real figures.
+    // A body nobody was recorded as eligible for has no rate to rank, so it is
+    // named in a caveat instead of given a number it does not have.
+    const withoutRows = bodies.filter((b) => !rows.some((r) => r.body === b))
+
     const stats = bodies
+      .filter((b) => rows.some((r) => r.body === b))
       .map((b) => {
         const own = rows.filter((r) => r.body === b)
         const meetings = new Set(own.map((r) => r.meeting_id)).size
@@ -519,19 +543,38 @@ export const attendanceByCommittee: ToolDefinition = {
     const gap =
       byRate.length > 1 ? Math.round((byRate[1].rate - byRate[0].rate) * 10) / 10 : 0
     const robust = gap > lowest.swing
-    const robustClause = robust
-      ? `and the ${gap}-point gap to ${byRate[1].body} is wider than the ${lowest.swing} points one more miss would move it`
-      : `but the ${gap}-point gap to ${
-          byRate.length > 1 ? byRate[1].body : 'the next body'
-        } is narrower than the ${lowest.swing} points one more miss would move it, so the ranking is not robust`
+    // With one body there is nothing to rank against, and with every body
+    // level there is no gap to be robust about. Both used to produce a
+    // comparison with itself — "Board is lowest at 50%, against Board at 50%,
+    // but the 0-point gap to the next body…" — a sentence describing a ranking
+    // that does not exist.
+    const comparable = byRate.length > 1 && gap > 0
+    const robustClause = !comparable
+      ? byRate.length > 1
+        ? 'and every body is level, so there is no ranking to be robust about'
+        : 'and it is the only body in scope, so nothing is ranked against it'
+      : robust
+        ? `and the ${gap}-point gap to ${byRate[1].body} is wider than the ${lowest.swing} points one more miss would move it`
+        : `but the ${gap}-point gap to ${byRate[1].body} is narrower than the ${lowest.swing} points one more miss would move it, so the ranking is not robust`
 
     const caveats: string[] = [
       'Committee membership is inferred from eligibility rows, not from a membership roster field.',
     ]
+    // Excluded from the ranking above rather than shown at 0%. Said out loud,
+    // because a body missing from a ranking is a hole in the answer.
+    if (withoutRows.length > 0) {
+      const one = withoutRows.length === 1
+      caveats.push(
+        `${list(withoutRows)} ${one ? 'appears' : 'appear'} in the meeting list with no eligibility rows, so no attendance rate exists for ${
+          one ? 'it' : 'them'
+        } and ${one ? 'it is' : 'they are'} left out of the ranking rather than ranked at 0%.`,
+      )
+    }
+
     // Only when the chart is actually ranking on attendance. Ranked by meeting
     // count, a caveat about how robust the attendance ordering is describes an
     // ordering the reader cannot see.
-    if (!robust && byRate.length > 1 && rankBy === 'attendance') {
+    if (!robust && comparable && rankBy === 'attendance') {
       caveats.push(
         `The ranking is not robust: ${lowest.body} sits only ${gap} points below ${byRate[1].body}, ` +
           `but one more miss at ${lowest.body} would move it ${lowest.swing} points.`,
@@ -566,7 +609,9 @@ export const attendanceByCommittee: ToolDefinition = {
                 )}. Meeting count is not workload: a body may meet often and carry little.`
               )
             })()
-          : `${lowestClause}, against ${highest.body} at ${highest.rate}%, ${robustClause}.`,
+          : comparable
+            ? `${lowestClause}, against ${highest.body} at ${highest.rate}%, ${robustClause}.`
+            : `${lowestClause}, ${robustClause}.`,
       chart: {
         kind: 'bar',
         title: rankBy === 'meetings' ? 'Meetings held by body' : 'Attendance by body',
@@ -740,7 +785,9 @@ export const meetingsMissed: ToolDefinition = {
     return {
       tool: 'meetings_missed',
       headline,
-      chart: matchedDirector ? null : {
+      // Also no chart when nobody missed anything: an empty bar chart titled
+      // "Meetings missed" reads as a measurement, not as an absence of one.
+      chart: matchedDirector || points.length === 0 ? null : {
         kind: 'bar',
         title: 'Meetings missed, and how many without notice',
         xLabel: 'Director',

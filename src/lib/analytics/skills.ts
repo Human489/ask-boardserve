@@ -162,9 +162,13 @@ export const skillsGaps: ToolDefinition = {
         2,
       )}, with ${weakest.weak} of ${weakest.n} directors at ${WEAK} or below and only ${
         weakest.strong
-      } at ${STRONG} or above, against ${strongest.skill} as the strongest at ${strongest.mean.toFixed(
-        2,
-      )}.` +
+      } at ${STRONG} or above${
+        // With one skill in the audit, the weakest and the strongest are the
+        // same column, and the sentence compared it with itself.
+        strongest.skill === weakest.skill
+          ? ', the only skill the audit records'
+          : `, against ${strongest.skill} as the strongest at ${strongest.mean.toFixed(2)}`
+      }.` +
         tieClause +
         (thinnest.skill === weakest.skill
           ? ''

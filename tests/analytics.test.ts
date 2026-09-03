@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 import { allBodies, loadDataset, pct } from '../src/lib/dataset/loader'
 import { ANALYTICS_TOOLS, TOOLS, getTool } from '../src/lib/analytics/registry'
-import type { ToolResult } from '../src/lib/types'
+import type { Dataset, ToolResult } from '../src/lib/types'
 
 const dataset = loadDataset()
 
@@ -990,4 +990,135 @@ test('every thin group is qualified, not just the largest', () => {
       `${row[0]} holds ${row[1]} rows but is not qualified: ${text}`,
     )
   }
+})
+
+// ---------------------------------------------------------------------------
+// A sweep over degenerate scopes. Each of these produced a confident sentence
+// about something that was not there: a comparison with itself, a rate for a
+// body nobody was eligible for, "Infinity percentage points", an empty chart
+// with labelled axes, or a caveat describing bars the reader was not shown.
+
+function sweep(label: string, dataset: Dataset, results: ToolResult[]) {
+  for (const r of results) {
+    const prose = [r.headline, ...r.assumptions, ...r.caveats].join(' ')
+    assert.ok(
+      !/Infinity|NaN|undefined/.test(prose),
+      `${label} / ${r.tool}: non-finite value in the narration — ${prose.slice(0, 160)}`,
+    )
+    assert.ok(
+      !/\bare none\b/.test(prose),
+      `${label} / ${r.tool}: a sentence about a distinction never drawn — ${prose.slice(0, 160)}`,
+    )
+    // An empty chart with axes reads as a measurement that came out at zero.
+    assert.ok(
+      r.chart === null || r.chart.points.length > 0,
+      `${label} / ${r.tool}: drew a chart with no points`,
+    )
+    assert.ok(r.caveats.length > 0, `${label} / ${r.tool}: a nil result still needs its caveats`)
+  }
+}
+
+test('a single body in scope makes no comparison with itself', async () => {
+  const base = loadDataset()
+  const oneBody: Dataset = {
+    ...base,
+    attendance: {
+      ...base.attendance,
+      meetings: base.attendance.meetings.filter((m) => m.body === 'Board').slice(0, 2),
+      records: base.attendance.records.filter((r) => r.body === 'Board'),
+    },
+  }
+  const r = asComputed(
+    'attendance_by_committee',
+    getTool('attendance_by_committee')!.run(oneBody, {}),
+  )
+  // "Board is lowest at 50%, against Board at 50%, but the 0-point gap to the
+  // next body…" described a ranking that did not exist.
+  const body = oneBody.attendance.meetings[0].body
+  const mentions = r.headline.split(body).length - 1
+  assert.equal(mentions, 1, `named the only body twice: ${r.headline}`)
+  assert.ok(!/the next body/.test(r.headline), r.headline)
+  sweep('one body', oneBody, [r])
+})
+
+test('a body with meetings but no eligibility rows is not ranked at 0%', async () => {
+  const base = loadDataset()
+  const ghost = 'Zzz Committee'
+  const dataset: Dataset = {
+    ...base,
+    attendance: {
+      ...base.attendance,
+      meetings: [
+        ...base.attendance.meetings,
+        { meeting_id: 'ZZZ-1', body: ghost, type: 'Committee' as const, date: base.asAt },
+      ],
+    },
+  }
+  const byCommittee = asComputed(
+    'attendance_by_committee',
+    getTool('attendance_by_committee')!.run(dataset, {}),
+  )
+  // pct(0, 0) is 0, so it used to be announced as the lowest attender beneath
+  // bodies with real figures.
+  assert.ok(
+    !new RegExp(`${ghost} is lowest`).test(byCommittee.headline),
+    `ranked a body with no rows: ${byCommittee.headline}`,
+  )
+  assert.ok(
+    byCommittee.caveats.some((c) => c.includes(ghost)),
+    'a body left out of the ranking must be named',
+  )
+
+  const byMeeting = asComputed(
+    'attendance_by_meeting',
+    getTool('attendance_by_meeting')!.run(dataset, {}),
+  )
+  sweep('rowless body', dataset, [byCommittee, byMeeting])
+})
+
+test('degenerate scopes narrate honestly across every tool', async () => {
+  const base = loadDataset()
+  const scopes: [string, Dataset][] = [
+    ['no actions', { ...base, actions: { ...base.actions, actions: [] } }],
+    ['one skill', { ...base, skillNames: [base.skillNames[0]] }],
+    [
+      'perfect attendance',
+      {
+        ...base,
+        attendance: {
+          ...base.attendance,
+          records: base.attendance.records.map((r) => ({ ...r, status: 'present' as const })),
+        },
+      },
+    ],
+  ]
+  for (const [label, dataset] of scopes) {
+    const results: ToolResult[] = []
+    for (const tool of ANALYTICS_TOOLS) {
+      results.push(asComputed(tool.name, tool.run(dataset, {})))
+    }
+    sweep(label, dataset, results)
+  }
+})
+
+test('a caveat describes the bars the chart actually shows', () => {
+  const dataset = loadDataset()
+  const byCommittee = asComputed(
+    'overdue_actions',
+    getTool('overdue_actions')!.run(dataset, { group_by: 'committee' }),
+  )
+  // The owner caveat said "these bars are roles, not people" over a chart of
+  // committees.
+  assert.ok(
+    !byCommittee.caveats.some((c) => /bars are roles/.test(c)),
+    'described owners over a chart of committees',
+  )
+  const byOwner = asComputed(
+    'overdue_actions',
+    getTool('overdue_actions')!.run(dataset, { group_by: 'owner' }),
+  )
+  assert.ok(
+    byOwner.caveats.some((c) => /job title, not a director/.test(c)),
+    'the owner caveat must still appear when the bars are owners',
+  )
 })

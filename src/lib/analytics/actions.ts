@@ -233,7 +233,9 @@ export const overdueActions: ToolDefinition = {
             : '.'),
       // Filtered to one owner, the chart is a single bar — padding, not a
       // finding. The listed actions are the answer.
-      chart: matchedOwner ? null : {
+      // Also no chart when nothing is overdue: an empty bar chart with labelled
+      // axes reads as a measurement that came out at zero.
+      chart: matchedOwner || points.length === 0 ? null : {
         kind: 'bar',
         title: `Overdue actions by ${groupBy}`,
         xLabel: groupBy === 'owner' ? 'Owner (job title)' : 'Body that raised it',
@@ -280,12 +282,15 @@ export const overdueActions: ToolDefinition = {
               `Overdue is derived from due dates against ${asAt}, not read from the log's status field, which records ${recorded.length} as overdue.`,
             ]
           : []),
-        ...maybe(ownerCaveat(dataset, derived)),
+        // Both of these describe bars that are OWNERS. Grouped by committee the
+        // chart shows bodies, and the caveat still said "these bars are roles,
+        // not people" — describing a chart the reader was not looking at.
+        ...(groupBy === 'owner' ? maybe(ownerCaveat(dataset, derived)) : []),
         // Both of these describe a set that may be empty. With nothing overdue
         // they read "0 of the 0 owners ... cannot be matched" and "Only 0 rows
         // are in scope, so single actions dominate the shape of the chart" —
         // qualifying figures that do not exist, about a chart that is not drawn.
-        ...(owners.length > 0
+        ...(groupBy === 'owner' && owners.length > 0
           ? [
               `${unresolvable} of the ${owners.length} owners holding a derived-overdue action cannot be matched to a person, so no individual can be named from this data alone.`,
             ]
@@ -374,7 +379,7 @@ export const longestOverdue: ToolDefinition = {
     return {
       tool: 'longest_overdue',
       headline,
-      chart: {
+      chart: shown.length === 0 ? null : {
         kind: 'bar',
         title: 'Days past due',
         xLabel: 'Action',
@@ -643,7 +648,9 @@ export const actionsDistribution: ToolDefinition = {
     return {
       tool: 'actions_distribution',
       headline,
-      chart: {
+      // No chart when there is nothing to plot. An empty chart with labelled
+      // axes reads as a measurement that came out at zero.
+      chart: stats.length === 0 ? null : {
         kind: 'bar',
         title: `Unresolved actions by ${groupBy.replace('_', ' ')}`,
         xLabel: groupBy === 'owner' ? 'Owner (job title)' : groupBy.replace('_', ' '),
@@ -664,7 +671,15 @@ export const actionsDistribution: ToolDefinition = {
         // so a dataset using different words would put every action on the
         // non-executive side while this sentence claimed the split came from
         // the data. Say what the code actually did.
-        `Owner types present in this dataset are ${list([...typeCounts.keys()])}. Anything not recorded as "executive" is counted as non-executive.`,
+        // Omitted when there are none: "Owner types present in this dataset
+        // are none" is a sentence about a distinction that was never drawn.
+        ...(typeCounts.size > 0
+          ? [
+              `Owner types present in this dataset are ${list([
+                ...typeCounts.keys(),
+              ])}. Anything not recorded as "executive" is counted as non-executive.`,
+            ]
+          : []),
       ],
       caveats,
       provenance: {
