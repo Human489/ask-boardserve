@@ -10,6 +10,7 @@
 // module-load environment reads (the original throws at import time, which
 // would break the Next build), results are typed, and nothing logs to stdout.
 
+import { cached, EMBED_TTL_SECONDS } from '@/lib/aicache'
 import { getConfig } from '@/lib/config'
 
 /** 768 dimensions. The index must be created with the same number or nothing works. */
@@ -67,7 +68,37 @@ async function unwrap<T>(res: Response, what: string): Promise<T> {
 }
 
 /** Embed a batch of strings. Returns one vector per input, in the same order. */
+/**
+ * Embeds text, reusing a cached vector where the same string has been embedded
+ * before with the same model.
+ *
+ * A question typed twice — which is exactly what happens in a demo, and what a
+ * reader does when refining — embedded twice. The vector for a fixed string is
+ * deterministic, so the only thing that can invalidate it is the model, which
+ * is part of the key.
+ */
 export async function embed(texts: string[]): Promise<number[][]> {
+  if (texts.length === 0) return []
+
+  // Cached per string rather than per batch, so a batch that shares one string
+  // with an earlier batch still benefits.
+  const vectors = await Promise.all(
+    texts.map((text) =>
+      cached<number[]>(
+        'embed',
+        `${EMBED_MODEL} :: ${text}`,
+        EMBED_TTL_SECONDS,
+        async () => (await embedUncached([text]))[0] ?? null,
+      ),
+    ),
+  )
+  // A single failure falls back to embedding the whole batch, rather than
+  // returning a short array that the caller would silently mis-zip.
+  if (vectors.some((v) => v === null)) return embedUncached(texts)
+  return vectors as number[][]
+}
+
+async function embedUncached(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return []
   const res = await fetch(`${base()}/ai/run/${EMBED_MODEL}`, {
     method: 'POST',

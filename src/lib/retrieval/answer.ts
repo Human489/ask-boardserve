@@ -1,3 +1,4 @@
+import { cached, CACHE_TTL_SECONDS } from '@/lib/aicache'
 import { getConfig } from '@/lib/config'
 import { recordCall, recordFailure, usageFromResponse } from '@/lib/usage'
 import type { Passage, SearchResult } from '@/lib/retrieval/search'
@@ -92,6 +93,28 @@ export async function answerFromPassages(
 ): Promise<GroundedAnswer | null> {
   const cfg = getConfig()
   if (!cfg.hasModelCredentials || search.passages.length === 0) return null
+
+  // Keyed on the passages as well as the question, because the judgement is
+  // about those passages: retrieval returning something different must not be
+  // answered from the old set. The passage text is included rather than an id,
+  // so re-ingesting a changed paper invalidates the entry by itself.
+  return cached<GroundedAnswer>(
+    'ground',
+    [
+      cfg.model,
+      question,
+      search.passages.map((p) => `${p.paperId}#${p.section}#${p.text}`).join(' :: '),
+    ].join(' :: '),
+    CACHE_TTL_SECONDS,
+    () => judgeUncached(question, search),
+  )
+}
+
+async function judgeUncached(
+  question: string,
+  search: SearchResult,
+): Promise<GroundedAnswer | null> {
+  const cfg = getConfig()
 
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)

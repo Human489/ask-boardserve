@@ -11,6 +11,14 @@ import { readFileSync } from 'node:fs'
 
 const BASE = process.argv.find((a) => a.startsWith('--base='))?.slice(7) ?? 'http://127.0.0.1:3000'
 
+// The model-routing assertion below is only meaningful against live model calls.
+// A cached route reports routedBy 'model' too — correctly, the decision was the
+// model's — so a suite run twice would satisfy it from cache even with the
+// gateway dead. Run the server with AI_CACHE=off to make that check mean
+// something; this line is a reminder in the output, not a substitute.
+const CACHE_NOTE =
+  'model routing is asserted against live calls only when the server runs with AI_CACHE=off'
+
 for (const line of safeRead('.env.local').split('\n')) {
   const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/)
   if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
@@ -430,7 +438,8 @@ async function main() {
   console.log('\n' + '-'.repeat(60))
   console.log(`passed ${passed}   failed ${failed}   skipped ${skipped}`)
   console.log(
-    `routed by model: ${routedByModel}/${STRUCTURED.length}` +
+    `routed by model: ${routedByModel}/${STRUCTURED.length}
+  (${CACHE_NOTE})` +
       (HAS_MODEL_CREDENTIALS
         ? ''
         : '  (no CF_ credentials, so the offline classifier is the only path available)'),

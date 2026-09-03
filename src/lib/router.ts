@@ -1,6 +1,7 @@
 import { getConfig } from '@/lib/config'
 import { recordCall, recordFailure, usageFromResponse } from '@/lib/usage'
 import { MEETING_MINUTES, checkClockAnchored, checkPapersScope } from '@/lib/retrieval/scope'
+import { cached, CACHE_TTL_SECONDS } from '@/lib/aicache'
 import type { Dataset, RoutedBy, ToolDefinition } from '@/lib/types'
 
 // Routing only. This file never computes a figure and never writes a headline:
@@ -777,7 +778,24 @@ export async function routeQuestion(
   }
 
   if (getConfig().hasModelCredentials) {
-    const routed = await modelRoute(question, tools, history)
+    // Cached on the question, the conversation it sits in, the tools offered
+    // and the model. A repeat of the same question in the same context is the
+    // same decision, and a demo asks the same questions repeatedly.
+    //
+    // routedBy stays 'model' on a cache hit, which is accurate: the decision
+    // was the model's, taken earlier. Calling it anything else would tell the
+    // reader the offline classifier had been used when it had not.
+    const routed = await cached<Route>(
+      'route',
+      [
+        getConfig().model,
+        tools.map((t) => t.name).join(','),
+        JSON.stringify(history.slice(-6)),
+        question,
+      ].join(' :: '),
+      CACHE_TTL_SECONDS,
+      () => modelRoute(question, tools, history),
+    )
     if (routed) return guardPapersRoute(routed, question, tools, dataset)
     console.warn('[router] model routing unavailable; using the deterministic fallback')
   }
