@@ -107,9 +107,14 @@ success and the next question was still answered from the local directory.
 under a different dataset would recompute against another organisation and go on
 showing the same question above different figures.
 
-**A dataset swap clears the transcript.** Prior answers' headlines are sent back
-to the model as routing context, so carrying them across a swap would route a
-question about one organisation while the model reads a sentence about another.
+**The transcript is kept per dataset, like pins.** Prior answers' headlines are
+sent back to the model as routing context, so one shared transcript would route
+a question about one organisation while the model reads a sentence about
+another. Scoping rather than wiping means switching back restores the
+conversation instead of destroying it, and the chat and dashboard then agree
+about what a dataset "has". The swap logic is `swapTranscript` in `Chat.tsx`,
+kept pure so it can be tested without a renderer; a question caught in flight is
+marked failed rather than left on a skeleton for ever.
 
 ## Architecture
 

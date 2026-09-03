@@ -54,6 +54,39 @@ function historyFrom(turns: Turn[]): { role: 'user' | 'assistant'; content: stri
   return history
 }
 
+/**
+ * Moves the conversation aside when the dataset changes, and brings back the
+ * one belonging to the dataset now answering.
+ *
+ * Pure, and exported, so the behaviour can be asserted without a renderer: the
+ * thing worth checking is that nothing crosses between datasets and that a
+ * question caught mid-flight does not come back as a permanent skeleton.
+ */
+export function swapTranscript(
+  transcripts: Map<string, Turn[]>,
+  fromKey: string,
+  toKey: string,
+  current: Turn[],
+): Turn[] {
+  // A question still in flight belongs to the dataset that is going away. Its
+  // answer will arrive keyed to a turn that is no longer on screen, so the card
+  // would sit on a loading skeleton for ever. Say what happened instead.
+  const outgoing = current.map((turn) =>
+    turn.status === 'pending'
+      ? {
+          ...turn,
+          status: 'failed' as const,
+          error: {
+            message:
+              'The dataset changed while this question was being answered. Ask it again.',
+          },
+        }
+      : turn,
+  )
+  transcripts.set(fromKey, outgoing)
+  return transcripts.get(toKey) ?? []
+}
+
 interface ChatProps {
   credential: string
   onRejected: () => void
@@ -105,24 +138,37 @@ export default function Chat({
     newest.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' })
   }, [turnCount])
 
-  // A dataset swap starts a new conversation.
+  // Each dataset keeps its own conversation.
   //
   // Prior answers' headlines are sent back to the model as context, so it picks
-  // the next tool partly from what it already answered. Carrying those across a
-  // swap would route a question about one organisation while the model reads a
-  // sentence about another. The figures are always recomputed server-side, so
-  // nothing wrong could reach the screen — but the routing could be steered by
-  // a board that is no longer loaded, and a transcript mixing two organisations
+  // the next tool partly from what it already answered. One shared transcript
+  // would route a question about one organisation while the model reads a
+  // sentence about another — the figures are always recomputed server-side so
+  // nothing wrong could reach the screen, but the routing could be steered by a
+  // board that is no longer loaded, and a transcript mixing two organisations
   // invites being read as one.
-  const firstRender = useRef(true)
+  //
+  // Wiping on every swap would prevent that too, and it was what this did
+  // first. Scoping is better for the same reason pins are scoped: switching
+  // back restores the conversation you were having rather than destroying it,
+  // and the two views then agree about what a dataset "has". It also makes the
+  // comparison the product exists to demonstrate — the same question against
+  // two organisations — something a reader can flip between.
+  const transcripts = useRef(new Map<string, Turn[]>())
+  const shownKey = useRef(datasetKey)
   useEffect(() => {
-    if (firstRender.current) {
-      firstRender.current = false
-      return
-    }
-    setTurns([])
-    turnsRef.current = []
+    if (shownKey.current === datasetKey) return
+
+    const restored = swapTranscript(
+      transcripts.current,
+      shownKey.current,
+      datasetKey,
+      turnsRef.current,
+    )
+    setTurns(restored)
+    turnsRef.current = restored
     setDraft('')
+    shownKey.current = datasetKey
   }, [datasetKey])
 
   // Answers arrive asynchronously into a card the reader may not be looking at
