@@ -1,17 +1,19 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+// The key is defined with the store, so the button and the server cannot
+// disagree about whether something is already pinned.
+import { pinKey } from '@/lib/pins'
 import type { Pin } from '@/lib/pins'
+
+export { pinKey }
 
 // One source of truth for the pinned set, because two would disagree. The pin
 // button in the transcript and the dashboard itself are the same state: pinning
 // a chart has to change what the dashboard holds, and removing it from the
 // dashboard has to turn the button back.
 
-/** Identifies an analysis rather than a card, which is what a pin actually is. */
-export function pinKey(tool: string, args: Record<string, unknown>): string {
-  return `${tool}:${JSON.stringify(args)}`
-}
+
 
 export interface PinsState {
   pins: Pin[]

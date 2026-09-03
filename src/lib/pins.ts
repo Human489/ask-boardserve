@@ -18,6 +18,23 @@ import type { ToolResult } from '@/lib/types'
 // as answering a question does. A pinned figure has the same provenance as a
 // figure on screen because it was produced the same way.
 
+/**
+ * Identity of an analysis, stable regardless of key order.
+ *
+ * The arguments come back from a model as a JSON object, and object key order
+ * is not guaranteed to repeat. Keying on the raw stringification made
+ * {body, from} and {from, body} different pins, so the same analysis could be
+ * pinned twice and the Pin button offered again for a card already on the
+ * dashboard. Keys are sorted so the identity is the content.
+ */
+export function pinKey(tool: string, args: Record<string, unknown>): string {
+  const canonical = Object.keys(args)
+    .sort()
+    .map((k) => `${k}=${JSON.stringify(args[k])}`)
+    .join('&')
+  return `${tool}:${canonical}`
+}
+
 export interface Pin {
   id: string
   /** The question as asked, so the dashboard reads as a set of answers. */
@@ -148,7 +165,7 @@ export async function addPin(datasetId: string, pin: Pin): Promise<AddOutcome> {
   // Pinning the same analysis twice would put two identical cards on the
   // dashboard, which reads as a bug rather than as two pins.
   const already = pins.find(
-    (p) => p.tool === pin.tool && JSON.stringify(p.args) === JSON.stringify(pin.args),
+    (p) => pinKey(p.tool, p.args) === pinKey(pin.tool, pin.args),
   )
   if (already) return { ok: false, reason: 'duplicate' }
 

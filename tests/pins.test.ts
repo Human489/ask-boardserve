@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-import { addPin, listPins, MAX_PINS, removePin, replacePin, resetPins } from '../src/lib/pins'
+import { addPin, listPins, MAX_PINS, pinKey, removePin, replacePin, resetPins } from '../src/lib/pins'
 import type { Pin } from '../src/lib/pins'
 import type { ToolResult } from '../src/lib/types'
 
@@ -221,4 +221,35 @@ test('the pin route computes the frozen result rather than trusting the client',
   // And the tool must actually run server-side, however its arguments are
   // wrapped on the way in.
   assert.match(source, /definition\.run\(\s*dataset\s*,/)
+})
+
+test('the same analysis is one pin however its arguments are ordered', async () => {
+  // The arguments come back from a model as a JSON object, and key order is not
+  // guaranteed to repeat. Keying on the raw stringification made {body, from}
+  // and {from, body} different pins: the dashboard would end up with two cards
+  // showing identical figures, and the Pin button would offer to pin something
+  // already on it.
+  resetPins()
+  const first = { ...pin('a'), args: { body: 'Board', from: '2026-01-01' } }
+  const second = { ...pin('b'), args: { from: '2026-01-01', body: 'Board' } }
+
+  assert.equal(
+    pinKey(first.tool, first.args),
+    pinKey(second.tool, second.args),
+    'key order must not change the identity of an analysis',
+  )
+
+  await addPin(DS, first)
+  const duplicate = await addPin(DS, second)
+  assert.equal(duplicate.ok, false)
+  assert.equal(duplicate.ok === false && duplicate.reason, 'duplicate')
+  assert.equal((await listPins(DS)).pins.length, 1)
+})
+
+test('genuinely different arguments remain different pins', async () => {
+  resetPins()
+  await addPin(DS, { ...pin('a'), args: { body: 'Board' } })
+  const other = await addPin(DS, { ...pin('b'), args: { body: 'Audit' } })
+  assert.equal(other.ok, true)
+  assert.equal((await listPins(DS)).pins.length, 2)
 })

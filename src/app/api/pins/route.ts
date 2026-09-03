@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { ANALYTICS_TOOLS, getTool } from '@/lib/analytics/registry'
 import { clientIp, rejectUnauthorised } from '@/lib/apiauth'
 import { activeDatasetId, resolveDataset } from '@/lib/datasets'
-import { addPin, listPins, MAX_PINS, removePin, replacePin, type Pin } from '@/lib/pins'
+import { addPin, listPins, MAX_PINS, pinKey, removePin, replacePin, type Pin } from '@/lib/pins'
 import { checkRateLimit } from '@/lib/ratelimit'
 import { coerceArgs } from '@/lib/router'
 import { isRefusal } from '@/lib/types'
@@ -247,7 +247,7 @@ export async function POST(req: Request) {
   }
   if (
     current.pins.some(
-      (p) => p.tool === tool && JSON.stringify(p.args) === JSON.stringify(parsedArgs.args),
+      (p) => pinKey(p.tool, p.args) === pinKey(tool, parsedArgs.args),
     )
   ) {
     return fail(409, 'That analysis is already on the dashboard.')
