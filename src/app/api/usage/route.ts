@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { rejectUnauthorised } from '@/lib/apiauth'
 import { getConfig } from '@/lib/config'
+import { cacheDisabled } from '@/lib/aicache'
 import { snapshot } from '@/lib/usage'
 
 export const runtime = 'nodejs'
@@ -32,6 +33,11 @@ export async function GET(req: Request) {
     ...usage,
     model: cfg.model,
     modelCredentials: cfg.hasModelCredentials,
+    // Read by the eval harness, which cannot otherwise know whether its
+    // stability figures mean anything: with the cache on, every repeat of a
+    // question returns the first answer, so a flaky router reports as
+    // perfectly stable.
+    aiCacheDisabled: cacheDisabled(),
     note:
       'Counts only model calls made by this server process since it started, ' +
       'read from the usage block Workers AI returns on each response. Not an ' +

@@ -36,8 +36,21 @@ npm run dev          # dev server on :3000
 npm run build        # production build
 npm run typecheck    # tsc --noEmit
 npm test             # 147 unit tests (tsx --test tests/*.test.ts)
-npm run smoke        # 30 end-to-end checks against a RUNNING server
+npm run smoke        # end-to-end checks against a RUNNING server
+npm run eval         # the eval harness, against a RUNNING server
+npm run predeploy    # typecheck + lint + tests + eval, and writes the README
 ```
+
+**The eval harness needs the server started with `AI_CACHE=off`.** Otherwise
+every repeat of a question is served from cache, so a flaky router reports as
+perfectly stable and the harness becomes a slower smoke suite. It reads
+`aiCacheDisabled` off `/api/usage` and prints a warning when it cannot trust
+its own stability column, but the warning is not a substitute for setting it.
+
+`npm run eval -- --runs 5 --write-readme` is the form the brief asks for:
+results in the README. It exits non-zero only when a question NEVER passes —
+an intermittent one is reported rather than used to block, because the flake is
+a property of the model and blocking on it would mean never deploying.
 
 Single file, and a single test by name:
 
@@ -390,6 +403,27 @@ but it also means no revocation short of changing `APP_PASSCODE`, and no expiry.
 board meetings, no committee papers, and nine action-log topics with no paper at
 all. Several reasonable document questions are unanswerable because the document
 does not exist. Say so; do not paper over it.
+
+**The flake is in a PARAPHRASE, not in the spec's wording.** Building the eval
+harness settled where the ~20% flake below actually lives. The harness runs the
+spec's questions verbatim from `tests/spec-questions.ts` and measured
+**130/130 over 5 runs each, nothing unstable**. The question that flakes —
+"Which meetings had unusually low attendance, and when?" — is a shortened
+paraphrase that exists only in `scripts/smoke-api.mjs`. The spec's own wording
+for that tool is a much longer sentence about whether a movement is bigger than
+one meeting's noise, and it routed 5/5.
+
+Measured: **6 of smoke's 12 structured questions are paraphrases**, not the
+customer's wording. That is the exact fault `tests/spec-questions.ts` was
+created to fix — its header even quotes this paraphrase as the offending
+example — and it was fixed in the two routing suites and never in smoke.
+
+Two honest readings, and they do not cancel out. Smoke's paraphrases are not
+worthless: real readers paraphrase too, and a wording that flakes at 20% is
+worth knowing about. But smoke presents them as the spec's twelve questions,
+which they are not, so "12/12" reads as more than it is. Worth deciding
+deliberately rather than drifting: either point smoke at the shared list like
+the tests do, or keep the paraphrases and label them as a second, harder set.
 
 **Routing is not deterministic, and the cache hides it.** Measured with
 `AI_CACHE=off`: "Which meetings had unusually low attendance, and when?" routed

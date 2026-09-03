@@ -38,7 +38,7 @@ import { kvAvailable, kvPut, kvRead } from '@/lib/kv'
  * cannot fail is worse than no check, and this project has shipped that mistake
  * before.
  */
-function cacheDisabled(): boolean {
+export function cacheDisabled(): boolean {
   return (process.env.AI_CACHE ?? '').toLowerCase() === 'off'
 }
 

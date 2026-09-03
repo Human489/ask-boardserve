@@ -8,7 +8,49 @@ point is to answer the questions the fixed dashboard cannot.
 
 ## Status
 
-Pre-spec. See `docs/` for the spec and question set.
+Core and Complete are done: chat, twelve deterministic tools, bar and line
+charts inline, one-sentence findings, passcode gate, Vercel deployment, rate
+limiting, hybrid routing, retrieval over the board papers, refusals, multi-turn
+refinement, and pinning to a dashboard.
+
+`CLAUDE.md` holds the working record and the measured limitations. `PRODUCT.md`
+holds the product truth. `DESIGN.md` holds the visual system.
+
+## Eval results
+
+A fixed set of the spec's own questions, each with an expected answer TYPE, run
+against a live server several times per question and scored as a rate.
+
+Run it with the server started with `AI_CACHE=off` — otherwise repeat runs are
+served from cache and every question reports as perfectly stable:
+
+```bash
+npm run eval -- --runs 5 --write-readme
+```
+
+`npm run predeploy` runs typecheck, lint, the unit tests and this, and exits
+non-zero if any question NEVER passes.
+
+**Why a rate and not a pass.** Routing is a model call and is not deterministic
+even at temperature 0. One question here was measured routing correctly four
+times out of five and refusing on the fifth, so a single run reports it as a
+pass 80% of the time. The unstable column is the honest reading; note that five
+runs has roughly a two-in-three chance of catching a one-in-five flake, so a
+clean column is evidence rather than proof.
+
+<!-- eval:start -->
+
+_Last run 2026-09-03 20:51 UTC, 5 runs per question against a live server._
+
+| Category | Questions | Attempts | Passed | Rate | Unstable |
+| --- | --- | --- | --- | --- | --- |
+| structured | 12 | 60 | 60 | 100% | 0 |
+| document | 3 | 15 | 15 | 100% | 0 |
+| hybrid | 5 | 25 | 25 | 100% | 0 |
+| refusal | 6 | 30 | 30 | 100% | 0 |
+| **overall** | 26 | 130 | 130 | **100%** | 0 |
+
+<!-- eval:end -->
 
 ## Stack
 
