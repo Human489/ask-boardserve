@@ -249,13 +249,22 @@ its own 429s.
 ## Project status
 
 **The brief is the authority, and this section had drifted from it.** It claimed
-deployment and pinning were outstanding when both had shipped, described two
-brief-compliance gaps that were already closed, and listed an Excellence item —
-"image export" — that **the brief does not ask for anywhere**. That last one is
-the dangerous kind of drift: it invents work for a client who never requested
-it. The lists below are the brief's own wording. Check them against
-`https://gai-work-experience-8x2r4t.vercel.app/project-yahya` rather than
-trusting this file, and correct this file when they disagree.
+deployment and pinning were outstanding when both had shipped, and described
+two brief-compliance gaps that were already closed.
+
+**There are two scope lists, and conflating them caused a mistake worth
+recording.** The client's brief lists four Excellence items. `docs/`'s
+one-pager — this project's own spec, which the brief explicitly invites
+("you're also very welcome to propose your own features... we'll say yes or
+park it") — adds **image export**. That is a PROPOSED item, not an invented
+one, and it was briefly written up here as drift on the assumption it had come
+from nowhere. It came from the spec.
+
+So: the four below are the client's. Image export is a fifth that this project
+proposed and that needs a yes or a park from Karl before it counts as scope.
+Check both against
+`https://gai-work-experience-8x2r4t.vercel.app/project-yahya` and
+`docs/ask-boardserve-one-pager.html` rather than trusting this file.
 
 ### Core — done
 
