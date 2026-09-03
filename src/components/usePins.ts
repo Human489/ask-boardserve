@@ -31,7 +31,7 @@ export interface PinsState {
     args: Record<string, unknown>
     routedBy?: 'model' | 'fallback'
   }) => Promise<void>
-  remove: (id: string) => Promise<void>
+  remove: (id: string) => Promise<boolean>
   reload: () => Promise<void>
   dismissError: () => void
 }
@@ -122,11 +122,17 @@ export function usePins(onRejected: () => void): PinsState {
   )
 
   const remove = useCallback(
-    async (id: string) => {
-      if (busyKey) return
+    async (id: string): Promise<boolean> => {
+      if (busyKey) return false
       setBusyKey(id)
-      await call('DELETE', { id })
+      // The outcome is RETURNED. It was swallowed, so a caller's .then() ran
+      // on failure too: the card stayed on screen, focus jumped to the
+      // heading, and the live region said "Removed from the dashboard" while
+      // the error alert appeared beside it. A screen-reader user was told the
+      // opposite of what happened.
+      const ok = await call('DELETE', { id })
       setBusyKey(null)
+      return ok
     },
     [busyKey, call],
   )

@@ -30,6 +30,8 @@ interface Leaving {
   name: string
   tenure: number
   monthsRemaining: number
+  /** Unrounded, for the window test and ordering only. */
+  exactMonths: number
   alreadyOver: boolean
 }
 
@@ -109,11 +111,16 @@ export const tenureAndSkillsImpact: ToolDefinition = {
           name: d.director_name,
           tenure: d.tenure_years,
           monthsRemaining: round1(yearsLeft * MONTHS_PER_YEAR),
+          // Unrounded, because the window is a CUTOFF. round1 pulled 12.04
+          // months down to 12.0, so a director just outside a 12-month window
+          // was reported as timing out inside it — a rounding artefact stated
+          // as a governance fact about a named person.
+          exactMonths: yearsLeft * MONTHS_PER_YEAR,
           alreadyOver: yearsLeft <= 0,
         }
       })
-      .filter((d) => d.monthsRemaining <= within)
-      .sort((a, b) => a.monthsRemaining - b.monthsRemaining)
+      .filter((d) => d.exactMonths <= within)
+      .sort((a, b) => a.exactMonths - b.exactMonths)
 
     const going = new Set(leaving.map((d) => d.name))
 

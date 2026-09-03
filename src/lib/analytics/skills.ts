@@ -23,6 +23,8 @@ function round2(n: number): number {
 interface SkillStat {
   skill: string
   mean: number
+  /** Unrounded, for ordering and tie tests only. Never displayed. */
+  exactMean: number
   strong: number
   weak: number
   n: number
@@ -40,6 +42,10 @@ function skillStats(dataset: Dataset, names?: string[]): SkillStat[] {
       return {
         skill,
         mean: round2(mean),
+        // Unrounded, for ordering and for the tie test. round2 makes two
+        // genuinely different means compare equal, and the tie is then
+        // disclosed as a CSV-column-order tiebreak that was never really a tie.
+        exactMean: mean,
         strong: values.filter((v) => v >= STRONG).length,
         weak: values.filter((v) => v <= WEAK).length,
         n: values.length,
@@ -47,7 +53,11 @@ function skillStats(dataset: Dataset, names?: string[]): SkillStat[] {
     })
     // Ties are broken by the order the skill columns appear in the CSV, which is
     // stable and stated in the assumptions rather than resolved silently.
-    .sort((a, b) => a.mean - b.mean || dataset.skillNames.indexOf(a.skill) - dataset.skillNames.indexOf(b.skill))
+    .sort(
+      (a, b) =>
+        a.exactMean - b.exactMean ||
+        dataset.skillNames.indexOf(a.skill) - dataset.skillNames.indexOf(b.skill),
+    )
 }
 
 // ------------------------------------------------------------ Q10
@@ -101,7 +111,8 @@ export const skillsGaps: ToolDefinition = {
 
     const weakest = stats[0]
     const strongest = stats[stats.length - 1]
-    const tiedWeakest = stats.filter((s) => s.mean === weakest.mean)
+    // Exact, not rounded: a difference of 0.001 is not a tie.
+    const tiedWeakest = stats.filter((s) => s.exactMean === weakest.exactMean)
     const thinnest = [...stats].sort(
       (a, b) => a.strong - b.strong || a.mean - b.mean,
     )[0]

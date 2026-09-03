@@ -22,8 +22,12 @@ import { timingSafeEqual } from '@/lib/crypto'
 //
 //   - Recovering the passcode from a cookie means recovering the secret first,
 //     which is a random 32-byte value rather than something a person chose.
-//   - Rotating SESSION_SECRET invalidates every live session, which is the
-//     revocation this design otherwise has no way to offer.
+//   - EITHER key revokes. Rotating SESSION_SECRET invalidates every live
+//     session, and so does rotating APP_PASSCODE, because both are in the
+//     signing material. The second of those did NOT hold at first — the secret
+//     replaced the passcode rather than joining it — so the one revocation an
+//     operator reaches for did nothing, for the remaining week of a cookie's
+//     life, and the comment here said otherwise.
 //
 // It stays stateless. There is no list of live sessions to consult, so a cold
 // instance behaves exactly like a warm one — the property that made the
@@ -54,7 +58,20 @@ function toBase64Url(bytes: Uint8Array): string {
  */
 async function signingKey(passcode: string): Promise<CryptoKey> {
   const secret = process.env.SESSION_SECRET?.trim()
-  const material = secret && secret.length > 0 ? secret : passcode
+  // THE PASSCODE IS ALWAYS PART OF THE KEY, secret or no secret.
+  //
+  // It used to be the secret INSTEAD of the passcode, which quietly broke the
+  // one revocation an operator actually knows about: changing APP_PASSCODE did
+  // nothing to a live cookie, so a browser signed in under the old passcode
+  // stayed signed in for the remaining week. src/lib/auth.ts and CLAUDE.md
+  // both said "no way to revoke access short of changing APP_PASSCODE" — which
+  // was false exactly where a deployment is most likely to have set a secret.
+  //
+  // Binding both means either one revokes: rotate the passcode to lock
+  // everyone out now, or rotate the secret. The secret still does the job it
+  // was added for, which is keeping a stolen cookie from being brute-forced
+  // back to a short human-chosen passcode.
+  const material = secret && secret.length > 0 ? `${secret}:${passcode}` : passcode
   return crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(`${PURPOSE}:${material}`),

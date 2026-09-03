@@ -174,7 +174,10 @@ export default function PinnedDashboard({
                       className="card-action"
                       onClick={() => {
                         if (inert) return
-                        void remove(pin.id).then(() => {
+                        void remove(pin.id).then((ok) => {
+                          // Only on success. The card is still there when this
+                          // fails, and the error alert already says so.
+                          if (!ok) return
                           announce('Removed from the dashboard.')
                           heading.current?.focus()
                         })

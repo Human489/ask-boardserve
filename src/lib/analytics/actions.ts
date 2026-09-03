@@ -487,7 +487,15 @@ export const unresolvedByCommittee: ToolDefinition = {
     // accepts, because a board with nothing outstanding is a real state — read
     // byCount[0].body and threw, so the answer became "the analysis could not
     // be completed" rather than "there is nothing outstanding".
-    if (stats.length === 0) {
+    //
+    // `stats` is built from BODIES, not from unresolved rows, so it is only
+    // empty when the action log itself is. A board that has cleared everything
+    // still has four bodies, each with zero outstanding — and that produced a
+    // full superlative over nothing: "Board leads on both measures: 0
+    // unresolved actions, 0% of all 0 unresolved items, and the highest
+    // unresolved rate at 0%", above a chart of four zero-height bars. The
+    // guard has to be on what was COUNTED, not on what was grouped.
+    if (stats.length === 0 || totalUnresolved === 0) {
       return {
         tool: 'unresolved_by_committee',
         headline:

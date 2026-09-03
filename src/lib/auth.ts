@@ -15,8 +15,12 @@ import { timingSafeEqual } from '@/lib/crypto'
 // landed on a different instance. Comparing the passcode directly removes the
 // store, the expiry, and the need to move any of it to KV before deploying.
 //
-// The trade-off, stated plainly: there is no way to revoke access short of
-// changing APP_PASSCODE, and no session expiry. For a single shared passcode
+// The trade-off, stated plainly: there is no PER-PERSON revocation. Everyone
+// shares one passcode, so revoking anybody revokes everybody — by rotating
+// APP_PASSCODE, which does now invalidate live session cookies as well, or by
+// rotating SESSION_SECRET. Either one. That was briefly untrue: with a secret
+// configured the cookie was signed with the secret INSTEAD of the passcode, so
+// the rotation an operator would reach for revoked nothing.
 // guarding a demo that is the right shape. A per-user login would not be.
 
 /** Reads the credential from an Authorization header. */

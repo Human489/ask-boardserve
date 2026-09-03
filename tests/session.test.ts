@@ -69,16 +69,27 @@ test('rotating the secret signs every session out', async () => {
     process.env.SESSION_SECRET = 'a-different-secret'
     assert.equal(await isValidSession(token, PASSCODE, NOW), false)
   } finally {
-    process.env.SESSION_SECRET = original
+    // `process.env.X = undefined` sets the STRING "undefined", which is truthy
+    // — so this leaked a configured-looking secret into every test below and
+    // was why the next one could assert the wrong thing and pass.
+    if (original === undefined) delete process.env.SESSION_SECRET
+    else process.env.SESSION_SECRET = original
   }
 })
 
 test('a token signed under one passcode does not validate under another', async () => {
+  // This test's NAME was right and its assertion was the opposite: it asserted
+  // that a cookie DOES validate under a different passcode, with a comment
+  // explaining that as intended. It passed only because the test above restored
+  // SESSION_SECRET to the string "undefined", leaving a secret configured — and
+  // with a secret the signing key ignored the passcode entirely.
+  //
+  // So changing APP_PASSCODE revoked nothing, which is the one revocation an
+  // operator knows about, and two files documented the opposite. The key now
+  // binds both, and this asserts what its name always claimed.
   const token = await sessionToken(PASSCODE, NOW)
-  assert.equal(await isValidSession(token, 'a-different-passcode', NOW), true)
-  // With SESSION_SECRET set the signature is independent of the passcode, which
-  // is the point — but the passcode must still be REQUIRED to be configured at
-  // all, which the fail-closed test above covers.
+  assert.equal(await isValidSession(token, 'a-different-passcode', NOW), false)
+  assert.equal(await isValidSession(token, PASSCODE, NOW), true, 'and still valid under its own')
 })
 
 test('the cookie is httpOnly, same-site and scoped to the app', () => {
@@ -89,4 +100,39 @@ test('the cookie is httpOnly, same-site and scoped to the app', () => {
   assert.equal(options.path, '/')
   assert.equal(sessionCookieOptions(false).secure, false, 'local development is not https')
   assert.equal(SESSION_COOKIE, 'bs_session')
+})
+
+test('rotating the passcode invalidates a live cookie, even with a secret set', async () => {
+  // The revocation an operator will actually reach for. The signing key used
+  // the SESSION_SECRET instead of the passcode when one was set, so changing
+  // APP_PASSCODE did nothing to a browser already signed in — for the
+  // remaining week of the cookie's life. Both files documenting this said the
+  // opposite.
+  const previous = process.env.SESSION_SECRET
+  process.env.SESSION_SECRET = 'a-configured-secret'
+  try {
+    const token = await sessionToken('the-old-passcode')
+    assert.equal(await isValidSession(token, 'the-old-passcode'), true, 'valid before rotation')
+    assert.equal(
+      await isValidSession(token, 'the-new-passcode'),
+      false,
+      'rotating APP_PASSCODE must invalidate a cookie signed under the old one',
+    )
+  } finally {
+    if (previous === undefined) delete process.env.SESSION_SECRET
+    else process.env.SESSION_SECRET = previous
+  }
+})
+
+test('rotating the secret still invalidates a cookie too', async () => {
+  const previous = process.env.SESSION_SECRET
+  try {
+    process.env.SESSION_SECRET = 'secret-one'
+    const token = await sessionToken('same-passcode')
+    process.env.SESSION_SECRET = 'secret-two'
+    assert.equal(await isValidSession(token, 'same-passcode'), false, 'either key revokes')
+  } finally {
+    if (previous === undefined) delete process.env.SESSION_SECRET
+    else process.env.SESSION_SECRET = previous
+  }
 })

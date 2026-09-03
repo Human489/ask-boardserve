@@ -432,9 +432,17 @@ bucket.
 costs ~330ms, so the write is not awaited. Two simultaneous requests can both see
 the older count. Approximate and shared beats exact and per-instance.
 
-**There is no session.** The passcode is sent with every request and a refresh
-returns to the gate. That was asked for, and it is what makes the app stateless —
-but it also means no revocation short of changing `APP_PASSCODE`, and no expiry.
+**Revocation is all-or-nothing, and `SESSION_SECRET` is not optional to know
+about.** One shared passcode means revoking anyone revokes everyone. Rotating
+`APP_PASSCODE` invalidates live session cookies, and so does rotating
+`SESSION_SECRET` — both are in the signing material.
+
+That second part was briefly false and is worth remembering: with a secret
+configured, the cookie was signed with the secret INSTEAD of the passcode, so
+changing `APP_PASSCODE` revoked nothing for the remaining week of a cookie's
+life. Two files documented the opposite, and a test asserted the broken
+behaviour while its own name described the correct one — it passed only because
+an `= undefined` env restore left the string "undefined" configured.
 
 **The corpus is thin, and that is the data's fault.** Three papers covering 2 of 6
 board meetings, no committee papers, and nine action-log topics with no paper at
@@ -692,7 +700,17 @@ Also confirmed against the brief: rate limit defaults to 20 per minute per IP
 
 `.env.local`, gitignored. `CF_ACCOUNT_ID`, `CF_API_TOKEN`, `CF_AI_GATEWAY_ID`,
 `CF_VECTORIZE_INDEX`, `CF_KV_NAMESPACE_ID`, `APP_PASSCODE`, `DATASET_PATH`,
-`RATE_LIMIT_PER_MINUTE`.
+`RATE_LIMIT_PER_MINUTE`, `SESSION_SECRET`, `AI_CACHE`.
+
+`SESSION_SECRET` was missing from this list until an audit asked why the
+session behaved differently with it set. Optional: without it the session
+cookie is signed with the passcode alone, which is weaker because a passcode is
+short and human-chosen and a cookie ends up in proxy logs. Set it in any real
+deployment. Either it or `APP_PASSCODE` revokes every live session when
+rotated.
+
+`AI_CACHE=off` bypasses the model cache. The eval harness needs it, or repeat
+runs are served from cache and a flaky router reports as perfectly stable.
 
 Model calls go to the Workers AI REST endpoint with the `cf-aig-gateway-id`
 header. The `gateway.ai.cloudflare.com/{account}/{gateway}` URL form returns 401

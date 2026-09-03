@@ -57,8 +57,15 @@ function ratesByDirector(rows: AttendanceRecord[]): DirectorRate[] {
       eligible: v.eligible,
       attended: v.attended,
       rate: pct(v.attended, v.eligible),
+      // The unrounded value, carried for ordering and comparison only.
+      // pct() rounds to one decimal, and sorting on a ROUNDED figure makes two
+      // genuinely different rates compare equal — the tie is then resolved
+      // alphabetically and stated as a fact about a named person.
+      // unresolved_by_committee already carries a `ratio` for exactly this;
+      // the fix had not been carried across.
+      ratio: v.eligible > 0 ? v.attended / v.eligible : 0,
     }))
-    .sort((a, b) => a.rate - b.rate || a.name.localeCompare(b.name))
+    .sort((a, b) => a.ratio - b.ratio || a.name.localeCompare(b.name))
 }
 
 // ------------------------------------------------------------ Q1
@@ -210,13 +217,24 @@ export const attendanceBelowThreshold: ToolDefinition = {
       headline,
       chart: {
         kind: 'bar',
-        title: `Attendance below ${threshold}%${scopeLabel}`,
+        // On the widened path this is NOT "below the threshold": nobody is.
+        // The title said so anyway, over bars all above the reference line —
+        // the headline explained it, a pinned card or a screenshot did not.
+        title: widened
+          ? `Lowest ${points.length} attendance rates${scopeLabel}`
+          : `Attendance below ${threshold}%${scopeLabel}`,
         xLabel: 'Director',
         yLabel: 'Attendance',
         unit: 'percent',
         points,
         seriesLabel: 'Present rate',
-        reference: { value: threshold, label: `${threshold}% threshold` },
+        // Kept on the widened path, because the threshold is still the thing
+        // these rates are being read against — but labelled as a threshold
+        // nobody is under rather than as the chart's subject.
+        reference: {
+          value: threshold,
+          label: widened ? `${threshold}% threshold (none below)` : `${threshold}% threshold`,
+        },
       },
       table: {
         columns: ['Director', 'Body', 'Present', 'Eligible', 'Present rate %'],
@@ -226,7 +244,11 @@ export const attendanceBelowThreshold: ToolDefinition = {
         `No attendance threshold is stated anywhere in the dataset; ${threshold}% was used.`,
         'Apologies count as non-attendance: only a status of "present" counts towards the rate.',
         ...(widened
-          ? [`Fewer than two directors fell below ${threshold}%, so the bottom quartile is shown instead.`]
+          ? [
+              `Fewer than two directors fell below ${threshold}%, so the ${points.length} lowest ` +
+                `rates are shown instead — a quarter of the ${rates.length} assessed, rounded up, ` +
+                `and never fewer than two. None of them is below the threshold.`,
+            ]
           : []),
       ],
       caveats,
@@ -282,27 +304,40 @@ export const attendanceByMeeting: ToolDefinition = {
     // the smallest-size figure to zero, which is what produced an "Infinity"
     // percentage-point swing in the caveat below.
     const sized = series.filter((m) => m.eligible > 0)
+    const unsized = series.length - sized.length
 
     // "One meeting's noise" is the swing caused by a single extra absence at
     // the typical meeting size. Any movement smaller than that is not a signal.
+    // EVERY figure below is derived from `sized`, not `series`.
+    //
+    // A meeting with no eligibility rows — a cancelled one, or a body whose
+    // membership is recorded elsewhere — gives pct(0, 0) = 0, so it plotted at
+    // 0%, was highlighted as a material dip, and dragged the mean meeting size
+    // down, which inflates the noise floor and therefore changes which OTHER
+    // meetings count as dips. The `sized` filter was introduced for exactly
+    // this and then applied only to the caveat.
+    //
+    // Not reachable on this dataset, where all 18 meetings have rows. Fully
+    // reachable on another organisation's, which is the whole premise of the
+    // second-dataset test.
     const meanSize =
-      series.length > 0 ? series.reduce((a, s) => a + s.eligible, 0) / series.length : 0
+      sized.length > 0 ? sized.reduce((a, s) => a + s.eligible, 0) / sized.length : 0
     const noise = meanSize > 0 ? Math.round((100 / meanSize) * 10) / 10 : 0
 
-    const half = Math.floor(series.length / 2)
-    const firstRows = series.slice(0, half)
-    const secondRows = series.slice(half)
-    const sum = (xs: typeof series, k: 'eligible' | 'attended') =>
+    const half = Math.floor(sized.length / 2)
+    const firstRows = sized.slice(0, half)
+    const secondRows = sized.slice(half)
+    const sum = (xs: typeof sized, k: 'eligible' | 'attended') =>
       xs.reduce((a, s) => a + s[k], 0)
     const firstHalf = pct(sum(firstRows, 'attended'), sum(firstRows, 'eligible'))
     const secondHalf = pct(sum(secondRows, 'attended'), sum(secondRows, 'eligible'))
     const shift = Math.round((secondHalf - firstHalf) * 10) / 10
 
-    const dips = series
+    const dips = sized
       .filter((s) => s.rate < overallRate - noise)
       .sort((a, b) => a.rate - b.rate || a.meeting.date.localeCompare(b.meeting.date))
 
-    const points: DataPoint[] = series.map((s) => ({
+    const points: DataPoint[] = sized.map((s) => ({
       label: `${s.meeting.date} ${s.meeting.body}`,
       value: s.rate,
       highlight: s.rate < overallRate - noise,
@@ -376,7 +411,7 @@ export const attendanceByMeeting: ToolDefinition = {
             } appear in the attendance records, so there is no attendance to plot. The bodies present are ${list(
               allBodies(dataset),
             )}.`
-          : `Across ${series.length} meetings${
+          : `Across ${sized.length} meetings${
               body ? ` of ${body}` : ''
             }, ${trendClause}, ${dipClause}.`,
       chart: {
@@ -408,6 +443,14 @@ export const attendanceByMeeting: ToolDefinition = {
         'Apologies count as non-attendance.',
       ],
       caveats: [
+        ...(unsized > 0
+          ? [
+              `${unsized} meeting${unsized === 1 ? ' has' : 's have'} no eligibility rows and ` +
+                `${unsized === 1 ? 'is' : 'are'} listed in the table but excluded from every ` +
+                `figure and from the chart: a meeting nobody was recorded as eligible for has ` +
+                `no attendance rate, and counting it as 0% would read as a meeting nobody came to.`,
+            ]
+          : []),
         // Only meetings that had eligibility rows can carry a swing. Dividing
         // by the smallest eligibility across every meeting produced "one
         // absence moves a point by up to Infinity percentage points" as soon as
@@ -481,6 +524,8 @@ export const attendanceByCommittee: ToolDefinition = {
           rows: own.length,
           attended,
           rate: pct(attended, own.length),
+          // Unrounded, for ordering and for the tie test below.
+          ratio: own.length > 0 ? attended / own.length : 0,
           // The actual percentage-point cost of one more miss, computed not asserted.
           swing: own.length > 0 ? Math.round((100 / own.length) * 10) / 10 : 0,
         }
@@ -488,7 +533,7 @@ export const attendanceByCommittee: ToolDefinition = {
       .sort((a, b) =>
         rankBy === 'meetings'
           ? b.meetings - a.meetings || a.body.localeCompare(b.body)
-          : a.rate - b.rate || a.body.localeCompare(b.body),
+          : a.ratio - b.ratio || a.body.localeCompare(b.body),
       )
 
     // Every sentence below describes the ATTENDANCE ordering, so it is derived
@@ -498,11 +543,14 @@ export const attendanceByCommittee: ToolDefinition = {
     // the two busiest bodies — a gap that could even come out negative, giving
     // "sits only -6.9 points below".
     const byRate = [...stats].sort(
-      (a, b) => a.rate - b.rate || a.body.localeCompare(b.body),
+      (a, b) => a.ratio - b.ratio || a.body.localeCompare(b.body),
     )
     const lowest = byRate[0]
     const highest = byRate[byRate.length - 1]
-    const tiedLowest = byRate.filter((s) => s.rate === lowest.rate)
+    // Compared on the exact ratio: two bodies whose rates round to the same
+    // figure are not "tied lowest", and saying they are is a claim the data
+    // does not support.
+    const tiedLowest = byRate.filter((s) => s.ratio === lowest.ratio)
 
     const points: DataPoint[] = stats.map((s) => ({
       label: s.body,
