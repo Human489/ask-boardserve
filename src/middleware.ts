@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { SESSION_COOKIE, isValidSession } from '@/lib/session'
 import { timingSafeEqual } from '@/lib/crypto'
+import { checkRateLimit } from '@/lib/ratelimit'
+import { clientIp } from '@/lib/apiauth'
 
 // The gate the brief asks for: "a simple middleware check protecting every page
 // and API route".
@@ -100,6 +102,31 @@ export async function middleware(req: NextRequest) {
   if (supplied && timingSafeEqual(supplied, passcode)) return NextResponse.next()
   if (await isValidSession(req.cookies.get(SESSION_COOKIE)?.value, passcode)) {
     return NextResponse.next()
+  }
+
+  // A WRONG CREDENTIAL ON A PAGE IS CHARGED, exactly as one on an API route is.
+  //
+  // This was the same passcode oracle twice. The API half was found and fixed
+  // — the long comment below is that fix — and the page half was left, so
+  // forty wrong bearer tokens against "/" returned forty 200s and never a 429,
+  // with the gate HTML about 1.1KB shorter than the app's. Measured, after the
+  // first fix was written and believed complete.
+  //
+  // Charged only when a credential was actually SUPPLIED. A visitor arriving
+  // at the gate with nothing is not guessing, and charging them would let one
+  // person's reloads lock out an office behind a shared address. A stale
+  // cookie is charged, because a forged one and an expired one are the same
+  // thing from here — and with no SESSION_SECRET set the cookie is signed with
+  // the passcode, so it is a guessing vector in its own right.
+  const offered = supplied !== null || req.cookies.has(SESSION_COOKIE)
+  if (offered) {
+    const limit = await checkRateLimit(`auth:${clientIp(req)}`)
+    if (!limit.allowed) {
+      return new NextResponse('Too many sign-in attempts. Please wait and try again.', {
+        status: 429,
+        headers: { 'Retry-After': String(limit.retryAfterSeconds) },
+      })
+    }
   }
 
   // An API call is passed THROUGH to its handler rather than rejected here.

@@ -76,9 +76,9 @@ export const upcomingUnprepared: ToolDefinition = {
       due.length === 0
         ? `Nothing in the action log falls due in the ${within} days after ${asAt}.` +
           (commitments.length > 0
-            ? ` The papers do promise ${commitments.length} thing${
+            ? ` The papers separately state ${commitments.length} thing${
                 commitments.length === 1 ? '' : 's'
-              } with no action behind them.`
+              } as coming, which is worth checking against the log by hand.`
             : '')
         : `${due.length} action${due.length === 1 ? '' : 's'} fall${
             due.length === 1 ? 's' : ''
@@ -90,11 +90,9 @@ export const upcomingUnprepared: ToolDefinition = {
                 } not been started — ${list(notStarted.map(describe))}`
           }.` +
           (commitments.length > 0
-            ? ` Separately, the papers promise ${commitments.length} thing${
+            ? ` Separately, the papers state ${commitments.length} thing${
                 commitments.length === 1 ? '' : 's'
-              } that never became an action, so nothing in the log is tracking ${
-                commitments.length === 1 ? 'it' : 'them'
-              }.`
+              } as coming, listed below and NOT matched against the log.`
             : '')
 
     const points: DataPoint[] = [
@@ -110,10 +108,10 @@ export const upcomingUnprepared: ToolDefinition = {
         detail: 'Due within the window and already in progress',
       },
       {
-        label: 'Promised in a paper only',
+        label: 'Stated in a paper',
         value: commitments.length,
         highlight: commitments.length > 0,
-        detail: 'Stated in a board paper with no action in the log',
+        detail: 'Stated as coming in a board paper; not matched against the log',
       },
     ]
 
@@ -147,7 +145,7 @@ export const upcomingUnprepared: ToolDefinition = {
             `${c.paperId} / ${c.section}`,
             c.sentence,
             'not dated as an action',
-            'no action recorded',
+            'not matched against the log',
           ]),
         ],
       },
@@ -160,7 +158,14 @@ export const upcomingUnprepared: ToolDefinition = {
         'There is no forward work plan in this data. This is assembled from action due dates and promises made in the papers, so anything agreed verbally and never written down is invisible to it.',
         ...(commitments.length > 0
           ? [
-              'A promise in a paper is not evidence that nobody is working on it, only that no action in the log is tracking it.',
+              // This caveat used to assert the opposite of the truth: that no
+              // action in the log was tracking these. Nothing compares them —
+              // findCommitments is given the passages and never the action log
+              // — and on this dataset it was demonstrably false: an in-progress
+              // action in the log tracked one of the promises it declared
+              // untracked. A sentence stating a comparison the code never made
+              // is the one thing this product must not do.
+              'These sentences were read from the papers and NOT compared with the action log. Some may already be tracked as actions; check before chasing one.',
             ]
           : []),
       ],
@@ -171,7 +176,8 @@ export const upcomingUnprepared: ToolDefinition = {
         derivation:
           `Actions with a due date between ${asAt} and ${within} days later were counted and ` +
           `split by recorded status. Every paper was then read for sentences promising ` +
-          `something still to come, and those were quoted verbatim.`,
+          `something still to come, and those were quoted verbatim. The two sets were ` +
+          `NOT matched against each other.`,
       },
     }
   },
