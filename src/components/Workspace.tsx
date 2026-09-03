@@ -23,17 +23,21 @@ const VIEW_NAMES: Record<View, string> = {
   data: 'Data',
 }
 
-export default function Workspace({
-  credential,
-  onRejected,
-}: {
-  credential: string
-  onRejected: () => void
-}) {
+/**
+ * A rejected request means the cookie is gone or no longer valid — the passcode
+ * changed on the server, or the week ran out. There is nothing this view can do
+ * about it, so it hands the reader back to the gate, which is the same thing
+ * middleware would do on the next navigation.
+ */
+function onRejected() {
+  window.location.assign('/gate')
+}
+
+export default function Workspace() {
   const [view, setView] = useState<View>('ask')
   const announcer = useAnnouncer()
-  const pins = usePins(credential, onRejected)
-  const datasets = useDatasets(credential, onRejected)
+  const pins = usePins(onRejected)
+  const datasets = useDatasets(onRejected)
 
   const activeKey = datasets.activeId ?? 'local'
   const active = datasets.datasets.find((d) => d.id === datasets.activeId)
@@ -74,7 +78,6 @@ export default function Workspace({
       <AnnouncerRegion message={announcer.message} />
       <main id="main-content" className="views" tabIndex={-1}>
         <Chat
-          credential={credential}
           onRejected={onRejected}
           pins={pins}
           hidden={view !== 'ask'}

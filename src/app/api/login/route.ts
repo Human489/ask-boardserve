@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getConfig } from '@/lib/config'
 import { throttleFailedAuth } from '@/lib/apiauth'
+import {
+  SESSION_COOKIE,
+  SESSION_MAX_AGE_SECONDS,
+  sessionCookieOptions,
+  sessionToken,
+} from '@/lib/session'
 import { isAuthorised } from '@/lib/auth'
 
 // Reads APP_PASSCODE, so it runs on the Node runtime.
@@ -49,8 +55,15 @@ export async function POST(req: Request) {
     )
   }
 
-  // Nothing is issued and nothing is stored. This endpoint exists only so the
-  // passcode can be checked before the chat is shown, rather than the user
-  // discovering it was wrong when their first question fails.
-  return NextResponse.json({ ok: true })
+  // A cookie is issued; nothing is stored. It holds a value derived from the
+  // passcode rather than the passcode, so the cookie grants access without
+  // carrying the credential — and there is still no server-side list of live
+  // sessions to consult, which is what keeps a cold instance behaving like a
+  // warm one.
+  const response = NextResponse.json({ ok: true })
+  response.cookies.set(SESSION_COOKIE, await sessionToken(supplied), {
+    ...sessionCookieOptions(getConfig().isProduction),
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  })
+  return response
 }

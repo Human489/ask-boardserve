@@ -148,11 +148,29 @@ async function main() {
     loginJson?.token === undefined,
     'a token came back; auth is meant to be stateless',
   )
-  check(
-    'sign-in sets no cookie',
-    !loginRes.headers.has('set-cookie'),
-    loginRes.headers.get('set-cookie') ?? '',
-  )
+  {
+    // This used to assert that sign-in set NO cookie, because auth was stateless
+    // and the passcode lived in React state. The brief asks for middleware
+    // protecting every page, and a page cannot be protected by a header — a
+    // browser typing the URL sends none — so a cookie is now issued. What is
+    // asserted is the security of the thing that replaced it.
+    const setCookie = loginRes.headers.get('set-cookie') ?? ''
+    check(
+      'sign-in issues an httpOnly session cookie',
+      /bs_session=/.test(setCookie) && /HttpOnly/i.test(setCookie),
+      setCookie.slice(0, 90),
+    )
+    check(
+      'the session cookie is not the passcode itself',
+      setCookie.length > 0 && !setCookie.includes(PASSCODE),
+      'a leaked cookie must not hand over the credential',
+    )
+    check(
+      'the session cookie is same-site and scoped to the app',
+      /SameSite=strict/i.test(setCookie) && /Path=\//.test(setCookie),
+      setCookie.slice(0, 90),
+    )
+  }
   // The passcode itself is the credential: there is no session to hold, so
   // nothing has to survive between the login call and the questions.
   const token = PASSCODE

@@ -39,7 +39,7 @@ export interface PinsState {
 
 const GENERIC = 'The dashboard could not be reached. Nothing was changed — try again.'
 
-export function usePins(credential: string, onRejected: () => void): PinsState {
+export function usePins(onRejected: () => void): PinsState {
   const [pins, setPins] = useState<Pin[]>([])
   const [durable, setDurable] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -63,10 +63,10 @@ export function usePins(credential: string, onRejected: () => void): PinsState {
       try {
         const res = await fetch('/api/pins', {
           method,
-          headers: {
-            Authorization: `Bearer ${credential}`,
-            ...(body ? { 'Content-Type': 'application/json' } : {}),
-          },
+          // No Authorization header: the session cookie is sent automatically
+          // on a same-origin request, and it is httpOnly so this code could not
+          // read it even if it wanted to.
+          headers: body ? { 'Content-Type': 'application/json' } : {},
           body: body ? JSON.stringify(body) : undefined,
           cache: 'no-store',
         })
@@ -98,7 +98,7 @@ export function usePins(credential: string, onRejected: () => void): PinsState {
         return false
       }
     },
-    [credential, onRejected],
+    [onRejected],
   )
 
   const reload = useCallback(async () => {

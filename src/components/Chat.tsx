@@ -88,7 +88,6 @@ export function swapTranscript(
 }
 
 interface ChatProps {
-  credential: string
   onRejected: () => void
   pins: PinsState
   hidden: boolean
@@ -102,7 +101,6 @@ interface ChatProps {
 }
 
 export default function Chat({
-  credential,
   onRejected,
   pins,
   hidden,
@@ -202,11 +200,10 @@ export default function Chat({
     try {
       const response = await fetch('/api/ask', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Held in memory by Gate; never persisted anywhere.
-          Authorization: `Bearer ${credential}`,
-        },
+        // No Authorization header: the session cookie is sent automatically on
+        // a same-origin request, and it is httpOnly, so this code holds no
+        // credential and could not read one.
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, history: historyFrom(priorTurns) }),
       })
 
@@ -270,7 +267,7 @@ export default function Chat({
     } finally {
       setInFlight(false)
     }
-  }, [credential, onRejected])
+  }, [onRejected])
 
   const ask = useCallback(
     (question: string) => {

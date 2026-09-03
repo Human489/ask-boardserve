@@ -41,7 +41,7 @@ interface Payload {
 
 const GENERIC = 'The dataset service could not be reached. Nothing was changed — try again.'
 
-export function useDatasets(credential: string, onRejected: () => void): DatasetsState {
+export function useDatasets(onRejected: () => void): DatasetsState {
   const [datasets, setDatasets] = useState<DatasetSummary[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [localAvailable, setLocalAvailable] = useState(false)
@@ -63,7 +63,9 @@ export function useDatasets(credential: string, onRejected: () => void): Dataset
       try {
         const res = await fetch('/api/datasets', {
           ...init,
-          headers: { Authorization: `Bearer ${credential}`, ...(init.headers ?? {}) },
+          // The session cookie travels automatically; nothing here holds the
+          // passcode, and it is httpOnly so nothing here could read it.
+          headers: init.headers,
           cache: 'no-store',
         })
         if (res.status === 401) {
@@ -88,7 +90,7 @@ export function useDatasets(credential: string, onRejected: () => void): Dataset
         return null
       }
     },
-    [apply, credential, onRejected],
+    [apply, onRejected],
   )
 
   const reload = useCallback(async () => {

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { bearerCredential, isAuthorised } from '@/lib/auth'
+import { getConfig } from '@/lib/config'
+import { SESSION_COOKIE, isValidSession } from '@/lib/session'
 import { checkRateLimit } from '@/lib/ratelimit'
 
 // The credential check every route shares, and the budget that makes it
@@ -30,6 +32,30 @@ export function clientIp(req: Request): string {
   return req.headers.get('x-real-ip') ?? 'unknown'
 }
 
+/**
+ * Reads the signed-in cookie from a request and checks it.
+ *
+ * Split rather than matched. A regex built inside a template literal ate its
+ * own escape — `\s` in a template is just `s`, so the pattern looked for the
+ * letter rather than whitespace and could only find the cookie when it happened
+ * to be first in the header. Browsers separate cookies with "; ", so that is
+ * most of the time. Splitting has no escapes to lose.
+ */
+export async function hasSessionCookie(req: Request): Promise<boolean> {
+  const header = req.headers.get('cookie')
+  if (!header) return false
+  for (const part of header.split(';')) {
+    const separator = part.indexOf('=')
+    if (separator === -1) continue
+    if (part.slice(0, separator).trim() !== SESSION_COOKIE) continue
+    return isValidSession(
+      decodeURIComponent(part.slice(separator + 1).trim()),
+      getConfig().appPasscode,
+    )
+  }
+  return false
+}
+
 /** Charges one failed credential check against the shared guessing budget. */
 export async function throttleFailedAuth(req: Request): Promise<NextResponse | null> {
   const limit = await checkRateLimit(`auth:${clientIp(req)}`)
@@ -49,7 +75,11 @@ export async function throttleFailedAuth(req: Request): Promise<NextResponse | n
  * caller is authorised. Every data-touching route calls this first.
  */
 export async function rejectUnauthorised(req: Request): Promise<NextResponse | null> {
+  // Either credential is accepted. The cookie is what a browser sends, and is
+  // the only thing that can protect a page; the bearer header is what the smoke
+  // suite and any script use, and keeps the API usable without a browser.
   if (isAuthorised(bearerCredential(req))) return null
+  if (await hasSessionCookie(req)) return null
   // Charged only on failure, so a signed-in reader is never throttled by
   // someone else's wrong guesses beyond the shared address.
   const throttled = await throttleFailedAuth(req)
