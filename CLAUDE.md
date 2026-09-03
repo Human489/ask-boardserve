@@ -295,7 +295,7 @@ right); refusal behaviour on unanswerable questions; pin to dashboard with state
 in KV; multi-turn refinement. All 16 spec questions answer; all 5 refusals
 refuse.
 
-### Excellence — five items, three done
+### Excellence — five items, four done
 
 The brief's list verbatim, since paraphrasing it is what introduced a fifth:
 
@@ -313,9 +313,13 @@ The brief's list verbatim, since paraphrasing it is what introduced a fifth:
    "Drawn from" citation list on a paper answer. It became *a small note* when
    the dashboard work put it behind a "Where this came from" disclosure with
    the as-at date left inline.
-3. **A shareable read-only dashboard link (tokened URL)** — not built. See
-   "Data protection" below before starting: a tokened URL is an
-   unauthenticated route to named directors' attendance.
+3. **A shareable read-only dashboard link (tokened URL)** — **done**.
+   `src/lib/shares.ts` and `/share/[token]`. The five conditions recorded under
+   "Data protection" were met before it shipped, not after: 256-bit CSPRNG
+   token, mandatory expiry checked on read as well as set as a TTL, immediate
+   revocation, `noindex` and `no-store`, and no personal data in the path. It
+   is a snapshot rather than a live view, and every failure returns the same
+   page so a guessed token cannot be confirmed.
 4. **A second dataset loads with no code changes** — not run. Worth running
    exactly once, blind. See the `dataset-b` rules above.
 5. **Image export for individual charts** — ours, approved by Hamada for
@@ -590,9 +594,9 @@ git archive main | tar -x -C /tmp/vercel-repro && cd /tmp/vercel-repro && npm ci
 
 ## Data protection — noted, not implemented
 
-None of this is built. It is recorded because the demo now persists real-shaped
-board data, and because the next Excellence item makes it sharper rather than
-softer.
+Mostly not built, and recorded because the demo persists real-shaped board
+data. The share link below IS built, and its conditions were met — the rest of
+this section is still outstanding.
 
 **What is stored is personal data.** Attendance names identifiable directors and
 records whether each one turned up; the skills audit records self-assessed
@@ -601,10 +605,33 @@ performance data, held about people who are not the users of this app. Nothing
 here is special-category today, but a board paper mentioning a director's health
 or absence reason would make it so.
 
-**A tokened share link is an unauthenticated route to it.** The Excellence list
-has "shareable read-only dashboard links". A guessable or immortal token is an
-open door to named individuals' attendance. If built, it needs a high-entropy
-token, an expiry, revocation, `noindex`, and no personal data in the URL path.
+**A tokened share link is an unauthenticated route to it — and it is now
+BUILT.** `src/lib/shares.ts`, `/api/shares`, and the public page at
+`/share/[token]`. Every condition set here before it was written is met, and
+each is tested:
+
+- **High-entropy token.** 32 bytes from the platform CSPRNG, base64url — 256
+  bits, derived from nothing, so there is no enumeration and no clock to infer.
+- **Expiry**, mandatory, defaulting to 7 days and capped at 30. Written as a KV
+  TTL *and* checked on read, because a TTL is a promise about eviction rather
+  than about correctness, and this is the one route with no passcode.
+- **Revocation**, immediate. The record is deleted BEFORE the owner's index is
+  updated: if only one write lands, the link must be the half that stops
+  working.
+- **`noindex`**, from both the page metadata and an `X-Robots-Tag` in
+  middleware, plus `no-store` so a revoked link cannot be served from a cache.
+- **No personal data in the URL.** The path carries the token alone.
+
+Two further decisions worth keeping. It is a **snapshot, not a live view**: a
+link that followed the dashboard would silently widen as new charts were
+pinned, so what you shared is what they see. And a bad token, an expired one
+and a revoked one all return the SAME page, because distinguishing them would
+confirm to someone holding a guessed token that they had guessed a real one.
+
+**What is still true: this is a hole in the gate, on purpose.** Board data with
+named directors, reachable by anyone holding a URL. Before real data it wants a
+per-link audit of who opened it, and probably a named recipient rather than a
+bearer token.
 
 **Retention.** Datasets, pins and transcripts are written to KV with no TTL,
 deliberately — a pin that expired on its own would be a silent loss. That is

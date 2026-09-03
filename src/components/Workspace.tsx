@@ -99,6 +99,7 @@ export default function Workspace() {
         <PinnedDashboard
           pins={pins}
           organisation={organisation}
+          onRejected={onRejected}
           hidden={view !== 'dashboard'}
           announce={announcer.announce}
         />

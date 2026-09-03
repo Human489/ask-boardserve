@@ -513,6 +513,139 @@ async function main() {
     }
   }
 
+  // ------------------------------------------------------- share links
+  console.log('\nShare links')
+  {
+    // Waits out a 429 like the rest of the suite. Without this, a revoke that
+    // happened to land on the rate limit was scored as "a link cannot be
+    // withdrawn", and the check that followed then failed for the same reason
+    // — one throttled request reported as two security failures.
+    const asJson = async (method, body) => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await fetch(`${BASE}/api/shares`, {
+          method,
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(body ? { 'Content-Type': 'application/json' } : {}),
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        })
+        const json = await res.json().catch(() => null)
+        if (res.status !== 429) return { res, json }
+        const wait = Number(json?.retryAfterSeconds ?? 60)
+        process.stdout.write(`  (rate limited, waiting ${wait}s) `)
+        await new Promise((r) => setTimeout(r, (wait + 1) * 1000))
+      }
+      return { res: { status: 429, ok: false }, json: null }
+    }
+
+    // Clear anything an earlier run left live, so this does not leak links.
+    const initial = await asJson('GET')
+    for (const share of initial.json?.shares ?? []) {
+      await asJson('DELETE', { token: share.token })
+    }
+
+    {
+      const res = await fetch(`${BASE}/api/shares`)
+      check('creating a link refuses without a passcode', res.status === 401, `got ${res.status}`)
+    }
+
+    // A pin has to exist before there is anything to share.
+    await fetch(`${BASE}/api/pins`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: 'smoke: something to share',
+        tool: 'attendance_below_threshold',
+        args: { threshold: 80 },
+      }),
+    })
+
+    const made = await asJson('POST', {})
+    const shareToken = made.json?.token
+    check(
+      'a link is created over the pinned dashboard',
+      made.res.status === 200 && typeof shareToken === 'string',
+      `status ${made.res.status}`,
+    )
+    check(
+      'the token carries real entropy and is URL-safe',
+      typeof shareToken === 'string' && shareToken.length >= 42 && /^[A-Za-z0-9_-]+$/.test(shareToken),
+      `token length ${shareToken?.length ?? 0}`,
+    )
+    check(
+      'the link is given an expiry',
+      typeof made.json?.expiresAt === 'string' && Date.parse(made.json.expiresAt) > Date.now(),
+      `expiresAt=${made.json?.expiresAt}`,
+    )
+
+    if (shareToken) {
+      // The point of the whole feature: reachable with NO credential at all.
+      const open = await fetch(`${BASE}/share/${shareToken}`)
+      const html = await open.text()
+      check(
+        'the shared page opens with no passcode',
+        open.status === 200 && !html.includes('Enter your passcode'),
+        `status ${open.status}`,
+      )
+      check(
+        'the shared page is not indexable and not cacheable',
+        /noindex/i.test(open.headers.get('x-robots-tag') ?? '') &&
+          /no-store/i.test(open.headers.get('cache-control') ?? ''),
+        `robots=${open.headers.get('x-robots-tag')} cache=${open.headers.get('cache-control')}`,
+      )
+      check(
+        'the shared page offers no way into the app',
+        !html.includes('Ask a question') && !html.includes('composer'),
+        'no composer on the shared page',
+      )
+
+      const revoked = await asJson('DELETE', { token: shareToken })
+      check('a link can be withdrawn', revoked.res.status === 200, `got ${revoked.res.status}`)
+
+      const after = await fetch(`${BASE}/share/${shareToken}`)
+      const afterHtml = await after.text()
+      check(
+        'a withdrawn link stops working immediately',
+        afterHtml.includes('not available'),
+        `status ${after.status}`,
+      )
+    }
+
+    {
+      const bogus = await fetch(`${BASE}/share/not-a-real-token`)
+      const html = await bogus.text()
+      check(
+        'a guessed token gets the same answer as an expired one',
+        html.includes('not available'),
+        'no distinction between wrong and expired',
+      )
+    }
+
+    {
+      const bare = await fetch(`${BASE}/share`, { redirect: 'manual' })
+      const html = await bare.text().catch(() => '')
+      check(
+        'the bare /share path stays behind the passcode',
+        html.includes('Enter your passcode') || bare.status === 404 || bare.status >= 300,
+        `status ${bare.status}`,
+      )
+    }
+
+    // Leave nothing behind.
+    const mine = await fetch(`${BASE}/api/pins`, { headers: { Authorization: `Bearer ${token}` } })
+    const pins = (await mine.json().catch(() => null))?.pins ?? []
+    for (const pin of pins) {
+      if (/^smoke:/.test(pin.question)) {
+        await fetch(`${BASE}/api/pins`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: pin.id }),
+        })
+      }
+    }
+  }
+
   // -------------------------------------------------------- rate limiting
   console.log('\nRate limiting')
   {

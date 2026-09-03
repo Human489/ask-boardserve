@@ -139,3 +139,37 @@ test('the matcher excludes the self-hosted fonts', () => {
   assert.ok(re.test('/api/conversations'), 'a newly added route is matched')
   assert.ok(re.test('/fontsecret'), 'a path merely starting with "fonts" is still gated')
 })
+
+test('a share link is public, but only with a token, and never indexable', async () => {
+  // The one deliberate hole in the gate: board data served to someone with no
+  // passcode. What is allowed through has to be exactly the share page and
+  // nothing adjacent to it.
+  const token = 'a'.repeat(43)
+  assert.equal(await outcome(`/share/${token}`), 'next', 'a tokened share is public')
+
+  // The bare prefix is not a share and must stay gated, or /share becomes an
+  // unauthenticated route to whatever a future page puts there.
+  assert.equal(await outcome('/share'), 'rewrite:/gate', 'no token, no page')
+  assert.equal(await outcome('/share/'), 'rewrite:/gate', 'a trailing slash is not a token')
+
+  // Creating and revoking links stays behind the passcode. Making a hole is
+  // not the same as walking through one.
+  assert.equal(await outcome('/api/shares'), 'next', 'the API is matched, so its handler charges')
+
+  // Nothing that merely starts with the word.
+  assert.equal(await outcome('/shareholders'), 'rewrite:/gate')
+  assert.equal(await outcome('/sharedashboard'), 'rewrite:/gate')
+})
+
+test('the share page carries noindex and no-store headers', async () => {
+  const token = 'b'.repeat(43)
+  const res = await middleware(request(`/share/${token}`, {}))
+  assert.ok(res, 'middleware returns a response')
+  const robots = res.headers.get('X-Robots-Tag') ?? ''
+  assert.match(robots, /noindex/, 'a pasted link must not be indexed')
+  assert.match(robots, /nofollow/)
+  // Board data with no passcode in front of it must not sit in a shared cache
+  // that outlives its revocation.
+  const cache = res.headers.get('Cache-Control') ?? ''
+  assert.match(cache, /no-store/, 'a revoked link must not be served from a cache')
+})

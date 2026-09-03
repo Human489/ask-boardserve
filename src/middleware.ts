@@ -22,6 +22,25 @@ import { timingSafeEqual } from '@/lib/crypto'
 /** Reachable without a session, or nothing could ever obtain one. */
 const PUBLIC_PATHS = new Set(['/gate', '/api/login'])
 
+/**
+ * The share link: the one DELIBERATE hole in the gate.
+ *
+ * Everything above is machinery for obtaining a session. This is different —
+ * it is board data served to someone who has no passcode, and the token in the
+ * URL is the entire credential. It is a prefix rather than a fixed path
+ * because the token is part of it.
+ *
+ * What makes it defensible is in `src/lib/shares.ts`: 256 bits of CSPRNG
+ * entropy so there is nothing to enumerate, a mandatory expiry capped at 30
+ * days and checked on read rather than left to a store's TTL, revocation that
+ * deletes the record before it updates the index, and no personal data in the
+ * path. The page itself is read-only and offers no route inwards.
+ *
+ * `/api/shares` — creating and revoking links — is NOT here. That stays behind
+ * the passcode, because making a hole is not the same as walking through one.
+ */
+const SHARE_PREFIX = '/share/'
+
 export const config = {
   // Everything except Next's own assets, the favicon, and the self-hosted
   // fonts. Listing what to skip rather than what to cover means a new route is
@@ -52,6 +71,19 @@ function bearer(req: NextRequest): string | null {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   if (PUBLIC_PATHS.has(pathname)) return NextResponse.next()
+
+  // A shared dashboard, with the robots header attached here rather than only
+  // in the page's metadata. A link pasted into anything that follows URLs must
+  // not be indexed, and a crawler that ignores the meta tag may honour the
+  // header. `/share` with no token is not a share and stays gated.
+  if (pathname.startsWith(SHARE_PREFIX) && pathname.length > SHARE_PREFIX.length) {
+    const response = NextResponse.next()
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
+    // Board data with no passcode in front of it must not sit in a shared
+    // cache that outlives its revocation.
+    response.headers.set('Cache-Control', 'private, no-store, max-age=0')
+    return response
+  }
 
   const passcode = process.env.APP_PASSCODE
   if (!passcode) {

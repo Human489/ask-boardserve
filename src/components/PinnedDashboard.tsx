@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import ChartCard from './ChartCard'
+import ShareLinks from './ShareLinks'
 import { RemoveMark } from './marks'
 import type { PinsState } from './usePins'
 import type { Pin } from '@/lib/pins'
@@ -30,6 +31,7 @@ export default function PinnedDashboard({
   hidden,
   announce,
   organisation,
+  onRejected,
 }: {
   pins: PinsState
   hidden: boolean
@@ -37,6 +39,8 @@ export default function PinnedDashboard({
   announce: (text: string) => void
   /** Named on the exported chart's stamp. */
   organisation: string | null
+  /** A rejected credential sends the reader back to the gate. */
+  onRejected: () => void
 }) {
   const { pins: items, durable, loading, error, busyKey, remove, reload } = pins
 
@@ -186,6 +190,13 @@ export default function PinnedDashboard({
             </section>
           )
         })}
+
+        {/* Below the cards, not above them: sharing is something a reader does
+            once they have assembled a dashboard worth sending, and putting it
+            first would offer to publish board data before there is any. */}
+        {items.length > 0 && (
+          <ShareLinks pinCount={items.length} onRejected={onRejected} announce={announce} />
+        )}
       </div>
     </div>
   )

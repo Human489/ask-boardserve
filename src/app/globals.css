@@ -2008,3 +2008,220 @@ table.answer-table {
     gap: 10px;
   }
 }
+
+/* ---------------------------------------------------------- share links
+   Creating a link that shows board data to someone with no passcode. The
+   panel is deliberately plain and slightly cool: this is a consequential
+   action, and dressing it up as a feature would be the wrong register. */
+
+.shares {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--hairline);
+  max-width: var(--measure);
+}
+
+.shares-title {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: -0.011em;
+  color: var(--ink);
+}
+
+.shares-lede {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: var(--measure-prose);
+}
+
+.shares-note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  max-width: var(--measure-prose);
+}
+
+.shares-error {
+  color: var(--error-ink);
+}
+
+.shares-new {
+  margin-top: 12px;
+}
+
+/* The URL is shown once, at the only moment it is needed in full. Mono
+   because it is a value to be copied exactly, not read. */
+.shares-url {
+  margin-top: 6px;
+  width: 100%;
+  max-width: var(--measure-prose);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+}
+
+.shares-url:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+.shares-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  max-width: var(--measure-prose);
+}
+
+.shares-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.shares-meta {
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Withdrawing is the safe action here, so it is not styled as a danger — but
+   it is the only button on the row, so it does not need to compete either. */
+.shares-revoke {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  background: none;
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  padding: 4px 9px;
+  cursor: pointer;
+}
+
+.shares-revoke:hover {
+  color: var(--error-ink);
+  border-color: var(--error-ink);
+}
+
+.shares-revoke:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.shares-revoke[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* ------------------------------------------------ the shared page itself
+   Read-only, and it says so. No masthead, no navigation, no composer: there
+   is nothing here to click through into the app, which is the point. */
+
+.share-shell {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 34px 24px 60px;
+}
+
+.share-head {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 24px;
+}
+
+.share-label {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.share-title {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.share-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: var(--measure-prose);
+}
+
+.share-pinned {
+  margin-bottom: 26px;
+}
+
+.share-foot {
+  margin-top: 34px;
+  padding-top: 16px;
+  border-top: 1px solid var(--hairline);
+}
+
+.share-foot p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  max-width: var(--measure-prose);
+}
+
+/* A withdrawn or expired link. One message for every failure, so a guessed
+   token cannot be confirmed by the wording. */
+.share-gone {
+  max-width: 46ch;
+  margin: 12vh auto 0;
+  text-align: left;
+}
+
+.share-gone h1 {
+  margin: 0 0 8px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.share-gone p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+@media (max-width: 640px) {
+  .share-shell {
+    padding: 24px 16px 44px;
+  }
+}
