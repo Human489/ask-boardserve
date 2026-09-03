@@ -7,6 +7,7 @@ import Masthead, { type View } from './Masthead'
 import { AnnouncerRegion, useAnnouncer } from './Announcer'
 import PinnedDashboard from './PinnedDashboard'
 import { useDatasets } from './useDatasets'
+import { useConversations } from './useConversations'
 import { usePins } from './usePins'
 
 // The authenticated container: it owns which view is showing, the pinned set,
@@ -40,6 +41,9 @@ export default function Workspace() {
   const datasets = useDatasets(onRejected)
 
   const activeKey = datasets.activeId ?? 'local'
+  // Owned here rather than inside Chat so the list survives a view switch,
+  // which unmounts nothing but does re-run effects in the hidden view.
+  const conversations = useConversations(activeKey, onRejected)
   const active = datasets.datasets.find((d) => d.id === datasets.activeId)
 
   // Pins are stored per dataset, so the dashboard has to be re-read when the
@@ -81,6 +85,7 @@ export default function Workspace() {
         <Chat
           onRejected={onRejected}
           pins={pins}
+          conversations={conversations}
           hidden={view !== 'ask'}
           datasetKey={activeKey}
           needsDataset={datasets.needsDataset}

@@ -1821,3 +1821,190 @@ table.answer-table {
   max-width: var(--measure-prose);
   overflow-wrap: anywhere;
 }
+
+/* ----------------------------------------------------- conversation history
+   A thin bar above the transcript, not a sidebar. This is an Operate surface
+   where the answer is the point; a permanent list of past questions beside
+   every answer would compete with the thing the reader came for.
+
+   The list itself is a native <details>, closed by default, for the same
+   reason the provenance note is: it is consulted, not read. */
+
+.history {
+  border-bottom: 1px solid var(--hairline);
+  padding: 10px 24px;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.history-new {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  border-radius: var(--radius-mark);
+}
+
+.history-new:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.history-new[aria-disabled='true'] {
+  color: var(--ink-muted);
+  cursor: default;
+  text-decoration: none;
+}
+
+.history-list {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.history-list > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  border-radius: var(--radius-mark);
+}
+
+.history-list > summary:hover {
+  color: var(--ink);
+}
+
+.history-list > summary:focus-visible,
+.history-new:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.history-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.history-list ul {
+  list-style: none;
+  margin: 10px 0 2px;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  /* Capped to the transcript's own measure. Left to fill the page the rows
+     ran the full 1280px, which put the forget control some 680px from the
+     title it belonged to — a row that wide stops reading as a list entry and
+     starts reading as a spreadsheet line. */
+  max-width: var(--measure);
+  /* A history is unbounded in principle and capped at twenty in practice;
+     either way it scrolls inside itself rather than pushing the transcript
+     off the screen. */
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.history-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.history-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  cursor: pointer;
+  display: grid;
+  gap: 1px;
+}
+
+.history-open:hover {
+  background: var(--surface-sunken);
+}
+
+/* The showing conversation is marked with aria-current, so the state is in the
+   accessibility tree and not only in the paint. */
+.history-open[aria-current] {
+  background: var(--accent-tint);
+  border-color: var(--accent);
+  cursor: default;
+}
+
+.history-title {
+  font-size: 13px;
+  color: var(--ink);
+  /* One line: a title is already trimmed to 60 characters server-side, and a
+     wrapping entry makes the list stop reading as a list. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-meta {
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-forget {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.history-forget:hover {
+  color: var(--error-ink);
+  border-color: var(--hairline-strong);
+}
+
+.history-forget:focus-visible,
+.history-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.history-forget[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.history-note {
+  flex: 1 1 100%;
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+  max-width: var(--measure-prose);
+}
+
+.history-error {
+  color: var(--error-ink);
+}
+
+@media (max-width: 640px) {
+  .history {
+    padding: 9px 16px;
+    gap: 10px;
+  }
+}

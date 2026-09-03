@@ -399,6 +399,120 @@ async function main() {
       check('a pin can be removed', removed.res.status === 200 && !left, `status ${removed.res.status}`)
     }
   }
+
+  // ------------------------------------------------- conversation history
+  console.log('\nConversation history')
+  {
+    const asJson = async (method, body, query = '') => {
+      const res = await fetch(`${BASE}/api/conversations${query}`, {
+        method,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      })
+      return { res, json: await res.json().catch(() => null) }
+    }
+
+    // Start from a known state: clear anything an earlier run left behind.
+    const initial = await asJson('GET')
+    for (const c of initial.json?.conversations ?? []) {
+      if (/^smoke:/.test(c.title)) await asJson('DELETE', { id: c.id })
+    }
+
+    {
+      const res = await fetch(`${BASE}/api/conversations`)
+      check(
+        'conversation history refuses without a passcode',
+        res.status === 401,
+        `got ${res.status}`,
+      )
+    }
+
+    const id = `smoke-${Date.now().toString(36)}`
+    const turn = {
+      id: 't1',
+      question: 'smoke: who is below the attendance threshold?',
+      result: { headline: 'a computed headline', provenance: { asAt: '2026-08-31' } },
+      routedBy: 'model',
+      routedTo: { tool: 'attendance_below_threshold', args: { threshold: 80 } },
+    }
+
+    {
+      const saved = await asJson('POST', { id, turns: [turn] })
+      const mine = (saved.json?.conversations ?? []).find((c) => c.id === id)
+      check(
+        'a conversation is saved and titled from its first question',
+        saved.res.status === 200 && mine?.title === 'smoke: who is below the attendance threshold',
+        `title=${String(mine?.title)}`,
+      )
+      check(
+        'the list carries no transcripts, only a count',
+        Boolean(mine) && mine.turnCount === 1 && !('turns' in (mine ?? {})),
+        `turnCount=${String(mine?.turnCount)} hasTurns=${String('turns' in (mine ?? {}))}`,
+      )
+    }
+
+    {
+      const one = await asJson('GET', null, `?id=${encodeURIComponent(id)}`)
+      const turns = one.json?.conversation?.turns ?? []
+      check(
+        'opening a conversation returns its transcript',
+        one.res.status === 200 && turns.length === 1 && turns[0].question === turn.question,
+        `status ${one.res.status} turns=${turns.length}`,
+      )
+      check(
+        'the stored turn keeps the tool and args, so a restored answer can be pinned',
+        turns[0]?.routedTo?.tool === 'attendance_below_threshold',
+        `routedTo=${JSON.stringify(turns[0]?.routedTo)}`,
+      )
+    }
+
+    {
+      const missing = await asJson('GET', null, '?id=does-not-exist')
+      check(
+        'asking for a conversation that is gone reports it',
+        missing.res.status === 404,
+        `got ${missing.res.status}`,
+      )
+    }
+
+    {
+      // A turn the card could not render is rejected rather than stored as an
+      // answer that comes back blank.
+      const bad = await asJson('POST', {
+        id: `${id}-bad`,
+        turns: [{ id: 't1', question: 'smoke: no headline', result: {} }],
+      })
+      check(
+        'a turn with no headline is rejected',
+        bad.res.status === 400,
+        `got ${bad.res.status}`,
+      )
+    }
+
+    {
+      const empty = await asJson('POST', { id: `${id}-empty`, turns: [] })
+      const created = (empty.json?.conversations ?? []).some((c) => c.id === `${id}-empty`)
+      check(
+        'an abandoned conversation with no questions is not recorded',
+        empty.res.status === 200 && !created,
+        `created=${String(created)}`,
+      )
+    }
+
+    {
+      const gone = await asJson('DELETE', { id })
+      const still = (gone.json?.conversations ?? []).some((c) => c.id === id)
+      check(
+        'a conversation can be forgotten',
+        gone.res.status === 200 && !still,
+        `status ${gone.res.status} present=${String(still)}`,
+      )
+    }
+  }
+
   // -------------------------------------------------------- rate limiting
   console.log('\nRate limiting')
   {

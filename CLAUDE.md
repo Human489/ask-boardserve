@@ -107,6 +107,37 @@ success and the next question was still answered from the local directory.
 under a different dataset would recompute against another organisation and go on
 showing the same question above different figures.
 
+**Conversations are stored per dataset** (`conversations:v1:<datasetId>`), each
+with its own history, in `src/lib/conversations.ts`. Before this the transcript
+was a `Map` in `Chat.tsx` and lived exactly as long as the tab: a refresh
+returned to an empty composer, and the reader could hold one line of enquiry at
+a time.
+
+Three things worth knowing:
+
+- **This route stores what the CLIENT sends**, unlike `/api/pins`, which
+  recomputes server-side and discards a client-supplied `result`. A transcript
+  is a record of answers the reader already received; re-running them would
+  produce a different record. So what is stored is the client's account of what
+  it was shown, replayed into that reader's own transcript and nowhere else —
+  never a dashboard figure, never fed to a tool. The size caps in the route are
+  what stop that being a way to fill KV.
+- **The active conversation id is swapped with the transcript** on a dataset
+  change, in the same effect. Restoring one dataset's turns under another
+  dataset's conversation id would save those turns over another organisation's
+  conversation.
+- **Titles are derived, not generated.** `titleFrom` trims the first question
+  on a word boundary. A model call would be a round trip and a cost to restate
+  a sentence the reader just typed, and could come back different each time.
+  The title is fixed at the first question so a conversation cannot rename
+  itself under the reader as they use it.
+
+Only ANSWERED turns are persisted: a pending turn is in flight, and a failed
+one is a network state rather than a record. A refresh therefore starts on an
+empty composer with the history beside it, rather than restoring the last
+conversation automatically — worth revisiting, but starting fresh is honest for
+an app with no session.
+
 **The transcript is kept per dataset, like pins.** Prior answers' headlines are
 sent back to the model as routing context, so one shared transcript would route
 a question about one organisation while the model reads a sentence about
@@ -350,6 +381,25 @@ but it also means no revocation short of changing `APP_PASSCODE`, and no expiry.
 board meetings, no committee papers, and nine action-log topics with no paper at
 all. Several reasonable document questions are unanswerable because the document
 does not exist. Say so; do not paper over it.
+
+**Routing is not deterministic, and the cache hides it.** Measured with
+`AI_CACHE=off`: "Which meetings had unusually low attendance, and when?" routed
+to `attendance_by_meeting` four times and to a REFUSAL on the fifth — a ~20%
+flake on one spec question. `temperature` is already 0 in `router.ts`, so this
+is the provider, not a parameter: `@cf/openai/gpt-oss-120b` is a
+mixture-of-experts model served at scale and gives no determinism guarantee.
+
+The dangerous part is that it is invisible in normal use. A warm AI cache
+serves the first good route for ever, so `npm run smoke` reports "routed by
+model: 12/12" from ONE live call and eleven cache hits — the assertion passes
+while the live path is untested. A cold run (31 model calls) is the only honest
+measurement.
+
+This is the exact failure the brief warns about ("routing failures are
+silent"), and it is why the eval harness needs to run each question several
+times and report a rate rather than a pass. Do not "fix" the flake by relaxing
+refusal behaviour until the harness can measure both directions: the five spec
+refusals must still refuse.
 
 **The offline classifier cannot spot a document question that names no document.**
 "Why did the hospice close the Ashcombe unit?" gives no clue in its wording, and

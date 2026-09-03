@@ -39,6 +39,7 @@ test('an API request without a credential is passed through, not rejected here',
   assert.equal(await outcome('/api/ask', { bearer: 'wrong' }), 'next')
   assert.equal(await outcome('/api/pins'), 'next')
   assert.equal(await outcome('/api/datasets'), 'next')
+  assert.equal(await outcome('/api/conversations'), 'next')
 })
 
 test('a page without a credential is rewritten to the gate', async () => {
@@ -132,5 +133,9 @@ test('the matcher excludes the self-hosted fonts', () => {
   // And the exclusion must not have opened anything else up.
   assert.ok(re.test('/'), 'the page itself is still gated')
   assert.ok(re.test('/api/ask'), 'the API is still matched so handlers can charge')
+  // A new route is protected by default because the matcher lists what to
+  // SKIP. Asserted rather than assumed: this is the property that makes
+  // adding a route safe, and it is the one a mistyped matcher would lose.
+  assert.ok(re.test('/api/conversations'), 'a newly added route is matched')
   assert.ok(re.test('/fontsecret'), 'a path merely starting with "fonts" is still gated')
 })

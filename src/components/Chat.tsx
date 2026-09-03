@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Message from './Message'
 import type { Turn } from './Message'
-import { PinMark } from './marks'
+import { PinMark, RemoveMark } from './marks'
+import type { ConversationsState } from './useConversations'
+import type { StoredTurn } from '@/lib/conversations'
 import { pinKey, type PinsState } from './usePins'
 import { isRefusal } from '@/lib/types'
 import type { AnswerResult, RoutedBy } from '@/lib/types'
@@ -87,9 +89,52 @@ export function swapTranscript(
   return transcripts.get(toKey) ?? []
 }
 
+/** Ids are opaque and client-made, so a conversation can be saved before it
+ *  has a server-side identity. Matches the pin route's own format. */
+function newConversationId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/**
+ * What of a transcript is worth storing.
+ *
+ * Only ANSWERED turns. A pending turn is in flight and its answer will arrive
+ * into this same list; a failed one is a network state, not a record — storing
+ * it would restore an error card the reader can no longer retry against the
+ * request that caused it.
+ */
+function storable(turns: Turn[]): StoredTurn[] {
+  const out: StoredTurn[] = []
+  for (const turn of turns) {
+    if (turn.status !== 'answered' || !turn.result) continue
+    out.push({
+      id: turn.id,
+      question: turn.question,
+      result: turn.result,
+      routedBy: turn.routedBy,
+      routedTo: turn.routedTo,
+    })
+  }
+  return out
+}
+
+/**
+ * Changes when an answer lands, and when a retry replaces one in place.
+ *
+ * Persisting on every `turns` change would write on each keystroke-driven
+ * re-render and on every pending turn. Keying on the answered set means one
+ * write per answer — and the headline length is in the signature so a retry,
+ * which keeps the turn's id, is not mistaken for no change.
+ */
+function answeredSignature(turns: StoredTurn[]): string {
+  return turns.map((t) => `${t.id}:${t.result.headline.length}`).join(',')
+}
+
 interface ChatProps {
   onRejected: () => void
   pins: PinsState
+  /** The saved conversation list for this dataset, owned by Workspace. */
+  conversations: ConversationsState
   hidden: boolean
   /** Identifies the dataset answering. A change clears the transcript. */
   datasetKey: string
@@ -103,6 +148,7 @@ interface ChatProps {
 export default function Chat({
   onRejected,
   pins,
+  conversations,
   hidden,
   datasetKey,
   needsDataset,
@@ -154,6 +200,22 @@ export default function Chat({
   // two organisations — something a reader can flip between.
   const transcripts = useRef(new Map<string, Turn[]>())
   const shownKey = useRef(datasetKey)
+
+  // Which saved conversation the transcript on screen belongs to, per dataset.
+  //
+  // Kept beside `transcripts` and swapped with it, because a conversation id
+  // and the turns it names have to move together. Restoring one dataset's
+  // transcript under another dataset's conversation id would save those turns
+  // over a conversation belonging to a different organisation — the same
+  // failure the per-dataset scoping exists to prevent, arrived at from the
+  // storage side.
+  const conversationIds = useRef(new Map<string, string>())
+  const [activeId, setActiveId] = useState(() => {
+    const id = newConversationId()
+    conversationIds.current.set(datasetKey, id)
+    return id
+  })
+
   useEffect(() => {
     if (shownKey.current === datasetKey) return
 
@@ -166,8 +228,104 @@ export default function Chat({
     setTurns(restored)
     turnsRef.current = restored
     setDraft('')
+
+    conversationIds.current.set(shownKey.current, activeId)
+    let incoming = conversationIds.current.get(datasetKey)
+    if (!incoming) {
+      incoming = newConversationId()
+      conversationIds.current.set(datasetKey, incoming)
+    }
+    setActiveId(incoming)
+
     shownKey.current = datasetKey
+    // `activeId` is read to stash the OUTGOING id and must not re-run this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetKey])
+
+  // Persist the answered transcript whenever an answer lands.
+  //
+  // One write per answer, not per render: `answeredSignature` changes only
+  // when a turn becomes answered or a retry replaces one. The save is fired
+  // and not awaited — the reader has their answer on screen already, and
+  // blocking the UI on a KV round trip to record something they can see would
+  // be the wrong trade. A failure surfaces through the hook's error, which the
+  // history panel shows.
+  const stored = storable(turns)
+  const signature = answeredSignature(stored)
+  const savedSignature = useRef('')
+  const saveConversation = conversations.save
+  useEffect(() => {
+    if (signature === '' || signature === savedSignature.current) return
+    savedSignature.current = signature
+    void saveConversation(activeId, storable(turnsRef.current))
+  }, [signature, activeId, saveConversation])
+
+  /**
+   * Start a fresh conversation.
+   *
+   * The current one is already saved — the effect above wrote it when its last
+   * answer arrived — so this only has to clear the screen and take a new id.
+   * Nothing is written here, which means abandoning an empty new conversation
+   * leaves no trace, and the route drops an empty transcript for that reason.
+   */
+  const startNewConversation = useCallback(() => {
+    if (inFlight) return
+    const id = newConversationId()
+    conversationIds.current.set(datasetKey, id)
+    setActiveId(id)
+    setTurns([])
+    turnsRef.current = []
+    savedSignature.current = ''
+    setDraft('')
+    announce('Started a new conversation.')
+    textarea.current?.focus()
+  }, [inFlight, datasetKey, announce])
+
+  /** Replace the screen with a saved conversation. */
+  const openConversation = useCallback(
+    async (id: string) => {
+      if (inFlight || id === activeId) return
+      const found = await conversations.open(id)
+      if (!found) return
+
+      const restored: Turn[] = found.turns.map((turn) => ({
+        id: turn.id,
+        question: turn.question,
+        status: 'answered' as const,
+        result: turn.result,
+        routedBy: turn.routedBy,
+        routedTo: turn.routedTo,
+      }))
+
+      conversationIds.current.set(datasetKey, id)
+      setActiveId(id)
+      setTurns(restored)
+      turnsRef.current = restored
+      // Marked as already saved, or opening a conversation would immediately
+      // rewrite it and move it to the top of the list unread.
+      savedSignature.current = answeredSignature(found.turns)
+      setDraft('')
+      announce(`Opened ${found.title}.`)
+    },
+    [inFlight, activeId, conversations, datasetKey, announce],
+  )
+
+  /** Forget a saved conversation, and clear the screen if it was showing. */
+  const forgetConversation = useCallback(
+    async (id: string, title: string) => {
+      if (inFlight) return
+      await conversations.forget(id)
+      announce(`Forgot ${title}.`)
+      if (id !== activeId) return
+      const fresh = newConversationId()
+      conversationIds.current.set(datasetKey, fresh)
+      setActiveId(fresh)
+      setTurns([])
+      turnsRef.current = []
+      savedSignature.current = ''
+    },
+    [inFlight, activeId, conversations, datasetKey, announce],
+  )
 
   // Answers arrive asynchronously into a card the reader may not be looking at
   // — possibly not even in this view. The announcement goes to the app-level
@@ -350,8 +508,83 @@ export default function Chat({
     )
   }
 
+  const historyPanel = (
+    <div className="history">
+      <button
+        type="button"
+        className="history-new"
+        onClick={startNewConversation}
+        aria-disabled={inFlight || turns.length === 0}
+      >
+        New conversation
+      </button>
+
+      {conversations.list.length > 0 && (
+        // A disclosure rather than a permanent sidebar: this is an Operate
+        // surface where the answer is the point, and a list of past questions
+        // beside every answer would compete with it. Native <details>, so it
+        // is keyboard operable and announced as expandable with no script.
+        <details className="history-list">
+          <summary>
+            Earlier conversations
+            <span className="history-count">
+              {conversations.list.length} saved
+            </span>
+          </summary>
+          <ul>
+            {conversations.list.map((saved) => {
+              const current = saved.id === activeId
+              return (
+                <li key={saved.id} className="history-row">
+                  <button
+                    type="button"
+                    className="history-open"
+                    onClick={() => void openConversation(saved.id)}
+                    aria-disabled={inFlight || current}
+                    aria-current={current ? 'true' : undefined}
+                  >
+                    <span className="history-title">{saved.title}</span>
+                    <span className="history-meta">
+                      {saved.turnCount} {saved.turnCount === 1 ? 'question' : 'questions'}
+                      {current ? ' · showing' : ''}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="history-forget"
+                    onClick={() => void forgetConversation(saved.id, saved.title)}
+                    aria-disabled={inFlight || conversations.busyId === saved.id}
+                  >
+                    <RemoveMark />
+                    <span className="sr-only">Forget {saved.title}</span>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </details>
+      )}
+
+      {/* Said plainly rather than implied. Without KV a conversation lasts
+          until the server restarts, and a reader who assumed otherwise would
+          lose work they thought was kept. */}
+      {!conversations.durable && conversations.list.length > 0 && (
+        <p className="history-note">
+          Not saved anywhere: no storage is configured, so these last until the
+          server restarts.
+        </p>
+      )}
+      {conversations.error && (
+        <p className="history-note history-error" role="alert">
+          {conversations.error}
+        </p>
+      )}
+    </div>
+  )
+
   return (
     <div className="chat" hidden={hidden}>
+      {historyPanel}
       <div className="transcript">
         {needsDataset ? (
           <div className="empty">
