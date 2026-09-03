@@ -273,9 +273,12 @@ park it") — adds **image export**. That is a PROPOSED item, not an invented
 one, and it was briefly written up here as drift on the assumption it had come
 from nowhere. It came from the spec.
 
-So: the four below are the client's. Image export is a fifth that this project
-proposed and that needs a yes or a park from Karl before it counts as scope.
-Check both against
+So: the four below are the client's. **Image export is a fifth that this
+project proposed and that Hamada approved, to sit in Excellence** — so it is
+scope, not a pending change request. Recorded here because the approval
+happened in conversation and nothing in this repo carried it, which is what let
+it be written up first as invented work and then as un-approved. Check both
+against
 `https://gai-work-experience-8x2r4t.vercel.app/project-yahya` and
 `docs/ask-boardserve-one-pager.html` rather than trusting this file.
 
@@ -292,23 +295,34 @@ right); refusal behaviour on unanswerable questions; pin to dashboard with state
 in KV; multi-turn refinement. All 16 spec questions answer; all 5 refusals
 refuse.
 
-### Excellence — four items, one nearly done
+### Excellence — five items, two done
 
 The brief's list verbatim, since paraphrasing it is what introduced a fifth:
 
 1. **An eval harness** — "a fixed set of questions with expected answer types,
-   run before every deploy, **results in your README**". Not built. The brief
-   warns specifically: "build a small version of it early, not as a Friday
-   afterthought", because "routing failures are silent".
+   run before every deploy, **results in your README**". **Done**:
+   `scripts/eval.ts`, `npm run eval`, gated by `npm run predeploy`, results
+   written between the markers in README.md. Reports a RATE over repeated runs
+   rather than a pass, because routing is a model call. First real run:
+   130/130 over 5 runs each, nothing unstable.
 2. **Provenance on every chart** — "a small note showing which rows or passages
-   produced it". Substantially built: every answer carries as-at, sources, rows
-   considered and derivation. What remains is making it *a small note* rather
-   than the 131px block it currently is.
+   produced it". **Done.** `provenance` is non-optional on `ToolResult`, so a
+   tool cannot ship without it; 12/12 tools populate as-at, sources, rows
+   considered and derivation, verified by running them. Rows come from
+   `rowsConsidered` and `derivation`; passages come from `sources` plus the
+   "Drawn from" citation list on a paper answer. It became *a small note* when
+   the dashboard work put it behind a "Where this came from" disclosure with
+   the as-at date left inline.
 3. **A shareable read-only dashboard link (tokened URL)** — not built. See
    "Data protection" below before starting: a tokened URL is an
    unauthenticated route to named directors' attendance.
 4. **A second dataset loads with no code changes** — not run. Worth running
    exactly once, blind. See the `dataset-b` rules above.
+5. **Image export for individual charts** — ours, approved by Hamada for
+   Excellence. Not built. The honesty question to settle when building it: a
+   PNG travels without the caveats and the as-at date, and this product's whole
+   claim is that a figure cannot be repeated without its qualification. An
+   export that is just the chart would undo that.
 
 ### Deliberately out of scope, for later
 
