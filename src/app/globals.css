@@ -128,7 +128,15 @@
 }
 
 /* The inactive view is hidden with the attribute rather than unmounted, and
-   display:flex on .chat would otherwise win. */
+   display:flex on .chat would otherwise win.
+
+   KNOWN, NOT FIXED: display:none discards a scroll container's offset, so
+   switching to the dashboard and back returns the reader to the top of a long
+   transcript. A content-visibility variant was tried and reverted — it could
+   not be verified without a signed-in session, and shipping CSS whose effect
+   has not been seen is how the flagged-bar hatch came to render as nothing.
+   The honest fix is to record scrollTop on switch and restore it, which needs
+   the same verification. */
 [hidden] {
   display: none !important;
 }

@@ -46,7 +46,10 @@ function build(): AppConfig {
     cloudflareAccountId,
     cloudflareApiToken,
     aiGatewayId: firstStr(['CF_AI_GATEWAY_ID', 'CLOUDFLARE_AI_GATEWAY_ID'], 'default'),
-    model: str('ROUTER_MODEL', '@cf/meta/llama-3.3-70b-instruct-fp8-fast'),
+    // The brief names this model for the agent. It was on a llama default,
+    // which routed correctly but is not what was specified; verified 12/12 on
+    // the spec questions after the change, so there was no reason to deviate.
+    model: str('ROUTER_MODEL', '@cf/openai/gpt-oss-120b'),
     vectorizeIndex: firstStr(['CF_VECTORIZE_INDEX', 'CLOUDFLARE_VECTORIZE_INDEX']),
     kvNamespaceId: firstStr(['CF_KV_NAMESPACE_ID', 'CLOUDFLARE_KV_NAMESPACE_ID']),
     datasetPath: str('DATASET_PATH', './dataset'),

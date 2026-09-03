@@ -41,7 +41,21 @@ export interface HistoryTurn {
   content: string
 }
 
-const TIMEOUT_MS = 8_000
+// Tuned for the model the brief names, which reasons before it answers and is
+// therefore slower than the instruct model this was first set for. At 8s a
+// routing call occasionally timed out and dropped the question to the offline
+// classifier — a correct answer by a worse route, for no reason but impatience.
+// The question path already shows a skeleton while it waits.
+/**
+ * A follow-up fragment: a continuation marker, then very little.
+ *
+ * Kept tight on purpose. It has to catch "and at 90%?" and "just the overdue
+ * ones" while leaving anything that states its own subject alone, so the
+ * remainder is capped rather than parsed.
+ */
+const FRAGMENT = /^(and|what about|how about|just|only|same for|what if)\b[^?.!]{0,28}[?.!]?$/i
+
+const TIMEOUT_MS = 20_000
 
 // ------------------------------------------------------------------ prompt
 
@@ -610,6 +624,16 @@ async function modelRoute(
       },
       body: JSON.stringify({
         temperature: 0,
+        // The model named in the brief is a reasoning model: it emits reasoning
+        // tokens before the tool call. With no budget set, the endpoint default
+        // applied and reasoning sometimes consumed it before a tool call was
+        // ever produced — a 200 response carrying prose and no tool, which
+        // looked exactly like "the model declined to route" and dropped the
+        // question to the offline classifier. Measured: 10/12 spec questions
+        // routed by model without this, 12/12 with it. Generous rather than
+        // tight, because only generated tokens are billed and the tool call
+        // itself is under a hundred.
+        max_tokens: 1024,
         messages: [
           { role: 'system', content: systemPrompt(tools) },
           // History gives pronouns something to resolve against ("and by committee?").
@@ -726,6 +750,29 @@ export async function routeQuestion(
           ? `Asking about the meeting on ${latest}, or about the year as a whole, is answerable.`
           : 'Asking about the period the data covers is answerable.',
       }
+    }
+  }
+
+  // A bare continuation with nothing to continue.
+  //
+  // "and at 90%?" is only a question if something came before it. Asked with an
+  // empty history it was still routed, because the tool descriptions plus a
+  // percentage make attendance plausible — and it answered "4 directors are
+  // below 90%", a subject the reader never named. A refresh clears the
+  // transcript, so this is reachable simply by re-asking a follow-up.
+  //
+  // Deliberately narrow: a marker at the very start, a short remainder, and no
+  // history at all. "Now show me overdue actions" states its own subject and is
+  // not caught, which is why "now" is not a marker here.
+  if (history.length === 0 && FRAGMENT.test(question.trim())) {
+    return {
+      kind: 'refusal',
+      routedBy: 'guard',
+      reason:
+        'That reads as a follow-up, but there is no earlier question in this conversation for it to refine. ' +
+        'Asking it in full says which figures you mean.',
+      alternative:
+        'For example, name the measure and the threshold: "who is below 90% attendance?".',
     }
   }
 

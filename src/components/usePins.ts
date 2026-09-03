@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 // The key is defined with the store, so the button and the server cannot
 // disagree about whether something is already pinned.
 import { pinKey } from '@/lib/pins'
@@ -46,11 +46,20 @@ export function usePins(credential: string, onRejected: () => void): PinsState {
   const [error, setError] = useState<string | null>(null)
   const [busyKey, setBusyKey] = useState<string | null>(null)
 
+  // Responses are applied in the order they were REQUESTED, not the order they
+  // arrive. A reload started before a pin can finish after it, and applying it
+  // would clobber the fresher list — the card you just pinned vanishes until
+  // something else refreshes. Every request takes a ticket; a stale one is read
+  // for its errors and then discarded.
+  const issued = useRef(0)
+  const applied = useRef(0)
+
   const call = useCallback(
     async (
       method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
       body?: unknown,
     ): Promise<boolean> => {
+      const ticket = ++issued.current
       try {
         const res = await fetch('/api/pins', {
           method,
@@ -75,6 +84,8 @@ export function usePins(credential: string, onRejected: () => void): PinsState {
           | null
 
         if (res.ok && parsed && parsed.ok) {
+          if (ticket < applied.current) return true
+          applied.current = ticket
           setPins(parsed.pins)
           if (typeof parsed.durable === 'boolean') setDurable(parsed.durable)
           setError(null)
