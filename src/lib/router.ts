@@ -211,7 +211,7 @@ const QUALIFICATION_PATTERNS =
 // attributes of PEOPLE that the dataset does not record, so the person is now
 // part of the pattern rather than assumed.
 const UNMEASURED_PATTERNS =
-  /\biq\b|\bintelligence\b|\bpersonality\b|\bsalary\b|\bhow much .*(paid|earn)\b|\b(age|ages|birthday|date of birth)\s+of\s+(the\s+)?(director|trustee|member|chair|board)/
+  /\biq\b|\bintelligence\b|\bpersonality\b|\bsalary\b|\bhow much .*(paid|earn)\b|\b(age|ages|birthday|date of birth)\s+of\s+(the\s+)?(director|trustee|member|chair|board)|\bdiversity\b|\bdiverse\b|\bethnic|\bgender\b|\bdisabilit|\bprotected characteristic|\bnationalit/
 
 /**
  * Tenure and term-limit questions. These read as structured questions but are
@@ -834,10 +834,15 @@ export async function routeQuestion(
       // chosen it again; a refusal is the one result worth paying to re-ask.
       (route) => route.kind !== 'refusal',
     )
-    if (routed) return guardPapersRoute(routed, question, tools, dataset)
+    if (routed) return guardPapersRoute(guardUnmeasured(routed, question), question, tools, dataset)
     console.warn('[router] model routing unavailable; using the deterministic fallback')
   }
-  return guardPapersRoute(fallbackRoute(question, tools), question, tools, dataset)
+  return guardPapersRoute(
+    guardUnmeasured(fallbackRoute(question, tools), question),
+    question,
+    tools,
+    dataset,
+  )
 }
 
 /**
@@ -859,7 +864,36 @@ export const guardPapersRouteForTest = (
   question: string,
   tools: ToolDefinition[],
   dataset?: Dataset,
-): Route => guardPapersRoute(route, question, tools, dataset)
+): Route => guardPapersRoute(guardUnmeasured(route, question), question, tools, dataset)
+
+/**
+ * Refuses a question about something the data does not measure, WHATEVER the
+ * model chose.
+ *
+ * This check already existed and only ran inside the offline fallback, so the
+ * model path walked straight past it. Measured: "How diverse is the board?"
+ * was answered with a skills chart. The dataset holds no protected
+ * characteristics at all, so a diversity question answered from self-assessed
+ * skill scores is a plausible wrong answer on a subject where being wrong in
+ * front of a board is worst.
+ *
+ * "A prompt is a request; a check is a check." The tool descriptions already
+ * ask the model not to do this. This makes it so.
+ */
+function guardUnmeasured(route: Route, question: string): Route {
+  if (route.kind === 'refusal') return route
+  if (!UNMEASURED_PATTERNS.test(question.toLowerCase())) return route
+  return {
+    kind: 'refusal',
+    routedBy: route.routedBy,
+    reason:
+      'Nothing in the attendance records, action log or skills audit measures that. ' +
+      'The dataset covers meeting attendance, board actions and a self-assessed skills ' +
+      'audit, and nothing else about individual directors.',
+    alternative:
+      'It can answer questions about attendance, outstanding actions, or self-assessed skill by area.',
+  }
+}
 
 function guardPapersRoute(
   route: Route,

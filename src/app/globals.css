@@ -2225,3 +2225,17 @@ table.answer-table {
     padding: 24px 16px 44px;
   }
 }
+
+/* A chart taller than the cap scrolls inside its own frame rather than
+   stretching the card. The row count comes from the dataset, so a larger
+   organisation must not produce a card taller than any screen. */
+.chart-frame-scrolls {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.chart-frame-scrolls:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}

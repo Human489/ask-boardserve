@@ -271,3 +271,46 @@ for (const question of STILL_REFUSED) {
     assert.equal(routed.kind, 'refusal')
   })
 }
+
+// A subject the data does not measure must be refused whatever route was
+// chosen — including by the model.
+//
+// The check existed and ran only inside the offline fallback, so the model
+// path walked past it: "How diverse is the board?" was answered with a skills
+// chart. There are no protected characteristics anywhere in the dataset, so
+// answering a diversity question from self-assessed skill scores is a
+// plausible wrong answer on the subject where being wrong in front of a board
+// is worst.
+const UNMEASURED_QUESTIONS = [
+  'How diverse is the board?',
+  'How diverse is our board in terms of background?',
+  'What is the gender split of the board?',
+  'What is the ethnic makeup of the trustees?',
+  'Do we have any directors with a disability?',
+  'What nationalities are represented on the board?',
+  'What is the average age of our board?',
+  'How much are we paying our directors?',
+]
+
+for (const question of UNMEASURED_QUESTIONS) {
+  test(`refused as unmeasured: "${question.slice(0, 46)}"`, async () => {
+    const routed = await routeQuestion(question, TOOLS)
+    assert.equal(
+      routed.kind,
+      'refusal',
+      `answered a question the data cannot measure: ${routed.kind === 'tool' ? routed.name : ''}`,
+    )
+  })
+}
+
+test('the unmeasured guard does not swallow a real skills question', async () => {
+  // Over-refusing here would be its own failure: these are answerable.
+  for (const question of [
+    'Where are our biggest skill gaps?',
+    'Which committees have the greatest skills gaps?',
+    'Who is below our attendance threshold, and on which committees?',
+  ]) {
+    const routed = await routeQuestion(question, TOOLS)
+    assert.notEqual(routed.kind, 'refusal', `wrongly refused: ${question}`)
+  }
+})

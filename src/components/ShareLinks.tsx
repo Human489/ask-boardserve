@@ -44,6 +44,7 @@ export default function ShareLinks({
     busy: null,
   })
   const [justMade, setJustMade] = useState<string | null>(null)
+  const busy = state.busy !== null
 
   const request = useCallback(
     async (method: 'GET' | 'POST' | 'DELETE', body?: unknown) => {
@@ -78,6 +79,12 @@ export default function ShareLinks({
   }, [load])
 
   const create = useCallback(async () => {
+    // aria-disabled is a claim, not an enforcement. Every other control in
+    // this app pairs it with a guard; this one did not, so double-pressing
+    // minted two live tokened URLs to named directors' attendance while the
+    // button said it was unavailable — and a screen-reader user was told it
+    // was unavailable and it fired anyway.
+    if (busy || pinCount === 0) return
     setState((s) => ({ ...s, busy: 'new', error: null }))
     const result = await request('POST', {})
     if (!result) return
@@ -97,10 +104,11 @@ export default function ShareLinks({
     }))
     setJustMade(token)
     announce('A read-only link has been created.')
-  }, [request, announce])
+  }, [request, announce, busy, pinCount])
 
   const revoke = useCallback(
     async (token: string) => {
+      if (busy) return
       setState((s) => ({ ...s, busy: token, error: null }))
       const result = await request('DELETE', { token })
       if (!result) return
@@ -113,7 +121,7 @@ export default function ShareLinks({
       if (justMade === token) setJustMade(null)
       if (result.ok) announce('The link has been withdrawn and no longer works.')
     },
-    [request, announce, justMade],
+    [request, announce, justMade, busy],
   )
 
   const url = (token: string): string =>
@@ -147,7 +155,13 @@ export default function ShareLinks({
         // across the screen.
         <div className="shares-new">
           <p className="shares-note">Copy this now. It shows board data to anyone who has it.</p>
-          <input className="shares-url" readOnly value={url(justMade)} onFocus={(e) => e.target.select()} />
+          <input
+            className="shares-url"
+            readOnly
+            aria-label="Shareable link. Copy this now."
+            value={url(justMade)}
+            onFocus={(e) => e.target.select()}
+          />
         </div>
       )}
 

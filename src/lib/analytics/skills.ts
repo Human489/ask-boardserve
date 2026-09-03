@@ -1,5 +1,5 @@
 import type { DataPoint, Dataset, ToolDefinition, ToolResult } from '@/lib/types'
-import { allBodies, list, membersOf, num, strOrUndefined } from '@/lib/dataset/loader'
+import { allBodies, list, matchOne, membersOf, num, strOrUndefined } from '@/lib/dataset/loader'
 import { disagreementsFor } from '@/lib/retrieval/disagreement'
 
 // Skills-audit tools.
@@ -75,14 +75,8 @@ export const skillsGaps: ToolDefinition = {
     // ranking, which answers a different question. The skill is matched against
     // the audit's own columns, so a second organisation's columns work unchanged.
     const wanted = strOrUndefined(args.skill) ?? ''
-    const focus = wanted
-      ? stats.find(
-          (candidate) =>
-            candidate.skill.toLowerCase() === wanted.toLowerCase() ||
-            candidate.skill.toLowerCase().includes(wanted.toLowerCase()) ||
-            wanted.toLowerCase().includes(candidate.skill.toLowerCase()),
-        ) ?? null
-      : null
+    const focusName = wanted ? matchOne(stats.map((c) => c.skill), wanted) : null
+    const focus = focusName ? (stats.find((c) => c.skill === focusName) ?? null) : null
 
     if (wanted && !focus) {
       return {
@@ -116,7 +110,13 @@ export const skillsGaps: ToolDefinition = {
       label: s.skill,
       value: s.mean,
       value2: s.strong,
-      highlight: s.mean === weakest.mean,
+      // The FOCUS when one was named, otherwise the weakest.
+      //
+      // This was always the weakest, so asking about a named skill produced a
+      // headline about that skill above a chart highlighting a different one —
+      // the reader's eye goes to the highlighted bar, which was not the answer
+      // to their question.
+      highlight: focus ? s.skill === focus.skill : s.mean === weakest.mean,
       detail: `mean ${s.mean.toFixed(2)} — ${s.strong} of ${s.n} at ${STRONG}+, ${s.weak} at ${WEAK} or below`,
     }))
 

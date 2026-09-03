@@ -5,7 +5,7 @@ import type {
   ToolDefinition,
   ToolResult,
 } from '@/lib/types'
-import { choice, daysBetween, list, num, pct, strOr } from '@/lib/dataset/loader'
+import { choice, daysBetween, list, matchOne, num, pct, strOr } from '@/lib/dataset/loader'
 
 // Action-log tools.
 //
@@ -127,13 +127,7 @@ export const overdueActions: ToolDefinition = {
     // which reads as an answer and buries the one row that was asked for.
     const wantedOwner = strOr(args.owner, '')
     const knownOwners = [...new Set(dataset.actions.actions.map((a) => a.owner))].sort()
-    const matchedOwner = wantedOwner
-      ? knownOwners.find(
-          (o) =>
-            o.toLowerCase() === wantedOwner.toLowerCase() ||
-            o.toLowerCase().includes(wantedOwner.toLowerCase()),
-        ) ?? null
-      : null
+    const matchedOwner = wantedOwner ? matchOne(knownOwners, wantedOwner) : null
 
     if (wantedOwner && !matchedOwner) {
       return {
@@ -374,15 +368,28 @@ export const longestOverdue: ToolDefinition = {
       headline = `Nothing is past its due date as at ${asAt}.`
     } else {
       const top = shown[0]
+      // A tie at the TOP is named, not resolved by action id.
+      //
+      // The tie machinery below only looked at the cut-off, so two actions
+      // level at the longest overdue produced "one action is the longest
+      // outstanding" with the other sitting at the same height on the chart,
+      // unmentioned — the sort's `localeCompare` fallback picking a winner by
+      // its identifier.
+      const tiedTop = shown.filter((r) => r.days === top.days)
+      const topClause =
+        tiedTop.length > 1
+          ? `${tiedTop.length} actions are level as the longest outstanding at ${top.days} days past due as at ${asAt} — ${list(
+              tiedTop.map((r) => `${r.action.action_id} (${r.action.owner})`),
+            )}.`
+          : `${top.action.action_id} is the longest outstanding at ${top.days} days past due as at ${asAt}` +
+            `, owned by ${top.action.owner} and still logged "${top.action.status}".`
       const tieClause =
         tieAtCut.length > 1
           ? ` ${tieAtCut.length} actions tie on ${tieAtCut[0].days} days at the cut-off (${list(
               tieAtCut.map((r) => r.action.action_id),
             )}), so all of them are shown rather than one being picked arbitrarily.`
           : ''
-      headline =
-        `${top.action.action_id} is the longest outstanding at ${top.days} days past due as at ${asAt}` +
-        `, owned by ${top.action.owner} and still logged "${top.action.status}".${tieClause}`
+      headline = `${topClause}${tieClause}`
     }
 
     return {

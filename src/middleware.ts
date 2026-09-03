@@ -79,6 +79,18 @@ export async function middleware(req: NextRequest) {
   // not be indexed, and a crawler that ignores the meta tag may honour the
   // header. `/share` with no token is not a share and stays gated.
   if (pathname.startsWith(SHARE_PREFIX) && pathname.length > SHARE_PREFIX.length) {
+    // Throttled like everything else. Guessing a 256-bit token is infeasible,
+    // so this is not protecting confidentiality — it is stopping the one route
+    // with no credential from being an unmetered amplifier: every request is a
+    // KV read and a dynamic render, and a well-formed token that does not
+    // exist still costs both.
+    const shareLimit = await checkRateLimit(`share:${clientIp(req)}`)
+    if (!shareLimit.allowed) {
+      return new NextResponse('Too many requests. Please wait and try again.', {
+        status: 429,
+        headers: { 'Retry-After': String(shareLimit.retryAfterSeconds) },
+      })
+    }
     const response = NextResponse.next()
     response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive')
     // Board data with no passcode in front of it must not sit in a shared

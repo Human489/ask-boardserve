@@ -89,6 +89,7 @@ export default function DatasetsView({
           <input
             ref={input}
             id="dataset-file"
+            aria-label="Dataset archive (.zip)"
             className="upload-input"
             type="file"
             accept=".zip,application/zip"

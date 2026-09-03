@@ -193,8 +193,15 @@ export default function PinnedDashboard({
 
         {/* Below the cards, not above them: sharing is something a reader does
             once they have assembled a dashboard worth sending, and putting it
-            first would offer to publish board data before there is any. */}
-        {items.length > 0 && (
+            first would offer to publish board data before there is any.
+
+            NOT gated on items.length. It was, and that made live tokens
+            unrevocable: removing the last pin unmounted the whole panel while
+            the links stayed live server-side, with the panel's own copy
+            promising "you can withdraw it at any time". The create button is
+            disabled with nothing to share; the list of live links is exactly
+            what a reader needs most at that moment. */}
+        {!loading && (
           <ShareLinks pinCount={items.length} onRejected={onRejected} announce={announce} />
         )}
       </div>

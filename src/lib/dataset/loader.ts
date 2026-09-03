@@ -379,6 +379,39 @@ export function choice<T extends string>(v: unknown, allowed: readonly T[], fall
 }
 
 /**
+ * Matches a model-supplied argument to one of a known set of names.
+ *
+ * The argument comes from a language model and can be a fragment, a
+ * reformulation, or something garbled. The previous shape of this — an exact
+ * check, then `.find()` on an unanchored `includes` — took the FIRST candidate
+ * containing the fragment, and the candidate lists are sorted alphabetically.
+ * So `{ director: "a" }` produced a confident, fully-caveated answer about
+ * whichever director's name came first, and `{ owner: "of" }` did the same for
+ * an owner. A named person answered for, who was never asked about.
+ *
+ * An exact match wins outright. A partial match counts only when exactly one
+ * candidate matches: ambiguity is no match, which drops the caller onto its
+ * existing "no such director" path — a nil result that lists the real names,
+ * rather than a wrong one that reads as a finding.
+ *
+ * The same rule `resolveOwner` was hardened with, applied at the argument
+ * boundary where it was still missing.
+ */
+export function matchOne(candidates: string[], wanted: string): string | null {
+  const want = wanted.trim().toLowerCase()
+  if (want.length === 0) return null
+
+  const exact = candidates.find((c) => c.trim().toLowerCase() === want)
+  if (exact) return exact
+
+  const partial = candidates.filter((c) => {
+    const candidate = c.trim().toLowerCase()
+    return candidate.includes(want) || want.includes(candidate)
+  })
+  return partial.length === 1 ? partial[0] : null
+}
+
+/**
  * "a", "a and b", "a, b and c" — an Oxford-comma-free English list.
  *
  * Headlines are generated sentences, so this decides how one reads.

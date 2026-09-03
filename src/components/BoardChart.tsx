@@ -314,11 +314,22 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
   const seriesLabel = spec.seriesLabel ?? spec.yLabel
   const series2Label = spec.series2Label
 
-  const height = horizontal
-    ? Math.max(200, spec.points.length * 34 + 56)
-    : narrow
-      ? 250
-      : 300
+  // Capped, because the row count comes from the DATASET.
+  //
+  // A horizontal bar chart grew 34px per point with no ceiling, so this
+  // organisation's 10 directors give a comfortable 396px and a board of 60
+  // would give 2,096px — one card taller than any screen, inside a scrolling
+  // transcript. 200 rows would be 6,856px. Nothing in the analytics layer caps
+  // how many rows a tool returns, and the whole point of the second-dataset
+  // test is that a different organisation loads with no code changes: a bigger
+  // board must not produce a page that cannot be read.
+  //
+  // Past the cap the plot scrolls inside its own frame rather than stretching
+  // the card, and the sr-only table alongside it is unaffected either way.
+  const MAX_CHART_HEIGHT = 760
+  const naturalHeight = horizontal ? Math.max(200, spec.points.length * 34 + 56) : narrow ? 250 : 300
+  const height = Math.min(naturalHeight, MAX_CHART_HEIGHT)
+  const scrolls = naturalHeight > MAX_CHART_HEIGHT
 
   const isLine = spec.kind === 'line'
 
@@ -404,9 +415,19 @@ export default function BoardChart({ spec }: { spec: ChartSpec }) {
         {description}
       </p>
 
-      <div className="chart-frame" style={{ height }}>
+      {/* When the plot is taller than the cap it scrolls inside the frame.
+          Keyboard-focusable and labelled, because a scrollable region that
+          cannot be reached by keyboard is a trap for anyone not using a
+          mouse. The figures are also in the sr-only table below either way. */}
+      <div
+        className={scrolls ? 'chart-frame chart-frame-scrolls' : 'chart-frame'}
+        style={{ height }}
+        {...(scrolls
+          ? { tabIndex: 0, role: 'region', 'aria-label': `${spec.title}, scrollable chart` }
+          : {})}
+      >
         {palette && (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={scrolls ? naturalHeight : '100%'}>
             {spec.kind === 'line' ? (
               <LineChart
                 data={spec.points}

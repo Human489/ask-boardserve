@@ -5,7 +5,7 @@ import type {
   ToolDefinition,
   ToolResult,
 } from '@/lib/types'
-import { allBodies, choice, committeesOf, list, num, pct, strOrUndefined } from '@/lib/dataset/loader'
+import { allBodies, choice, committeesOf, list, matchOne, num, pct, strOrUndefined } from '@/lib/dataset/loader'
 
 // Attendance tools.
 //
@@ -647,13 +647,7 @@ export const meetingsMissed: ToolDefinition = {
     const knownDirectors = [
       ...new Set(dataset.attendance.records.map((r) => r.director_name)),
     ].sort()
-    const matchedDirector = wanted
-      ? knownDirectors.find(
-          (n) =>
-            n.toLowerCase() === wanted.toLowerCase() ||
-            n.toLowerCase().includes(wanted.toLowerCase()),
-        ) ?? null
-      : null
+    const matchedDirector = wanted ? matchOne(knownDirectors, wanted) : null
 
     if (wanted && !matchedDirector) {
       return {
@@ -708,7 +702,16 @@ export const meetingsMissed: ToolDefinition = {
     const withAbsence = stats.filter((s) => s.absent > 0)
     const topCount = stats.length > 0 ? stats[0].missed : 0
     const tiedTop = stats.filter((s) => s.missed === topCount)
-    const worstRate = [...stats].sort((a, b) => b.missRate - a.missRate)[0]
+    // Ties on RATE are handled the same way ties on COUNT already were.
+    //
+    // This took the first row of a sort with no tiebreak, so `Array.sort`
+    // stability handed back whichever name came first alphabetically. On the
+    // live dataset two directors both miss 3 of 10, and one of them was named
+    // as "the worst" — an attendance judgement about a real person, published
+    // as a singular fact, decided by their surname.
+    const byRate = [...stats].sort((a, b) => b.missRate - a.missRate)
+    const topRate = byRate.length > 0 ? byRate[0].missRate : 0
+    const tiedWorstRate = byRate.filter((s) => s.missRate === topRate)
 
     const points: DataPoint[] = stats.map((s) => ({
       label: s.name,
@@ -748,9 +751,14 @@ export const meetingsMissed: ToolDefinition = {
               tiedTop.map((s) => s.name),
             )}`
           : `${stats[0].name} missed the most at ${topCount} of ${stats[0].eligible}`
+      const worstRate = tiedWorstRate[0]
       const rateClause =
         worstRate && (tiedTop.length > 1 || worstRate.name !== stats[0].name)
-          ? `, and on rate the worst is ${worstRate.name} at ${worstRate.missRate}% (${worstRate.missed} of ${worstRate.eligible})`
+          ? tiedWorstRate.length > 1
+            ? `, and on rate ${tiedWorstRate.length} tie at ${topRate}% — ${list(
+                tiedWorstRate.map((s) => s.name),
+              )}`
+            : `, and on rate the worst is ${worstRate.name} at ${worstRate.missRate}% (${worstRate.missed} of ${worstRate.eligible})`
           : ''
       const absentClause =
         totalAbsent === 0
