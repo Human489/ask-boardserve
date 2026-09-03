@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { SESSION_COOKIE, isValidSession } from '@/lib/session'
+import { timingSafeEqual } from '@/lib/crypto'
 
 // The gate the brief asks for: "a simple middleware check protecting every page
 // and API route".
@@ -47,19 +48,28 @@ export async function middleware(req: NextRequest) {
   }
 
   const supplied = bearer(req)
-  if (supplied && supplied === passcode) return NextResponse.next()
+  // timingSafeEqual like every other comparison here; this is now the first
+  // one every request meets, so it is the last place to leave a shortcut.
+  if (supplied && timingSafeEqual(supplied, passcode)) return NextResponse.next()
   if (await isValidSession(req.cookies.get(SESSION_COOKIE)?.value, passcode)) {
     return NextResponse.next()
   }
 
-  // An API call gets a status it can act on; a page gets the passcode screen.
-  // Rewriting rather than redirecting keeps the URL the reader typed, so
-  // signing in returns them to where they were trying to go.
-  if (pathname.startsWith('/api/')) {
-    return NextResponse.json(
-      { ok: false, error: 'That passcode was not accepted. Enter it again to continue.' },
-      { status: 401 },
-    )
-  }
+  // An API call is passed THROUGH to its handler rather than rejected here.
+  //
+  // Rejecting it looked safer and was the opposite. Every route charges a
+  // failed credential check against a shared per-IP budget — that is what
+  // stops the passcode being guessed at network speed, and it was added this
+  // morning after exactly that hole was measured. A 401 issued here never
+  // reaches that code, so it costs the guesser nothing: forty wrong bearer
+  // tokens at /api/ask returned forty free 401s and never a 429. The handlers
+  // check the same two credentials and charge for the failure, so letting them
+  // answer is both safe and the only place the budget exists.
+  //
+  // Pages have no such budget to charge and nothing to hand a JSON error to,
+  // so they are rewritten to the passcode screen. Rewriting rather than
+  // redirecting keeps the URL the reader typed, so signing in returns them to
+  // where they were trying to go.
+  if (pathname.startsWith('/api/')) return NextResponse.next()
   return NextResponse.rewrite(new URL('/gate', req.url))
 }

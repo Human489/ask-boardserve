@@ -454,6 +454,32 @@ export const unresolvedByCommittee: ToolDefinition = {
 
     const byCount = [...stats].sort((a, b) => b.unresolved - a.unresolved || a.body.localeCompare(b.body))
     const byRate = [...stats].sort((a, b) => b.rate - a.rate || a.body.localeCompare(b.body))
+    // The only tool with no nil path: an empty action log — which buildDataset
+    // accepts, because a board with nothing outstanding is a real state — read
+    // byCount[0].body and threw, so the answer became "the analysis could not
+    // be completed" rather than "there is nothing outstanding".
+    if (stats.length === 0) {
+      return {
+        tool: 'unresolved_by_committee',
+        headline:
+          totalUnresolved === 0
+            ? 'No unresolved actions remain in the log, so no body carries any.'
+            : 'No body in the action log has any unresolved actions against it.',
+        chart: null,
+        table: null,
+        assumptions: ['Unresolved means any status other than "complete".'],
+        caveats: [
+          'Nothing was in scope, so this is an absence of outstanding work rather than a finding about how it is distributed.',
+        ],
+        provenance: {
+          asAt: dataset.asAt,
+          sources: SOURCES,
+          rowsConsidered: all.length,
+          derivation: 'No action rows were unresolved, so no per-body figure was calculated.',
+        },
+      }
+    }
+
     const topCount = byCount[0]
     const topRate = byRate[0]
 

@@ -52,6 +52,9 @@ export function filesFromZip(archive: Uint8Array): DatasetFiles {
         if (++entries > MAX_ENTRIES) {
           throw new ArchiveError('That archive contains too many files.')
         }
+        // Kept as a cheap early reject, not as the guarantee: this value is
+        // the archive's own claim about itself. The real check is on the
+        // inflated bytes, after unzipSync has produced them.
         if (file.originalSize !== undefined) {
           if (file.originalSize > MAX_FILE_BYTES) {
             throw new ArchiveError(`${name} is too large to read.`)
@@ -67,6 +70,27 @@ export function filesFromZip(archive: Uint8Array): DatasetFiles {
   } catch (e) {
     if (e instanceof ArchiveError) throw e
     throw new ArchiveError('That file could not be read as a .zip archive.')
+  }
+
+  // The declared size above is zip-header metadata, which the uploader controls
+  // and fflate does not enforce. Measured: an archive declaring 100 bytes per
+  // entry inflated to 400MB, and the decode below turned it into a 400-million
+  // character string before any of the checks that would have rejected it.
+  // A thousandfold amplification inside every stated cap.
+  //
+  // So the real inflated length is what counts, and it is counted BEFORE
+  // anything is decoded to text — the decode is the expensive step, and a cap
+  // applied after it has already been paid.
+  let inflated = 0
+  for (const [path, bytes] of Object.entries(unpacked)) {
+    if (!wanted(basename(path))) continue
+    inflated += bytes.byteLength
+    if (bytes.byteLength > MAX_FILE_BYTES) {
+      throw new ArchiveError(`${basename(path)} is too large to read.`)
+    }
+    if (inflated > MAX_TOTAL_BYTES) {
+      throw new ArchiveError('That archive expands to more data than can be read.')
+    }
   }
 
   const decoder = new TextDecoder('utf-8')

@@ -118,6 +118,32 @@ export type DatasetFiles = Record<string, string>
 /** The files a dataset cannot do without. Papers are matched by prefix. */
 export const REQUIRED_FILES = ['attendance.json', 'actions.json', 'skills-audit.csv']
 
+/**
+ * A plain calendar date, exactly `YYYY-MM-DD`, that really exists.
+ *
+ * The first version of this check was a prefix match, which let two wrong
+ * things through. `"2026-08-31T00:00:00Z"` sorts ABOVE `"2026-08-31"` as text,
+ * so an action due on the as-at date satisfied `due_date < asAt` and was
+ * reported overdue by nought days — while `upcoming_unprepared`, which asks
+ * `due_date >= asAt`, excluded it. The same row was overdue and not upcoming,
+ * which is precisely the both-tools-miss-it hole the inclusive fix had just
+ * closed. And `"2026-99-99"` passed the shape and produced "3049 days past
+ * due".
+ *
+ * A timestamp is refused rather than trimmed: silently reinterpreting someone's
+ * data is how a dataset comes to mean something its owner did not write.
+ */
+function isPlainIsoDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [year, month, day] = value.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  )
+}
+
 /** Asserts a parsed file is an object carrying the arrays the tools read. */
 function requireRecords(value: unknown, label: string, arrays: string[]): void {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -182,11 +208,11 @@ export function buildDataset(files: DatasetFiles): Dataset {
   // sentence, against a date reading "20260831". A malformed date has to be
   // refused here, where the person holding the file can fix it, rather than
   // become a confident wrong answer later.
-  if (typeof asAt !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(asAt)) {
+  if (typeof asAt !== 'string' || !isPlainIsoDate(asAt)) {
     throw new Error(
-      `The as-at date must be a quoted ISO date such as "2026-08-31"; found ${JSON.stringify(
+      `The as-at date must be a plain quoted ISO date such as "2026-08-31"; found ${JSON.stringify(
         asAt,
-      )}. Dates are compared as text, so any other form silently matches nothing.`,
+      )}. Dates are compared as text, so anything else compares wrongly rather than failing.`,
     )
   }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { rejectUnauthorised } from '@/lib/apiauth'
 import { getConfig } from '@/lib/config'
 import { snapshot } from '@/lib/usage'
 
@@ -12,8 +13,14 @@ export const runtime = 'nodejs'
 // account-level total — usage from anywhere else on the Cloudflare account is
 // invisible here, and the counters reset with the server.
 
-// Not async: nothing here awaits, and Next accepts a synchronous handler.
-export function GET() {
+export async function GET(req: Request) {
+  // The only route besides /api/login that did not check for itself. It was
+  // covered by middleware, which contradicted middleware's own comment that
+  // every route checks again — and middleware now passes API requests through
+  // so their handlers can charge the guessing budget.
+  const denied = await rejectUnauthorised(req)
+  if (denied) return denied
+
   if (process.env.NODE_ENV === 'production') {
     return new NextResponse('Not found', { status: 404 })
   }

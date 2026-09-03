@@ -246,7 +246,7 @@ test('an as-at date that is not a quoted ISO string is refused', () => {
 
   assert.throws(
     () => buildDataset(files),
-    (e: Error) => /as-at date must be a quoted ISO date/.test(e.message),
+    (e: Error) => /as-at date must be a plain quoted ISO date/.test(e.message),
   )
 })
 
@@ -255,17 +255,54 @@ test('a prose date is refused for the same reason', () => {
   const actions = JSON.parse(files['actions.json']) as Record<string, unknown>
   actions.as_at = '31 August 2026'
   files['actions.json'] = JSON.stringify(actions)
-  assert.throws(() => buildDataset(files), /quoted ISO date/)
+  assert.throws(() => buildDataset(files), /plain quoted ISO date/)
 })
 
-test('an ISO date carrying a time is still accepted', () => {
-  // The check must not be so tight that it rejects a legitimate timestamp;
-  // string ordering still works on an ISO prefix.
+test('an as-at date carrying a time is refused, not quietly accepted', () => {
+  // This test used to assert the opposite, and was wrong.
+  //
+  // "2026-08-31T00:00:00Z" sorts ABOVE "2026-08-31" as text, and every date
+  // here is compared as text. So an action due ON the as-at date satisfied
+  // `due_date < asAt` and was reported "overdue by 0 days", while
+  // upcoming_unprepared asks `due_date >= asAt` and excluded it — the same row
+  // overdue and not upcoming, which is precisely the both-tools-miss-it hole
+  // the inclusive fix had just closed.
+  //
+  // Refused rather than trimmed to a date: silently reinterpreting someone's
+  // data is how a dataset comes to mean something its owner did not write.
   const files = realFiles()
   const actions = JSON.parse(files['actions.json']) as Record<string, unknown>
   actions.as_at = '2026-08-31T00:00:00Z'
   files['actions.json'] = JSON.stringify(actions)
-  assert.equal(buildDataset(files).asAt, '2026-08-31T00:00:00Z')
+  assert.throws(() => buildDataset(files), /plain quoted ISO date/)
+})
+
+test('an as-at date that is not a real calendar date is refused', () => {
+  // "2026-99-99" passed the shape check and produced "3049 days past due".
+  const files = realFiles()
+  const actions = JSON.parse(files['actions.json']) as Record<string, unknown>
+  actions.as_at = '2026-99-99'
+  files['actions.json'] = JSON.stringify(actions)
+  assert.throws(() => buildDataset(files), /plain quoted ISO date/)
+})
+
+test('an empty action log answers rather than throwing', async () => {
+  // unresolved_by_committee read byCount[0].body with no guard, so a board with
+  // nothing outstanding — a real state, and one buildDataset accepts — crashed
+  // into "the analysis could not be completed".
+  const { getTool } = await import('../src/lib/analytics/registry')
+  const files = realFiles()
+  const actions = JSON.parse(files['actions.json']) as Record<string, unknown>
+  actions.actions = []
+  files['actions.json'] = JSON.stringify(actions)
+  const dataset = buildDataset(files)
+
+  for (const name of ['unresolved_by_committee', 'overdue_actions', 'actions_distribution']) {
+    const tool = getTool(name)
+    assert.ok(tool, name)
+    const result = await tool.run(dataset, {})
+    assert.ok(result.headline.length > 0, `${name} produced no headline`)
+  }
 })
 
 test('a JSON file of the wrong shape is refused rather than crashing a tool later', () => {
