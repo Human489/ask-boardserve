@@ -24,6 +24,14 @@ const STRUCTURED = [
   'How many directors self-rate 4 or above in Digital and data?',
   "What is Malcolm Whitbourne's attendance?",
   'Which actions has SAH-A014 been deferred past?',
+  // Naming the SOURCE in shorthand. "What does the audit say about ..." reached
+  // the papers, which reported the passages do not mention it — implying the
+  // audit holds no such figure when it holds exactly that.
+  'What does the audit say about digital and data scores?',
+  'What does the log say about overdue actions?',
+  // Naming what the records MEASURE, while naming nothing in them.
+  'What is written about who is below the attendance threshold?',
+  'Who is below the attendance threshold?',
 ]
 
 const DOCUMENTARY = [
@@ -32,6 +40,10 @@ const DOCUMENTARY = [
   'How much are we spending on agency nursing?',
   'What did the Ashcombe unit cost per attendance?',
   'What concerns or themes recur across recent board papers?',
+  // A structured measure used as a UNIT of something no structured file holds.
+  // The question is about money, and money is only ever written in prose.
+  'What was the cost per attendance at the day therapy unit?',
+  'What is the budget for improving attendance at committee meetings?',
 ]
 
 for (const question of STRUCTURED) {

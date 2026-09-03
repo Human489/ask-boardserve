@@ -90,8 +90,54 @@ const ASKS_WHAT_A_SOURCE_SAYS = /\bwritten\b|\bsay(s)? about\b|\bwhat does the .
  * The structured files by name. These are schema names fixed by the dataset
  * README for every organisation, not one board's vocabulary.
  */
+// Short forms included on purpose: a reader says "the audit" and "the log"
+// far more often than "the skills audit" and "the actions log", and
+// requiring the full name sent those questions to the papers.
 const NAMES_STRUCTURED_SOURCE =
-  /\bskills?[- ](?:audit|matrix|record(s)?)\b|\battendance (?:record|log|data|register)(s)?\b|\baction(s)?[- ]log\b/
+  /\bskills?[- ](?:audit|matrix|record(s)?)\b|\battendance (?:record|log|data|register)(s)?\b|\baction(s)?[- ]log\b|\bthe (?:audit|log|action log|attendance log|register)\b/
+
+/**
+ * A structured measure used as a unit of something the structured files do not
+ * hold.
+ *
+ * "What did the Ashcombe unit cost per attendance?" names attendance, but as a
+ * DENOMINATOR — the question is about cost, and no structured file holds a
+ * single figure of money. Blocking it sent a genuine document question to a
+ * refusal saying no tool computes it, when the papers are exactly where a cost
+ * per attendance would be written.
+ *
+ * So a measure reads as a unit rather than a subject when "per" introduces it,
+ * or when the question is plainly about money. Narrow on purpose: "how many
+ * apologies per meeting" still belongs to the structured data, because the
+ * thing being counted is itself structured.
+ */
+const MEASURE_AS_UNIT = /\bper\s+$/i
+const ASKS_ABOUT_MONEY =
+  /\bcost|\bspend|\bspent|\bbudget|\bprice|\bfunding|\bincome|\bexpenditure|\bdeficit|\bsurplus|£/i
+
+/**
+ * What the structured files MEASURE, as distinct from what they contain.
+ *
+ * The dataset-derived vocabulary covers names — skills, bodies, owners — but a
+ * question can name the structured data without naming any of them: "who is
+ * below the attendance threshold" and "what is overdue" are about the records
+ * and mention nothing in them. Those questions were reaching the papers, which
+ * answered that the passages do not cover it.
+ *
+ * These are the product's own measures, not any organisation's vocabulary, so
+ * they carry no dataset with them.
+ */
+const STRUCTURED_SUBJECT =
+  /\battendance\b|\battend(ed|ing)?\b|\boverdue\b|\bdeferred\b|\bthreshold\b|\beligib|\bapolog|\bunresolved\b|\bpast due\b|\bskill (?:score|gap)/
+
+/** The structured measure this question is ABOUT, if any. */
+function structuredSubject(q: string): string | null {
+  const match = q.match(STRUCTURED_SUBJECT)
+  if (!match) return null
+  if (ASKS_ABOUT_MONEY.test(q)) return null
+  if (MEASURE_AS_UNIT.test(q.slice(0, match.index))) return null
+  return match[0].trim()
+}
 
 /** Terms belonging to the structured files, drawn from the loaded dataset. */
 export function structuredVocabulary(dataset: Dataset): string[] {
@@ -133,17 +179,38 @@ export function checkPapersScope(question: string, dataset: Dataset): ScopeCheck
     return { belongsToStructuredData: false, matched: [] }
   }
 
-  // "What does X say about Y" is documentary only while X is not one of the
-  // structured files. Naming one of those is the opposite instruction.
-  if (ASKS_WHAT_A_SOURCE_SAYS.test(q) && !NAMES_STRUCTURED_SOURCE.test(q)) {
+  const matched = structuredVocabulary(dataset).filter((term) => q.includes(term))
+
+  // "What does X say about Y" is documentary only while nothing structured is
+  // named — not merely while the FULL file name is absent.
+  //
+  // Requiring the exact phrase let "what does the audit say about <a skill>?"
+  // and "what is written about <a skill>'s scores?" through to the papers,
+  // which answered that the passages do not mention it — implying the audit
+  // holds no such figure when it holds precisely that. The SUBJECT counts as
+  // much as the source: a question naming a skill column, a body or an owner
+  // has named the structured data whatever it calls the file.
+  if (
+    ASKS_WHAT_A_SOURCE_SAYS.test(q) &&
+    !NAMES_STRUCTURED_SOURCE.test(q) &&
+    structuredSubject(q) === null &&
+    matched.length === 0
+  ) {
     return { belongsToStructuredData: false, matched: [] }
   }
 
-  const matched = structuredVocabulary(dataset).filter((term) => q.includes(term))
   if (NAMES_STRUCTURED_SOURCE.test(q)) {
     const source = q.match(NAMES_STRUCTURED_SOURCE)?.[0]?.trim()
     if (source && !matched.includes(source)) matched.unshift(source)
   }
+
+  // Naming what the records MEASURE is naming the records. Without this,
+  // "who is below the attendance threshold" matched no dataset term — it names
+  // no skill, body or person — and so was treated as belonging to the papers,
+  // which then reported that the passages do not cover it.
+  const subject = structuredSubject(q)
+  if (subject && !matched.includes(subject)) matched.push(subject)
+
   return { belongsToStructuredData: matched.length > 0, matched }
 }
 

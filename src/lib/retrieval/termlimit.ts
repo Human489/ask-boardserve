@@ -38,6 +38,8 @@ const PATTERNS: RegExp[] = [
   /maximum term of (\w+|\d+)/i,
   /(\w+|\d+)[- ]year (?:term )?limit/i,
   /limit of (\w+|\d+) years/i,
+  /maximum of (\w+|\d+) years/i,
+  /(?:no|not) (?:more|longer) than (\w+|\d+) years/i,
   /may serve (?:no more than |up to )?(\w+|\d+) years/i,
   /(\w+|\d+) years? maximum/i,
   /term(?:s)? of (\w+|\d+) years/i,
@@ -56,7 +58,22 @@ const PATTERNS: RegExp[] = [
  * plausible wrong answer this project exists to avoid.
  */
 const COUNTS_TERMS =
-  /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|a|another|further|consecutive|successive|renewable|additional)\s+(?:consecutive\s+|successive\s+|further\s+|additional\s+)*terms\b|\b(?:may|can|could)\s+be\s+(?:renewed|extended|re-?appointed)\b|\brenewable\b|\brenewed once\b/i
+  /\b(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|a|another|further|consecutive|successive|renewable|additional)\s+(?:consecutive\s+|successive\s+|further\s+|additional\s+)*terms\b/i
+
+/** Enough to reach the sentence after the one the figure sits in. */
+/**
+ * Any mention of the term being renewable makes the stated figure a per-term
+ * length rather than a lifetime. Matched on the stem, and checked for
+ * negation: `\brenewable\b` alone discarded "not renewable", which states a
+ * cap, and discarding it left the tenure tool refusing forever.
+ */
+const RENEWABLE_NEARBY_ALL =
+  /\b(?:re-?appoint|renew|extend)(?:ed|able|ment|s)?\b/gi
+
+const LOOKAHEAD_CHARS = 160
+
+/** And back far enough to catch renewal wording stated before the figure. */
+const LOOKBEHIND_CHARS = 120
 
 export interface TermLimit {
   /** Years a director may serve, as stated in a paper. */
@@ -89,6 +106,22 @@ function sentenceAround(text: string, index: number): string {
  * answered, and inventing a conventional nine years would be exactly the
  * plausible-wrong-answer this project exists to avoid.
  */
+/**
+ * Whether nearby text says the term can be renewed.
+ *
+ * Negation is checked, because "the nine year limit is not renewable" states a
+ * lifetime cap in as many words — and a bare match on the stem discarded it,
+ * leaving the tenure tool with nothing to read and refusing forever.
+ */
+function mentionsRenewal(text: string): boolean {
+  for (const match of text.matchAll(RENEWABLE_NEARBY_ALL)) {
+    const before = text.slice(Math.max(0, (match.index ?? 0) - 12), match.index ?? 0)
+    if (/\b(not|non-?|never|cannot|no)\s*$/i.test(before)) continue
+    return true
+  }
+  return false
+}
+
 export function findTermLimit(passages: Passage[]): TermLimit | null {
   for (const passage of passages) {
     for (const pattern of PATTERNS) {
@@ -97,8 +130,19 @@ export function findTermLimit(passages: Passage[]): TermLimit | null {
       const years = toNumber(match[1])
       if (years === null) continue
       const sentence = sentenceAround(passage.text, match.index ?? 0)
-      // Ambiguity is a reason to say nothing, not to pick a reading.
-      if (COUNTS_TERMS.test(sentence)) continue
+
+      // Ambiguity is a reason to say nothing, not to pick a reading — and the
+      // ambiguity is often in the NEXT sentence. "Each trustee is appointed for
+      // a term of three years. Re-appointment is at the discretion of the
+      // Board." was read as a three-year lifetime cap, because a sentence-
+      // scoped guard cannot see the clause that makes the first figure a
+      // per-term length. The window now reaches forward far enough to catch it.
+      const at = match.index ?? 0
+      const window = passage.text.slice(
+        Math.max(0, at - LOOKBEHIND_CHARS),
+        at + sentence.length + LOOKAHEAD_CHARS,
+      )
+      if (COUNTS_TERMS.test(sentence) || mentionsRenewal(window)) continue
       return {
         years,
         sentence,
