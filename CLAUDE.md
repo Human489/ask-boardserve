@@ -295,7 +295,7 @@ right); refusal behaviour on unanswerable questions; pin to dashboard with state
 in KV; multi-turn refinement. All 16 spec questions answer; all 5 refusals
 refuse.
 
-### Excellence — five items, two done
+### Excellence — five items, three done
 
 The brief's list verbatim, since paraphrasing it is what introduced a fifth:
 
@@ -319,10 +319,29 @@ The brief's list verbatim, since paraphrasing it is what introduced a fifth:
 4. **A second dataset loads with no code changes** — not run. Worth running
    exactly once, blind. See the `dataset-b` rules above.
 5. **Image export for individual charts** — ours, approved by Hamada for
-   Excellence. Not built. The honesty question to settle when building it: a
-   PNG travels without the caveats and the as-at date, and this product's whole
-   claim is that a figure cannot be repeated without its qualification. An
-   export that is just the chart would undo that.
+   Excellence. **Done**: `src/lib/chartimage.ts` and the "Save chart" button on
+   every answer and pinned card. Three decisions in it, each with a wrong
+   answer that looks fine until the image is somewhere you cannot correct it:
+
+   - **The stamp is not optional.** The PNG always carries
+     `<organisation> · Data as at <date>`. A bare-chart option was designed,
+     mocked and dropped as scope: the safe choice should not be the opt-in one,
+     and every figure here is measured from the as-at date, so an undated
+     attendance percentage in a board pack is the exact failure the product
+     exists to avoid. "As at" is kept because it is the governance register and
+     names the DATA's date; "Data as at" removes the only real ambiguity, which
+     is whether it means the export time.
+   - **It always exports light**, whatever theme is on screen, because a dark
+     chart in a board pack is wrong in a way the exporter cannot undo.
+     Verified: app surface `#1a1816` on screen, PNG corner `rgb(255,255,255)`.
+   - **Nothing of ours is branded onto it.** The stamp names the organisation
+     whose data it is. **Their own logo would be better and is not built** —
+     it needs somewhere to upload one, which is a feature rather than a detail.
+     Worth proposing as a change request rather than assuming.
+
+   No webfonts are embedded: the chart's text is system-ui on screen already,
+   so nothing can silently fall back — the failure the gate's fonts already
+   demonstrated once. The footer takes a system mono for the same reason.
 
 ### Deliberately out of scope, for later
 
@@ -438,6 +457,25 @@ worth knowing about. But smoke presents them as the spec's twelve questions,
 which they are not, so "12/12" reads as more than it is. Worth deciding
 deliberately rather than drifting: either point smoke at the shared list like
 the tests do, or keep the paraphrases and label them as a second, harder set.
+
+**The cache did not hide the flake, it FROZE it — now fixed.** Worse than
+hiding: whichever answer the first caller happened to get was written to KV and
+served to everyone for the full hour. Measured on the paraphrase below: six
+identical refusals in a row, zero live model calls, looking entirely
+deterministic, for a question the dataset answers.
+
+Two changes. `cached()` now takes a `worthKeeping` predicate, and `router.ts`
+passes one that refuses to store a refusal — a cached GOOD route is harmless
+because the model would have chosen it again, but a cached refusal is a wrong
+answer with a one-hour lease. And the key namespace went `aicache:v1` →
+`aicache:v2`, because entries written under the old rule were still live: after
+the code fix alone, six more calls returned the stale refusal and made zero
+model calls. A caching rule change needs the namespace bump or it does not
+apply to the very questions it was written for.
+
+Verified after both: refusal, then a live re-ask that routed correctly, then
+four cache hits on the good route — two live calls instead of six. The cost is
+one model call per refusal rather than per question.
 
 **Routing is not deterministic, and the cache hides it.** Measured with
 `AI_CACHE=off`: "Which meetings had unusually low attendance, and when?" routed

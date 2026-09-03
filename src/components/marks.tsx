@@ -1,5 +1,10 @@
 'use client'
 
+// React explicitly: these marks are rendered server-side by the test suite,
+// which compiles JSX with the classic runtime. Next's automatic runtime
+// hides the need until a mark is first rendered inside a tested component.
+import React from 'react'
+
 /** Drawn rather than a glyph, so the two status marks share one stroke weight
  *  and optical size instead of inheriting whatever the font supplies. */
 export function WarningMark() {
@@ -132,3 +137,25 @@ export function BoardServeMark({ className }: { className?: string }) {
     </svg>
   )
 }
+
+/** Saving the chart as a file. Drawn to the same 1.6 stroke as the others. */
+export function DownloadMark() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8 2v8" />
+      <path d="M4.5 7L8 10.5 11.5 7" />
+      <path d="M2.5 13h11" />
+    </svg>
+  )
+}
+

@@ -85,12 +85,15 @@ export default function Message({
   busy,
   actions,
   onRetry,
+  organisation = null,
 }: {
   turn: Turn
   busy: boolean
   /** Controls for an answered turn, supplied by the view (pinning). */
   actions?: ReactNode
   onRetry: (turn: Turn) => void
+  /** Named on the exported chart's stamp. */
+  organisation?: string | null
 }) {
   return (
     <div className="turn">
@@ -105,7 +108,12 @@ export default function Message({
       {turn.status === 'pending' && <AnswerSkeleton />}
 
       {turn.status === 'answered' && turn.result && (
-        <ChartCard result={turn.result} routedBy={turn.routedBy} actions={actions} />
+        <ChartCard
+          result={turn.result}
+          routedBy={turn.routedBy}
+          actions={actions}
+          organisation={organisation}
+        />
       )}
 
       {turn.status === 'failed' && turn.error && (

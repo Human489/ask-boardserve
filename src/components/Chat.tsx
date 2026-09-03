@@ -140,6 +140,8 @@ interface ChatProps {
   datasetKey: string
   needsDataset: boolean
   onGoToData: () => void
+  /** Named on the exported chart's stamp. Null for an un-uploaded local set. */
+  organisation: string | null
   /** The app-level live region, owned by Workspace. See Announcer.tsx for why
    *  it cannot live in this component. */
   announce: (text: string) => void
@@ -153,6 +155,7 @@ export default function Chat({
   datasetKey,
   needsDataset,
   onGoToData,
+  organisation,
   announce,
 }: ChatProps) {
   const [turns, setTurns] = useState<Turn[]>([])
@@ -633,6 +636,7 @@ export default function Chat({
                 busy={inFlight}
                 actions={pinControl(turn)}
                 onRetry={retry}
+            organisation={organisation}
               />
             ))}
           </div>

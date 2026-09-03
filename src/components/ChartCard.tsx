@@ -3,8 +3,9 @@
 // React is imported explicitly, like BoardChart, because the shorthand <>
 // fragments below compile to React.Fragment under the classic JSX runtime
 // the test suite uses — Next's automatic runtime hides the need.
-import React, { type ReactNode } from 'react'
+import React, { useRef, type ReactNode } from 'react'
 import BoardChart from './BoardChart'
+import ChartExport from './ChartExport'
 import { UnavailableMark } from './marks'
 import { isRefusal } from '@/lib/types'
 import type { AnswerResult, Provenance as ProvenanceSpec, RoutedBy, TableSpec } from '@/lib/types'
@@ -137,6 +138,7 @@ export default function ChartCard({
   note,
   headingLevel = 2,
   compact = false,
+  organisation = null,
 }: {
   result: AnswerResult
   routedBy?: RoutedBy
@@ -166,7 +168,16 @@ export default function ChartCard({
    * that protects someone repeating it to a board.
    */
   compact?: boolean
+  /**
+   * The organisation the data belongs to, for the exported image's stamp.
+   *
+   * Threaded down rather than added to `provenance`, which every tool would
+   * then have to populate with a dataset-level fact it does not otherwise
+   * touch. Null for a local dataset that was never uploaded.
+   */
+  organisation?: string | null
 }) {
+  const cardRef = useRef<HTMLElement | null>(null)
   const Headline = (headingLevel === 3 ? 'h3' : 'h2')
 
   // A refusal is a correct answer — it gets its own calm treatment, deliberately
@@ -235,8 +246,10 @@ export default function ChartCard({
 
   const qualifiers = qualifierSummary(assumptions.length, caveats.length)
 
+  const hasChart = Boolean(chart && chart.points.length > 0)
+
   return (
-    <article className={compact ? 'card card-compact' : 'card'}>
+    <article className={compact ? 'card card-compact' : 'card'} ref={cardRef}>
       {/* On the dashboard the card's TITLE is the question, rendered by the
           section around it, so the finding is a paragraph rather than a second
           heading competing to name the same region.
@@ -252,7 +265,7 @@ export default function ChartCard({
         <Headline className="headline">{headline}</Headline>
       )}
 
-      {chart && chart.points.length > 0 && <BoardChart spec={chart} />}
+      {hasChart && chart && <BoardChart spec={chart} />}
 
       {compact ? (
         <details className="working">
@@ -272,7 +285,19 @@ export default function ChartCard({
         </>
       )}
 
-      {actions && <div className="card-actions">{actions}</div>}
+      {(actions || hasChart) && (
+        <div className="card-actions">
+          {actions}
+          {hasChart && chart && (
+            <ChartExport
+              chartRef={cardRef}
+              title={chart.title}
+              asAt={provenance.asAt}
+              organisation={organisation}
+            />
+          )}
+        </div>
+      )}
     </article>
   )
 }

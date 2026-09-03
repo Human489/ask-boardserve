@@ -29,11 +29,14 @@ export default function PinnedDashboard({
   pins,
   hidden,
   announce,
+  organisation,
 }: {
   pins: PinsState
   hidden: boolean
   /** The app-level live region, owned by Workspace. */
   announce: (text: string) => void
+  /** Named on the exported chart's stamp. */
+  organisation: string | null
 }) {
   const { pins: items, durable, loading, error, busyKey, remove, reload } = pins
 
@@ -83,7 +86,7 @@ export default function PinnedDashboard({
           <p className="dashboard-sub">
             {items.length === 0
               ? 'Charts you pin from an answer are kept here.'
-              : `${items.length} ${items.length === 1 ? 'chart' : 'charts'}, newest first. Each shows the figures as they were when it was pinned — refresh a card to run its analysis again.`}
+              : `${items.length} ${items.length === 1 ? 'chart' : 'charts'}, newest first. Each shows the figures as they were when it was pinned.`}
           </p>
         </div>
 
@@ -155,6 +158,7 @@ export default function PinnedDashboard({
                 // not one answer read closely, and the brief only asked to pin
                 // charts. The full treatment made three cards 3,534px tall.
                 compact
+                organisation={organisation}
                 note={<p className="provenance-pinned">{formatPinned(pin)}</p>}
                 actions={
                   <>

@@ -45,6 +45,9 @@ export default function Workspace() {
   // which unmounts nothing but does re-run effects in the hidden view.
   const conversations = useConversations(activeKey, onRejected)
   const active = datasets.datasets.find((d) => d.id === datasets.activeId)
+  // One value for the masthead and for the exported chart's stamp, so a reader
+  // cannot see one organisation on screen and another in the file they saved.
+  const organisation = active?.organisation ?? null
 
   // Pins are stored per dataset, so the dashboard has to be re-read when the
   // dataset changes or it would show the previous organisation's cards.
@@ -75,7 +78,7 @@ export default function Workspace() {
         view={view}
         onView={changeView}
         pinCount={pins.pins.length}
-        organisation={active?.organisation ?? (datasets.localAvailable ? null : null)}
+        organisation={organisation}
         announce={announcer.announce}
       />
       {/* The live region sits outside every view, because a hidden view is
@@ -90,10 +93,12 @@ export default function Workspace() {
           datasetKey={activeKey}
           needsDataset={datasets.needsDataset}
           onGoToData={() => changeView('data')}
+          organisation={organisation}
           announce={announcer.announce}
         />
         <PinnedDashboard
           pins={pins}
+          organisation={organisation}
           hidden={view !== 'dashboard'}
           announce={announcer.announce}
         />
