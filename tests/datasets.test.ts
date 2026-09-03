@@ -226,3 +226,59 @@ test('switching away and back leaves the first dataset pins untouched', async ()
 test('the refusal type guard is real, so these fixtures mean something', () => {
   assert.equal(isRefusal({ tool: 'refusal', headline: 'h', reason: 'r' }), true)
 })
+
+// ---------------------------------------------------------------------------
+// Valid JSON is not the same as a dataset. These were found by feeding
+// buildDataset malformed-but-parseable files, and each one produced either a
+// confident wrong answer or a 500 at question time rather than a rejection at
+// upload time — where the person holding the file can fix it.
+
+test('an as-at date that is not a quoted ISO string is refused', () => {
+  // Every date in the product is compared as text: overdue is
+  // `due_date < asAt`. An unquoted date in JSON arrives as a number, and
+  // comparing a string to a number is false for every row — so a dataset with
+  // nine overdue actions reported NONE of them, as a finished sentence,
+  // against a date reading "20260831".
+  const files = realFiles()
+  const actions = JSON.parse(files['actions.json']) as Record<string, unknown>
+  actions.as_at = 20260831
+  files['actions.json'] = JSON.stringify(actions)
+
+  assert.throws(
+    () => buildDataset(files),
+    (e: Error) => /as-at date must be a quoted ISO date/.test(e.message),
+  )
+})
+
+test('a prose date is refused for the same reason', () => {
+  const files = realFiles()
+  const actions = JSON.parse(files['actions.json']) as Record<string, unknown>
+  actions.as_at = '31 August 2026'
+  files['actions.json'] = JSON.stringify(actions)
+  assert.throws(() => buildDataset(files), /quoted ISO date/)
+})
+
+test('an ISO date carrying a time is still accepted', () => {
+  // The check must not be so tight that it rejects a legitimate timestamp;
+  // string ordering still works on an ISO prefix.
+  const files = realFiles()
+  const actions = JSON.parse(files['actions.json']) as Record<string, unknown>
+  actions.as_at = '2026-08-31T00:00:00Z'
+  files['actions.json'] = JSON.stringify(actions)
+  assert.equal(buildDataset(files).asAt, '2026-08-31T00:00:00Z')
+})
+
+test('a JSON file of the wrong shape is refused rather than crashing a tool later', () => {
+  // `[]` parses cleanly, then every field reads as undefined and the first tool
+  // to touch `records` throws — a 500 when a question is asked, rather than a
+  // rejected upload.
+  const asArray = realFiles()
+  asArray['attendance.json'] = '[]'
+  assert.throws(() => buildDataset(asArray), /must be a JSON object, not an array/)
+
+  const missingArray = realFiles()
+  const actions = JSON.parse(missingArray['actions.json']) as Record<string, unknown>
+  delete actions.actions
+  missingArray['actions.json'] = JSON.stringify(actions)
+  assert.throws(() => buildDataset(missingArray), /missing its "actions" array/)
+})

@@ -118,6 +118,19 @@ export type DatasetFiles = Record<string, string>
 /** The files a dataset cannot do without. Papers are matched by prefix. */
 export const REQUIRED_FILES = ['attendance.json', 'actions.json', 'skills-audit.csv']
 
+/** Asserts a parsed file is an object carrying the arrays the tools read. */
+function requireRecords(value: unknown, label: string, arrays: string[]): void {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON object, not ${Array.isArray(value) ? 'an array' : typeof value}.`)
+  }
+  const record = value as Record<string, unknown>
+  for (const key of arrays) {
+    if (!Array.isArray(record[key])) {
+      throw new Error(`${label} is missing its "${key}" array.`)
+    }
+  }
+}
+
 function parseJson<T>(files: DatasetFiles, label: string): T {
   const raw = files[label]
   if (raw === undefined) throw new Error(`The dataset is missing ${label}.`)
@@ -143,6 +156,13 @@ export function buildDataset(files: DatasetFiles): Dataset {
 
   const attendance = parseJson<AttendanceFile>(files, 'attendance.json')
   const actions = parseJson<ActionsFile>(files, 'actions.json')
+
+  // Valid JSON is not the same as a dataset. An attendance file shaped as an
+  // array parses cleanly, then every field reads as undefined and the first
+  // tool to touch `records` throws — a 500 at question time rather than a
+  // rejection at upload time.
+  requireRecords(attendance, 'attendance.json', ['records', 'meetings'])
+  requireRecords(actions, 'actions.json', ['actions'])
   const { rows: skills, skillNames } = parseSkills(files['skills-audit.csv'])
 
   const papers = parsePapers(files)
@@ -152,8 +172,23 @@ export function buildDataset(files: DatasetFiles): Dataset {
 
   // The as-at date comes from the data, never from the system clock. Taking it
   // from the clock makes every date-dependent test rot as the month turns.
-  const asAt = actions.as_at ?? actions.generated ?? attendance.generated
+  const asAt: unknown = actions.as_at ?? actions.generated ?? attendance.generated
   if (!asAt) throw new Error('No as_at or generated date found in the dataset.')
+
+  // Every date in this product is compared as a STRING: overdue is
+  // `due_date < asAt`. An as-at date written unquoted in JSON arrives as a
+  // number, and comparing a string to a number is false for every row — so a
+  // dataset with nine overdue actions reported none of them, as a finished
+  // sentence, against a date reading "20260831". A malformed date has to be
+  // refused here, where the person holding the file can fix it, rather than
+  // become a confident wrong answer later.
+  if (typeof asAt !== 'string' || !/^\d{4}-\d{2}-\d{2}/.test(asAt)) {
+    throw new Error(
+      `The as-at date must be a quoted ISO date such as "2026-08-31"; found ${JSON.stringify(
+        asAt,
+      )}. Dates are compared as text, so any other form silently matches nothing.`,
+    )
+  }
 
   const organisation = attendance.organisation ?? actions.organisation
   if (!organisation) throw new Error('No organisation name found in the dataset.')
