@@ -104,3 +104,28 @@ test('the matcher lists what to skip, so a new route is protected by default', (
     assert.ok(pattern.test(path), `${path} should be matched`)
   }
 })
+
+test('the matcher excludes the self-hosted fonts', () => {
+  // Not a style question. The fonts live under /public, so a request for one
+  // from the GATE screen carries no session — and while the matcher covered
+  // them, middleware rewrote that request to the gate's own HTML. The browser
+  // got text/html where it asked for woff2, both @font-face rules reported
+  // status "error", and the page silently fell back to Georgia.
+  //
+  // Which still renders as a serif, so a screenshot looked correct and the
+  // build, the types and every unit test passed. It was found by reading
+  // document.fonts back off the running page. This asserts on the matcher
+  // pattern itself, because that is the thing that was wrong.
+  const pattern = config.matcher[0]
+  const re = new RegExp(`^${pattern}$`)
+
+  assert.ok(!re.test('/fonts/instrument-serif-400.woff2'), 'fonts must bypass middleware')
+  assert.ok(!re.test('/fonts/geist-mono.woff2'), 'fonts must bypass middleware')
+  assert.ok(!re.test('/_next/static/chunks/main.js'), 'Next assets already bypassed')
+  assert.ok(!re.test('/favicon.ico'), 'favicon already bypassed')
+
+  // And the exclusion must not have opened anything else up.
+  assert.ok(re.test('/'), 'the page itself is still gated')
+  assert.ok(re.test('/api/ask'), 'the API is still matched so handlers can charge')
+  assert.ok(re.test('/fontsecret'), 'a path merely starting with "fonts" is still gated')
+})

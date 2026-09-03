@@ -1170,3 +1170,28 @@ test('a caveat describes the bars the chart actually shows', () => {
     'the owner caveat must still appear when the bars are owners',
   )
 })
+
+test('a model writing "null" as a string means it gave no argument', () => {
+  // Found in a browser pass, on the very first question asked. The router
+  // emitted { body: "null" } — the string, not the JSON literal — so the tool
+  // read it as the name of a body, found none, and produced a confident,
+  // fully-caveated refusal to a question the dataset answers.
+  //
+  // The real answer is one omitted argument away, which is what makes this
+  // worse than an error: it reads as a finding about the data.
+  const withNull = run('attendance_below_threshold', { body: 'null' })
+  const omitted = run('attendance_below_threshold')
+  assert.equal(withNull.headline, omitted.headline)
+
+  // Every spelling a model reaches for, and case-insensitively.
+  for (const spelling of ['null', 'NULL', 'undefined', 'none', 'N/A', '  null  ']) {
+    const r = run('attendance_below_threshold', { body: spelling })
+    assert.equal(r.headline, omitted.headline, `"${spelling}" should read as absent`)
+  }
+
+  // A real body name must still filter, or this fix would have eaten the
+  // argument entirely.
+  const real = dataset.attendance.meetings[0].body
+  const filtered = run('attendance_below_threshold', { body: real })
+  assert.notEqual(filtered.headline, omitted.headline)
+})

@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-03T00:00:00Z",
+  "title": "Design System: Ask BoardServe",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Boardroom Green",
+        "canonical": "#006b58",
+        "notes": "BoardServe's own primary. White on it measures 6.47:1. Never appears inside a chart.",
+        "tonalRamp": ["#04211c", "#053a30", "#005044", "#006b58", "#0f8a72", "#3fae95", "#7fcdbb", "#e8f3f0"]
+      },
+      "accent-tint": {
+        "role": "primary",
+        "displayName": "Green Wash",
+        "canonical": "#e8f3f0",
+        "tonalRamp": ["#0b201b", "#123a31", "#186b59", "#2a9d7f", "#66c2a8", "#a2dccb", "#cfe9e1", "#e8f3f0"]
+      },
+      "plane": {
+        "role": "neutral",
+        "displayName": "Warm Paper",
+        "canonical": "#faf8f6",
+        "tonalRamp": ["#0f0d0c", "#231f1c", "#3d372f", "#5c544c", "#8a827b", "#c3bbb3", "#e7e4e1", "#faf8f6"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Card White",
+        "canonical": "#ffffff",
+        "tonalRamp": ["#131211", "#1a1816", "#2c2926", "#4a443d", "#8a827b", "#d8d3ce", "#f2f0ed", "#ffffff"]
+      },
+      "surface-sunken": {
+        "role": "neutral",
+        "displayName": "Sunken Linen",
+        "canonical": "#f2f0ed",
+        "notes": "The darkest ground small text lands on, so muted ink is measured against it rather than white.",
+        "tonalRamp": ["#131211", "#221f1d", "#3a352f", "#5c544c", "#8a827b", "#c9c2bb", "#e7e4e1", "#f2f0ed"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Warm Black",
+        "canonical": "#0f0905",
+        "notes": "19.78:1 on Card White.",
+        "tonalRamp": ["#0f0905", "#241c15", "#3a2f25", "#544639", "#7a6a5b", "#a89c8f", "#d6cfc9", "#faf8f6"]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Umber",
+        "canonical": "#342c27"
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Stone",
+        "canonical": "#6a615b",
+        "notes": "4.5:1 against Sunken Linen, the darkest ground it lands on. That number set the value."
+      },
+      "hairline-strong": {
+        "role": "neutral",
+        "displayName": "Boundary Grey",
+        "canonical": "#8a827b",
+        "notes": "3:1 minimum: it is the only boundary of the composer and the passcode field, so WCAG 1.4.11 applies."
+      },
+      "grid": {
+        "role": "neutral",
+        "displayName": "Divider",
+        "canonical": "#e7e4e1",
+        "notes": "BoardServe's own --border. Decorative only here, at 1.11:1 on the sunken surface."
+      },
+      "series-1": {
+        "role": "tertiary",
+        "displayName": "Series Blue",
+        "canonical": "#256cc4",
+        "notes": "5.22:1 on Card White."
+      },
+      "series-2": {
+        "role": "tertiary",
+        "displayName": "Series Teal",
+        "canonical": "#2a9d7f",
+        "notes": "3.37:1. Deliberately not the brand green, which never enters a chart."
+      },
+      "highlight": {
+        "role": "tertiary",
+        "displayName": "Oxblood",
+        "canonical": "#8f1d1d",
+        "notes": "8.89:1, darkest of the trio, and always paired with a diagonal hatch."
+      },
+      "refusal-ink": {
+        "role": "secondary",
+        "displayName": "Refusal Blue",
+        "canonical": "#1d4ed8"
+      },
+      "error-ink": {
+        "role": "secondary",
+        "displayName": "Error Red",
+        "canonical": "#b91c1c"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Finding",
+        "purpose": "The one sentence per answer that states what was found. The only body copy in the serif."
+      },
+      "headline": {
+        "displayName": "Lede",
+        "purpose": "The first line of an empty screen: the Ask view's opening and the gate title."
+      },
+      "title": {
+        "displayName": "Wordmark",
+        "purpose": "The masthead only."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Everything explanatory. Tabular figures, capped at 72ch inside the card."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Mono uppercase: section labels, provenance field names, legends. Never a sentence."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card",
+        "value": "0 2px 8px rgba(23, 20, 18, 0.06)",
+        "purpose": "Answer and pinned cards. BoardServe's own cast, and the only shadow at rest in the product."
+      },
+      {
+        "name": "card-dark",
+        "value": "0 1px 2px rgba(0, 0, 0, 0.3)",
+        "purpose": "Dark theme. A black shadow is invisible on a near-black ground, so separation comes from surface tone and the hairline."
+      },
+      {
+        "name": "tooltip",
+        "value": "0 4px 14px rgba(23, 20, 18, 0.14)",
+        "purpose": "Chart tooltips, the only element that genuinely floats above the plane."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "The single authored moment: the answer settles into the space the skeleton held. Starts visible, so nothing is hidden if the animation is skipped."
+      },
+      {
+        "name": "state",
+        "value": "120ms ease",
+        "purpose": "Border and ink changes on hover. No transform, no shadow."
+      }
+    ],
+    "breakpoints": [{ "name": "sm", "value": "640px" }],
+    "fonts": [
+      {
+        "family": "Instrument Serif",
+        "file": "/fonts/instrument-serif-400.woff2",
+        "weights": "400",
+        "licence": "SIL OFL 1.1",
+        "notes": "Self-hosted, latin subset. No bold file exists: never request 600, or the browser fakes one."
+      },
+      {
+        "family": "Geist Mono",
+        "file": "/fonts/geist-mono.woff2",
+        "weights": "100 900",
+        "licence": "SIL OFL 1.1",
+        "notes": "One variable file; the 400 and 500 downloads were byte-identical."
+      }
+    ],
+    "detectorOverrides": [
+      {
+        "rule": "overused-font",
+        "target": "Instrument Serif, Geist Mono",
+        "reason": "These are BoardServe's own typefaces, read off boardserve.co.uk, and the brief pinned that site as the reference. A pinned brief overrides a saturated-pattern warning; changing them would break the brand alignment that was the point of the work."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Send and Continue. The only filled control, and the only place the brand green appears at size.",
+      "html": "<button class=\"ds-btn-primary\">Ask</button>",
+      "css": ".ds-btn-primary { background: var(--accent, #006b58); color: var(--accent-ink, #fff); border: none; border-radius: 8px; padding: 0 18px; height: 44px; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; } .ds-btn-primary:hover { filter: brightness(1.06); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus, #006b58); outline-offset: 2px; } .ds-btn-primary[aria-disabled='true'] { opacity: 0.45; cursor: default; filter: none; }"
+    },
+    {
+      "name": "Quiet Button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Example questions and Pin to dashboard. Hover moves border and ink, never elevation.",
+      "html": "<button class=\"ds-btn-quiet\">Who is below our attendance threshold?</button>",
+      "css": ".ds-btn-quiet { text-align: left; background: var(--surface, #fff); color: var(--ink-2, #342c27); border: 1px solid rgba(15,9,5,0.1); border-radius: 8px; padding: 12px 14px; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; cursor: pointer; transition: border-color 120ms ease, color 120ms ease; } .ds-btn-quiet:hover { border-color: #8a827b; color: var(--ink, #0f0905); } .ds-btn-quiet:focus-visible { outline: 2px solid var(--focus, #006b58); outline-offset: 2px; }"
+    },
+    {
+      "name": "Composer Input",
+      "kind": "input",
+      "refersTo": "input-composer",
+      "description": "The question field. Its border carries 3:1 because it is the field's only boundary; focus adds a hue shift on top of the ring.",
+      "html": "<textarea class=\"ds-input\" rows=\"1\" placeholder=\"Ask a question...\"></textarea>",
+      "css": ".ds-input { width: 100%; resize: none; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size: 15px; color: var(--ink, #0f0905); background: var(--surface, #fff); border: 1px solid var(--hairline-strong, #8a827b); border-radius: 8px; padding: 10px 13px; min-height: 44px; max-height: 160px; } .ds-input::placeholder { color: var(--ink-muted, #6a615b); } .ds-input:focus-visible { border-color: var(--accent, #006b58); outline: 2px solid var(--focus, #006b58); outline-offset: 2px; } .ds-input:read-only { opacity: 0.6; }"
+    },
+    {
+      "name": "Answer Card",
+      "kind": "card",
+      "refersTo": "card-answer",
+      "description": "The finding in the serif, the explanation in the sans, the provenance in the mono. The whole design system in one container.",
+      "html": "<article class=\"ds-card\"><p class=\"ds-finding\">3 directors are below 80% &mdash; and Terence Oduya&rsquo;s is concentrated at Board level.</p><p class=\"ds-label\">Assumed</p><ul class=\"ds-notes\"><li>80% is the default threshold; the dataset defines none.</li></ul></article>",
+      "css": ".ds-card { background: var(--surface, #fff); border: 1px solid rgba(15,9,5,0.1); border-radius: 16px; padding: 22px 24px; box-shadow: 0 2px 8px rgba(23,20,18,0.06); } .ds-finding { margin: 0 0 18px; font-family: 'Instrument Serif', Charter, Georgia, serif; font-size: 23px; font-weight: 400; line-height: 1.3; letter-spacing: -0.011em; max-width: 46ch; text-wrap: balance; color: var(--ink, #0f0905); } .ds-label { margin: 0 0 5px; font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 10.5px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-muted, #6a615b); } .ds-notes { margin: 0; padding-left: 18px; font-family: system-ui, sans-serif; font-size: 13px; line-height: 1.55; color: var(--ink-2, #342c27); }"
+    },
+    {
+      "name": "View Tabs",
+      "kind": "nav",
+      "refersTo": "nav-tab",
+      "description": "Ask, Dashboard, Data. The active state is carried by aria-current so it exists in the accessibility tree, not only in the paint.",
+      "html": "<nav class=\"ds-tabs\"><button class=\"ds-tab\" aria-current=\"page\">Ask</button><button class=\"ds-tab\">Dashboard</button><button class=\"ds-tab\">Data</button></nav>",
+      "css": ".ds-tabs { display: inline-flex; gap: 2px; background: var(--surface-sunken, #f2f0ed); border-radius: 6px; padding: 2px; } .ds-tab { display: inline-flex; align-items: center; min-height: 30px; padding: 0 11px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--ink-2, #342c27); font-family: system-ui, sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: color 120ms ease, background-color 120ms ease; } .ds-tab:hover:not([aria-current]) { color: var(--ink, #0f0905); } .ds-tab[aria-current] { background: var(--surface, #fff); border-color: rgba(15,9,5,0.1); color: var(--ink, #0f0905); } .ds-tab:focus-visible { outline: 2px solid var(--focus, #006b58); outline-offset: 2px; }"
+    },
+    {
+      "name": "Provenance Block",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Shown under every answer without a disclosure. Mono uppercase field names against sans values, because the reader is accountable for what they repeat.",
+      "html": "<dl class=\"ds-prov\"><dt>As at</dt><dd>2026-08-31</dd><dt>Sources</dt><dd>attendance.json</dd><dt>Rows</dt><dd>135 considered</dd></dl>",
+      "css": ".ds-prov { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 3px 14px; border-top: 1px solid rgba(15,9,5,0.1); padding-top: 14px; font-size: 11.5px; line-height: 1.6; color: var(--ink-muted, #6a615b); } .ds-prov dt { font-family: 'Geist Mono', ui-monospace, Menlo, monospace; font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; padding-top: 1px; } .ds-prov dd { margin: 0; font-family: system-ui, sans-serif; font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Flagged Chart Mark",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "The diagonal hatch that makes a flagged bar readable without colour. Drawn as an SVG pattern from a <defs> element, because recharts silently drops a function-component child and the marker simply stops being painted.",
+      "html": "<svg class=\"ds-flag\" viewBox=\"0 0 240 64\" role=\"img\" aria-label=\"A flagged bar at 70 per cent and a normal bar at 82 per cent, against an 80 per cent threshold\"><defs><pattern id=\"dsHatch\" width=\"6\" height=\"6\" patternTransform=\"rotate(45)\" patternUnits=\"userSpaceOnUse\"><rect width=\"6\" height=\"6\" fill=\"#8f1d1d\"></rect><line x1=\"0\" y1=\"0\" x2=\"0\" y2=\"6\" stroke=\"#ffffff\" stroke-width=\"2\" opacity=\"0.55\"></line></pattern></defs><rect x=\"0\" y=\"10\" width=\"168\" height=\"20\" fill=\"url(#dsHatch)\"></rect><rect x=\"0\" y=\"38\" width=\"196\" height=\"20\" fill=\"#256cc4\"></rect><line x1=\"192\" y1=\"4\" x2=\"192\" y2=\"64\" stroke=\"#6a615b\" stroke-width=\"1\" stroke-dasharray=\"3 3\"></line></svg>",
+      "css": ".ds-flag { width: 100%; max-width: 240px; height: auto; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Minuted Record",
+    "overview": "This looks the way a well-kept board minute looks. The serif states what was found; the sans explains it; the mono measures it. Margins are generous, the page is quiet, and nothing is decorated — because the reader is a company secretary who will copy a figure off this screen into a paper that carries their name. The aesthetic job is not to impress them. It is to look like something that can be checked.\n\nThe palette and the typefaces are BoardServe's own, taken from boardserve.co.uk so this reads as part of that product rather than a neighbour of it: the warm off-white ground, the warm near-black ink, the deep green primary, Instrument Serif over a system sans with Geist Mono for data. Where this system departs from the parent, it is because a marketing page and a working tool have different obligations.\n\nThe register to avoid is the analytics dashboard: the tile grid of big numbers, the sparkline standing in for a finding, the progress ring. This product exists because a fixed dashboard could not answer the question, so looking like one would be a lie about what it does. There is one chart per answer, at the size the answer needs, with the sentence above it.",
+    "keyCharacteristics": [
+      "One serif sentence carries the finding; everything explaining it is sans.",
+      "Mono is reserved for measurement — labels, provenance, figures — never for atmosphere.",
+      "Flat surfaces separated by hairlines, with one soft card shadow.",
+      "Green is the interface; blue and oxblood are the data.",
+      "Every colour pair in the system was contrast-computed, and the numbers are written into globals.css beside the tokens."
+    ],
+    "rules": [
+      {
+        "name": "The Green-Is-Not-Data Rule",
+        "body": "#006b58 never appears inside a chart. It is the colour of things you can click. A reader who sees green has found a control, not a value. This is why the second series is a lighter teal rather than the brand green: it has to be a different thing.",
+        "section": "colors"
+      },
+      {
+        "name": "The Greyscale Rule",
+        "body": "Any two marks that can appear in one chart must differ in luminance, not merely in hue. The light trio sits at 3.37 / 5.22 / 8.89 and the dark trio at 4.75 / 6.36 / 10.16, roughly 1.6x apart at each step. An earlier draft had the second series and the flagged mark both at 6.47:1 — each fine alone, identical in monochrome.",
+        "section": "colors"
+      },
+      {
+        "name": "The Parent-Brand-Is-Not-Exempt Rule",
+        "body": "BoardServe's values are adopted unless they would fail an obligation this product has and the marketing site does not. --border at 1.11:1 is the live case: kept for dividers, replaced by #8a827b wherever it is the only boundary of a control. Divergence is recorded in a comment beside the token, with the measured ratio.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Serif Sentence Rule",
+        "body": "Exactly one sentence per answer is set in the display face, and it is the finding. Card titles, table headers, axis labels and caveats stay sans. A dashboard of serif headings reads as a magazine; a single serif sentence reads as a conclusion.",
+        "section": "typography"
+      },
+      {
+        "name": "The No-Faux-Bold Rule",
+        "body": "Instrument Serif ships at 400 only. Never ask for 600 — the browser synthesises a bold that smears the stems of a face whose thin-thick contrast is the entire reason it was chosen. Presence comes from size and tighter tracking, which is how the parent brand sets it (-1.5px at 60px).",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono-Means-Measured Rule",
+        "body": "Geist Mono is for labels, provenance and figures — things that were counted. It is never used to make prose look technical. The test: if the text is a sentence, it is not mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-At-Rest Rule",
+        "body": "No shadow appears as a response to hover. If an element needs to respond, it changes its border colour or its ink. The two shadows in the system describe what a thing is, not what the pointer is doing.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do put exactly one serif sentence on an answer, and make it the finding.",
+      "Do keep #006b58 out of every chart. Green means clickable.",
+      "Do check any new chart colour for luminance separation against the marks it can appear beside, not just for contrast against the card.",
+      "Do write the measured contrast ratio into a comment beside any new colour token, as every existing token does.",
+      "Do give a flagged or otherwise meaningful mark a second, non-colour signal — a hatch, a label, a shape.",
+      "Do use --radius (8px) for controls and --radius-lg (16px) for the large card, rather than introducing a third value.",
+      "Do use tabular numerals for anything a reader might copy.",
+      "Do state a threshold's value wherever its line is drawn."
+    ],
+    "donts": [
+      "Don't set Instrument Serif at any weight but 400. There is no bold file; the browser will fake one badly.",
+      "Don't use mono for prose. It is for things that were counted.",
+      "Don't add a third shadow, or a shadow on hover. Hover changes border and ink.",
+      "Don't use a coloured border-left to mark a callout. Tint plus a 1px hairline, as the existing callouts do.",
+      "Don't adopt BoardServe's #e7e4e1 as the boundary of a control. It measures 1.11:1 on the sunken surface; it is a divider only.",
+      "Don't build the answer area as a grid of equal tiles with big numbers. That is the dashboard this product exists to complement, and looking like it misrepresents what the product does.",
+      "Don't put a kicker or eyebrow above a heading. The parent's landing page has one; a working tool does not need a label above its own title.",
+      "Don't hard-code any organisation's name, committee, skill or figure into a style or a string. A test greps src/lib for exactly this, comments included."
+    ]
+  }
+}

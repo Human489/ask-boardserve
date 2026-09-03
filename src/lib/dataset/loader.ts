@@ -336,14 +336,41 @@ export function num(v: unknown, fallback: number): number {
   return Number.isFinite(n) ? n : fallback
 }
 
+/**
+ * Words a model writes when it means "no argument".
+ *
+ * These helpers coerce TOOL ARGUMENTS, and the arguments come from a language
+ * model emitting JSON. Asked "who is below our attendance threshold, and on
+ * which committee?", it answered with `{ body: "null" }` — the string, not the
+ * JSON literal. `"null"` is a non-empty string, so it was taken as the name of
+ * a body, and the tool correctly reported that no body called "null" exists.
+ *
+ * The result was a confident, fully-caveated refusal to a question the dataset
+ * answers perfectly well, with the real answer one omitted argument away. It
+ * happened on the first question asked in a browser pass, so it is not rare.
+ *
+ * Treated as absent here because this is the argument boundary and nowhere
+ * else is: no director, body, owner or skill in a board dataset is called
+ * "null", and a reader who typed the word would still get the nil path.
+ */
+const MEANS_ABSENT = new Set(['null', 'undefined', 'none', 'nil', 'n/a'])
+
+function present(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined
+  const trimmed = v.trim()
+  if (trimmed.length === 0) return undefined
+  if (MEANS_ABSENT.has(trimmed.toLowerCase())) return undefined
+  return trimmed
+}
+
 /** A trimmed non-empty string, or the fallback. */
 export function strOr(v: unknown, fallback: string): string {
-  return typeof v === 'string' && v.trim() ? v.trim() : fallback
+  return present(v) ?? fallback
 }
 
 /** A trimmed non-empty string, or undefined when the argument was not given. */
 export function strOrUndefined(v: unknown): string | undefined {
-  return typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined
+  return present(v)
 }
 
 /** One of a fixed set of allowed values, or the fallback. */

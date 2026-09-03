@@ -23,10 +23,21 @@ import { timingSafeEqual } from '@/lib/crypto'
 const PUBLIC_PATHS = new Set(['/gate', '/api/login'])
 
 export const config = {
-  // Everything except Next's own assets and the favicon. Listing what to skip
-  // rather than what to cover means a new route is protected by default; the
-  // opposite mistake is the one that goes unnoticed.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  // Everything except Next's own assets, the favicon, and the self-hosted
+  // fonts. Listing what to skip rather than what to cover means a new route is
+  // protected by default; the opposite mistake is the one that goes unnoticed.
+  //
+  // /fonts had to be added and the omission was not theoretical. A font
+  // request from the gate screen carries no session, so it was rewritten to
+  // the gate's own HTML — the browser received text/html where it asked for
+  // woff2, both @font-face rules reported status "error", and the page fell
+  // back to Georgia. Which still looks like a serif, so the screenshot looked
+  // right and the build, the types and every unit test passed. It was caught
+  // by reading document.fonts back off the running page.
+  //
+  // Excluding them costs nothing: a typeface is not board data, and it is the
+  // gate — the one page guaranteed to be unauthenticated — that needs them.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|fonts/).*)'],
 }
 
 function bearer(req: NextRequest): string | null {
