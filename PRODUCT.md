@@ -70,8 +70,12 @@ Answers are read on screen, and figures are copied into board papers by hand.
 - Fifteen tools: twelve deterministic ones over the structured records, one that
   retrieves from the board papers, two hybrid ones that read a fact from a paper
   and compute the consequences.
-- Every answer carries its assumptions, its caveats, and its provenance, shown
-  without a disclosure. An answer without them is not an honest answer.
+- Every answer carries its assumptions, its caveats, and its provenance.
+  Assumptions and caveats are shown without a disclosure, because they change
+  how the figure reads. Provenance is "a small note" reachable in one click,
+  which is the brief's own wording for it — an audit trail is consulted when
+  checking, not when reading. An answer with no qualification visible at all is
+  not an honest answer.
 - Refusal is a first-class outcome, including when two sources disagree: both
   figures are reported with their origins rather than one silently winning.
 - Bar and line charts only.
@@ -116,7 +120,17 @@ so is the correct behaviour.
 1. **A wrong answer is worse than no answer.** Refusing is a correct outcome, and
    a refusal must say precisely what is missing rather than shrug.
 2. **Show the working.** Assumptions, caveats and provenance travel with every
-   figure, always visible, because the reader is accountable for what they repeat.
+   figure, because the reader is accountable for what they repeat. What must be
+   *visible* is the qualification — the caveat that changes the reading, and the
+   as-at date every figure is measured from. The rest of the provenance is one
+   click away, not hidden.
+
+   This principle used to say "always visible", which was stricter than the
+   brief and was defended once as if the client had asked for it. The brief asks
+   for "a small note showing which rows or passages produced it"; a 131px block
+   under every answer is not a small note, and on a dashboard of pinned cards it
+   made three answers 3,534px tall. The distinction that survives review is
+   between a qualification and an audit trail, not between shown and hidden.
 3. **Say the notable thing.** One sentence that states the finding, never a
    description of the axes.
 4. **Trust nothing that cannot be checked** — including the model. Where a rule

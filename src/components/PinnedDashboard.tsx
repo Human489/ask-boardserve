@@ -151,6 +151,10 @@ export default function PinnedDashboard({
                 // The section title above is the h2, so the card's headline is
                 // content within it rather than its sibling.
                 headingLevel={3}
+                // The dashboard is several answers compared against each other,
+                // not one answer read closely, and the brief only asked to pin
+                // charts. The full treatment made three cards 3,534px tall.
+                compact
                 note={<p className="provenance-pinned">{formatPinned(pin)}</p>}
                 actions={
                   <>

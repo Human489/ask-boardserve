@@ -1687,3 +1687,113 @@ table.answer-table {
     flex-wrap: wrap;
   }
 }
+
+/* --------------------------------------------------------- disclosures
+   Provenance is "a small note" (the brief's wording) and the dashboard card
+   folds its evidence behind one control. Both are native <details>, so they
+   are keyboard operable and announced as expandable without JavaScript.
+
+   The as-at date sits OUTSIDE its disclosure: every figure here is measured
+   from it, so it is part of what the figure means rather than part of its
+   audit trail. */
+
+.provenance-asat {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.provenance-asat-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.provenance-detail summary,
+.working > summary {
+  cursor: pointer;
+  /* The marker is the affordance, so it keeps a real focus ring rather than
+     inheriting one sized for a block. */
+  border-radius: var(--radius-mark);
+  color: var(--ink-2);
+}
+
+.provenance-detail summary:focus-visible,
+.working > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.provenance-detail {
+  margin-top: 6px;
+}
+
+.provenance-detail summary {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.provenance-detail summary:hover {
+  color: var(--ink);
+}
+
+.provenance-detail[open] summary {
+  margin-bottom: 8px;
+  color: var(--ink);
+}
+
+/* The dashboard card's one control. Its label states how much is inside, so a
+   reader who never opens it still knows the figure carries qualification —
+   which is the part that matters to someone repeating it to a board. */
+.working {
+  margin-top: 18px;
+  border-top: 1px solid var(--hairline);
+  padding-top: 14px;
+}
+
+.working > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--accent);
+}
+
+.working > summary:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.working-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.working[open] > summary {
+  margin-bottom: 4px;
+}
+
+/* Inside the disclosure the evidence keeps its own rhythm, but the first
+   block should not add a second gap under the summary. */
+.working-body > *:first-child {
+  margin-top: 8px;
+}
+
+.working-body .provenance {
+  margin-top: 16px;
+}
+
+/* A compact card carries less, so it needs less room around it. */
+.card-compact {
+  padding: 18px 20px;
+}

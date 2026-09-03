@@ -1,10 +1,13 @@
 'use client'
 
-import type { ReactNode } from 'react'
+// React is imported explicitly, like BoardChart, because the shorthand <>
+// fragments below compile to React.Fragment under the classic JSX runtime
+// the test suite uses — Next's automatic runtime hides the need.
+import React, { type ReactNode } from 'react'
 import BoardChart from './BoardChart'
 import { UnavailableMark } from './marks'
 import { isRefusal } from '@/lib/types'
-import type { AnswerResult, RoutedBy, TableSpec } from '@/lib/types'
+import type { AnswerResult, Provenance as ProvenanceSpec, RoutedBy, TableSpec } from '@/lib/types'
 
 function NoteList({ label, items }: { label: string; items: string[] }) {
   if (items.length === 0) return null
@@ -16,6 +19,64 @@ function NoteList({ label, items }: { label: string; items: string[] }) {
           <li key={i}>{item}</li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+/** "1 assumption and 2 things worth knowing" — never a bare count. */
+function qualifierSummary(assumptions: number, caveats: number): string | null {
+  const parts: string[] = []
+  if (assumptions > 0) {
+    parts.push(`${assumptions} assumption${assumptions === 1 ? '' : 's'}`)
+  }
+  if (caveats > 0) {
+    parts.push(caveats === 1 ? '1 thing worth knowing' : `${caveats} things worth knowing`)
+  }
+  if (parts.length === 0) return null
+  return parts.join(' and ')
+}
+
+/**
+ * Provenance as "a small note", which is the brief's wording for it.
+ *
+ * It used to be a 131px block under every answer. On a dashboard of pinned
+ * cards that made three answers 3,534px tall, and the note it was supposed to
+ * be had become the largest thing on the card after the chart.
+ *
+ * The as-at date stays OUTSIDE the disclosure. Every figure in this product is
+ * measured from it — "overdue" means overdue as at that date and nothing else —
+ * so it is part of what the figure means rather than part of its audit trail.
+ * The sources, row count and derivation are the audit trail, and an audit trail
+ * is consulted when checking rather than read when reading.
+ *
+ * A native <details> rather than a scripted toggle: it is keyboard operable and
+ * announced as expandable with no JavaScript, and it still works if hydration
+ * never happens.
+ */
+function Provenance({
+  provenance,
+  note,
+}: {
+  provenance: ProvenanceSpec
+  note?: ReactNode
+}) {
+  return (
+    <div className="provenance">
+      <p className="provenance-asat">
+        <span className="provenance-asat-label">As at</span> {provenance.asAt}
+      </p>
+      {note}
+      <details className="provenance-detail">
+        <summary>Where this came from</summary>
+        <dl>
+          <dt>Sources</dt>
+          <dd>{provenance.sources.join(', ')}</dd>
+          <dt>Rows</dt>
+          <dd>{provenance.rowsConsidered.toLocaleString('en-GB')} considered</dd>
+          <dt>Derivation</dt>
+          <dd>{provenance.derivation}</dd>
+        </dl>
+      </details>
     </div>
   )
 }
@@ -75,6 +136,7 @@ export default function ChartCard({
   actions,
   note,
   headingLevel = 2,
+  compact = false,
 }: {
   result: AnswerResult
   routedBy?: RoutedBy
@@ -88,6 +150,22 @@ export default function ChartCard({
   actions?: ReactNode
   /** A line about this card's provenance as a pin, e.g. when it was frozen. */
   note?: ReactNode
+  /**
+   * Dashboard treatment: the finding, the chart, and everything else folded
+   * into one disclosure whose label states how much is in there.
+   *
+   * The dashboard reused the transcript's card exactly, which sounds like
+   * consistency and was not: a card is 1,178px, so three pinned answers were
+   * 3,534px of scrolling. The two surfaces are doing different jobs. The chat
+   * is one answer read carefully; the dashboard is several answers scanned
+   * against each other, and the brief only ever asked to pin CHARTS.
+   *
+   * What is never folded away is the qualification itself. The summary says
+   * "2 assumptions and 1 thing worth knowing", so a reader who never opens it
+   * still knows the figure is qualified and by how much — which is the part
+   * that protects someone repeating it to a board.
+   */
+  compact?: boolean
 }) {
   const Headline = (headingLevel === 3 ? 'h3' : 'h2')
 
@@ -126,12 +204,8 @@ export default function ChartCard({
   // check the paper.
   const isCitation = result.tool === 'search_board_papers' && table !== null
 
-  return (
-    <article className="card">
-      <Headline className="headline">{headline}</Headline>
-
-      {chart && chart.points.length > 0 && <BoardChart spec={chart} />}
-
+  const evidence = (
+    <>
       {isCitation ? (
         <div className="citations">
           <p className="citations-label">Drawn from</p>
@@ -156,20 +230,34 @@ export default function ChartCard({
       )}
 
       {routedBy === 'fallback' && <FallbackNotice />}
+    </>
+  )
 
-      <div className="provenance">
-        {note}
-        <dl>
-          <dt>As at</dt>
-          <dd>{provenance.asAt}</dd>
-          <dt>Sources</dt>
-          <dd>{provenance.sources.join(', ')}</dd>
-          <dt>Rows</dt>
-          <dd>{provenance.rowsConsidered.toLocaleString('en-GB')} considered</dd>
-          <dt>Derivation</dt>
-          <dd>{provenance.derivation}</dd>
-        </dl>
-      </div>
+  const qualifiers = qualifierSummary(assumptions.length, caveats.length)
+
+  return (
+    <article className={compact ? 'card card-compact' : 'card'}>
+      <Headline className="headline">{headline}</Headline>
+
+      {chart && chart.points.length > 0 && <BoardChart spec={chart} />}
+
+      {compact ? (
+        <details className="working">
+          <summary>
+            Show the working
+            {qualifiers ? <span className="working-count">{qualifiers}</span> : null}
+          </summary>
+          <div className="working-body">
+            {evidence}
+            <Provenance provenance={provenance} note={note} />
+          </div>
+        </details>
+      ) : (
+        <>
+          {evidence}
+          <Provenance provenance={provenance} note={note} />
+        </>
+      )}
 
       {actions && <div className="card-actions">{actions}</div>}
     </article>

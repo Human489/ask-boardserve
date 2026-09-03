@@ -156,7 +156,11 @@ the tool and its arguments; for document questions it also summarises retrieved
 prose, and is forbidden from doing arithmetic on it.
 
 A headline says the **notable thing**, not the axes. `ToolResult` also carries
-`assumptions`, `caveats` and `provenance`, all shown without a disclosure.
+`assumptions`, `caveats` and `provenance`. Assumptions and caveats are shown
+without a disclosure, because they change how the figure reads. Provenance is
+"a small note" one click away — the brief's own wording — because an audit
+trail is consulted when checking, not when reading. The as-at date stays inline
+wherever a figure appears, since every figure is measured from it.
 
 ### A prompt is a request; a check is a check
 
@@ -213,25 +217,61 @@ its own 429s.
 
 ## Project status
 
-### Core — done, except deployment
+**The brief is the authority, and this section had drifted from it.** It claimed
+deployment and pinning were outstanding when both had shipped, described two
+brief-compliance gaps that were already closed, and listed an Excellence item —
+"image export" — that **the brief does not ask for anywhere**. That last one is
+the dangerous kind of drift: it invents work for a client who never requested
+it. The lists below are the brief's own wording. Check them against
+`https://gai-work-experience-8x2r4t.vercel.app/project-yahya` rather than
+trusting this file, and correct this file when they disagree.
 
-Chat, twelve structured questions, bar and line charts, one-sentence insights,
-passcode, rate limiting, loading and error states. **Vercel deployment is not
-done** and is the one outstanding Core item.
+### Core — done
 
-### Complete — done, except pinning
+Chat answers structured questions through tools; bar and line charts render in
+the chat as tool output; deployed on Vercel behind the passcode gate. Plus
+one-sentence insights, rate limiting, loading and error states.
 
-Structured/document/hybrid routing, RAG over the board papers, refusal behaviour
-including source disagreement, and multi-turn refinement all work. All 16 spec
-questions answer; all 5 refusals refuse.
+### Complete — done
 
-**Pinning charts to a dashboard is the remaining item.** KV is already wired, so
-storage is solved; the work is UI plus a route.
+Hybrid routing (the agent chooses between tools and retrieval, and gets it
+right); refusal behaviour on unanswerable questions; pin to dashboard with state
+in KV; multi-turn refinement. All 16 spec questions answer; all 5 refusals
+refuse.
 
-### Excellence — not started
+### Excellence — four items, one nearly done
 
-Eval harness, provenance as a chart affordance, image export, shareable read-only
-dashboard links, second-dataset load.
+The brief's list verbatim, since paraphrasing it is what introduced a fifth:
+
+1. **An eval harness** — "a fixed set of questions with expected answer types,
+   run before every deploy, **results in your README**". Not built. The brief
+   warns specifically: "build a small version of it early, not as a Friday
+   afterthought", because "routing failures are silent".
+2. **Provenance on every chart** — "a small note showing which rows or passages
+   produced it". Substantially built: every answer carries as-at, sources, rows
+   considered and derivation. What remains is making it *a small note* rather
+   than the 131px block it currently is.
+3. **A shareable read-only dashboard link (tokened URL)** — not built. See
+   "Data protection" below before starting: a tokened URL is an
+   unauthenticated route to named directors' attendance.
+4. **A second dataset loads with no code changes** — not run. Worth running
+   exactly once, blind. See the `dataset-b` rules above.
+
+### Deliverables — two not started
+
+The brief's Friday list is "your deployed link, repo, README, and handover
+doc".
+
+- **A handover doc does not exist.**
+- **The README does not carry eval results**, which the eval harness item
+  explicitly requires.
+
+### A deviation from the brief, recorded on purpose
+
+The brief says "Chat interface (**AI Elements**, like Tuesday)". This is a
+custom chat instead. The outcome the brief asks for is met — questions in plain
+English, charts as tool output — but the named library was not used, and that
+is a choice to be able to defend rather than discover.
 
 ## Limitations, and why they are limitations
 
@@ -429,17 +469,29 @@ Errors are logged server-side — worth checking none carries a director's name.
 about named people. Storing conversations indefinitely keeps more than answering
 a question requires.
 
-## Brief compliance — two known gaps
+## Brief compliance — both former gaps closed
 
-- **The brief asks for "a simple middleware check protecting every page and API
-  route".** Every API route is protected per-request, which is what stops
-  credits being spent. The page itself is served to anyone and the gate is
-  client-side, so the HTML and JS are public even though no data is. A
-  `middleware.ts` would close it; the per-request check stays either way,
-  because it is what makes the app stateless.
-- **The brief says the system must cache AI results in KV.** It does not. Rate
-  limits, pins and datasets are in KV; routing and retrieval calls are not
-  cached, so an identical question spends credits twice.
+Kept as a record of what was wrong, because both were closed by work that is
+easy to undo by accident.
+
+- **"A simple middleware check protecting every page and API route."** Now
+  `src/middleware.ts`, with 9 tests. Every API route still checks per-request
+  as well: middleware is a gate, not a guarantee, and on a platform where a
+  mistyped matcher silently stops running it must never be the only check.
+  The matcher lists what to SKIP, so a new route is protected by default —
+  and the things it skips have twice been the bug. See the fonts and the app
+  icon in `tests/middleware.test.ts`.
+- **"Cache expensive AI results so the same request doesn't cost twice."** Now
+  `src/lib/aicache.ts`, wired into all three model call sites: routing
+  (`router.ts`), embeddings (`retrieval/vectorize.ts`) and the grounding judge
+  (`retrieval/answer.ts`). Nothing derived from the dataset is cached — every
+  figure is recomputed on every request, which is the rule the product rests
+  on. `AI_CACHE=off` bypasses it, and the smoke suite needs that: a cached
+  route reports `routedBy: 'model'` quite correctly, so the assertion that
+  catches a dead AI Gateway could otherwise be satisfied from cache.
+
+Also confirmed against the brief: rate limit defaults to 20 per minute per IP
+(its stated "sensible default"), and `cf-aig-gateway-id` is `default`.
 
 ## Open decisions
 
