@@ -89,7 +89,7 @@ export default function ChartCard({
   /** A line about this card's provenance as a pin, e.g. when it was frozen. */
   note?: ReactNode
 }) {
-  const Headline = (headingLevel === 3 ? 'h3' : 'h2') as 'h2' | 'h3'
+  const Headline = (headingLevel === 3 ? 'h3' : 'h2')
 
   // A refusal is a correct answer — it gets its own calm treatment, deliberately
   // unlike the error card.

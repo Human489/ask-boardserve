@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint src tests scripts",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts tests/*.test.tsx",
     "smoke": "node scripts/smoke-api.mjs"
@@ -20,11 +20,15 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/node": "22.15.3",
     "@types/react": "19.1.9",
     "@types/react-dom": "19.1.7",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "tsx": "^4.23.13",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "typescript-eslint": "^8.69.0"
   },
   "overrides": {
     "postcss": "^8.5.26"

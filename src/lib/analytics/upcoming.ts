@@ -46,6 +46,10 @@ export const upcomingUnprepared: ToolDefinition = {
   },
   required: [],
 
+  // Async with nothing awaited: ToolDefinition allows a tool to reach a service
+  // and this one is grouped with the hybrids, so it keeps the async signature
+  // the contract describes rather than the one this body happens to need.
+  // eslint-disable-next-line @typescript-eslint/require-await
   async run(dataset, args): Promise<AnswerResult> {
     const within = Math.round(num(args.within_days, 90))
     const asAt = dataset.asAt

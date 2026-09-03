@@ -33,6 +33,9 @@ export function useAnnouncer(): Announcer {
       // twice and they will. An unchanged string is not a mutation, so the
       // region stays silent. A trailing space that flips on each call makes
       // every announcement a real change without changing what is read out.
+      // The character below is a non-breaking space, deliberately: an ordinary
+      // trailing space can be collapsed, and the region then does not change,
+      // so nothing is announced.
       const stripped = current.replace(/ $/, '')
       if (stripped === text) alternate.current = !alternate.current
       else alternate.current = false

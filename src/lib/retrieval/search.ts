@@ -167,18 +167,25 @@ export async function searchPapers(
       ? indexedDataset
       : null
 
+  // Metadata comes back from the index as unknown values. String() on a
+  // non-string yields "[object Object]", which would become a passage's text or
+  // a citation's paper id — fed to the model, checked by verify.ts, and shown
+  // to a reader as a source. A value that is not a string is treated as absent.
+  const text = (value: unknown, fallback: string): string =>
+    typeof value === 'string' ? value : fallback
+
   const aboveFloor = matches
     .filter((m) => m.score >= floor)
-    .map((m) => ({ ...m, paperId: String(m.metadata?.paperId ?? 'unknown') }))
+    .map((m) => ({ ...m, paperId: text(m.metadata?.paperId, 'unknown') }))
   const selected = withBreadth(aboveFloor, topK, topK + Math.max(dataset.papers.length - 1, 0))
 
   const passages: Passage[] = selected
     .map((m) => ({
       score: m.score,
-      text: String(m.metadata?.text ?? ''),
-      paperId: String(m.metadata?.paperId ?? 'unknown'),
-      paperTitle: String(m.metadata?.paperTitle ?? 'Untitled paper'),
-      section: String(m.metadata?.section ?? ''),
+      text: text(m.metadata?.text, ''),
+      paperId: text(m.metadata?.paperId, 'unknown'),
+      paperTitle: text(m.metadata?.paperTitle, 'Untitled paper'),
+      section: text(m.metadata?.section, ''),
     }))
     .filter((p) => p.text.length > 0)
 

@@ -143,13 +143,20 @@ export async function answerFromPassages(
     const usage = usageFromResponse(body)
     if (usage) recordCall(usage)
 
-    const response = body.result?.response
+    const response: unknown = body.result?.response
     let parsed: ModelJudgement
     if (response && typeof response === 'object') {
-      parsed = response as ModelJudgement
+      parsed = response
     } else {
+      // Only a string can be parsed. Anything else stringifies to
+      // "[object Object]", which then fails JSON.parse and is reported as a
+      // shape error — the right outcome, but by accident rather than by check.
+      if (typeof response !== 'string') {
+        console.error('[retrieval] grounding call did not return the requested shape')
+        return null
+      }
       try {
-        parsed = JSON.parse(String(response ?? '')) as ModelJudgement
+        parsed = JSON.parse(response) as ModelJudgement
       } catch {
         console.error('[retrieval] grounding call did not return the requested shape')
         return null

@@ -12,7 +12,8 @@ export const runtime = 'nodejs'
 // account-level total — usage from anywhere else on the Cloudflare account is
 // invisible here, and the counters reset with the server.
 
-export async function GET() {
+// Not async: nothing here awaits, and Next accepts a synchronous handler.
+export function GET() {
   if (process.env.NODE_ENV === 'production') {
     return new NextResponse('Not found', { status: 404 })
   }

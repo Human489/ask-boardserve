@@ -418,7 +418,7 @@ export const committeeSkillsGaps: ToolDefinition = {
       const known = allBodies(dataset)
       return {
         tool: 'committee_skills_gaps',
-        headline: `No body matching "${String(args.body ?? '')}" appears in the attendance records, so its skills coverage cannot be assessed. The bodies present are ${list(
+        headline: `No body matching "${str(args.body) ?? ''}" appears in the attendance records, so its skills coverage cannot be assessed. The bodies present are ${list(
           known,
         )}.`,
         chart: null,

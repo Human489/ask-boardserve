@@ -80,7 +80,7 @@ function isPin(value: unknown): value is Pin {
 
 function parse(raw: string): Pin[] {
   try {
-    const parsed = JSON.parse(raw)
+    const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     // Dropping an unrecognised entry keeps a schema change or a hand-edited
     // value from crashing the dashboard render, which `Array.isArray` alone did
