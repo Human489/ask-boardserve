@@ -37,71 +37,118 @@ export interface Verification {
 }
 
 /**
- * A number as it is claimed: its value, and its magnitude suffix if it has one.
+ * A number as it is claimed: how much, of what, and which way.
  *
- * The suffix is part of the identity — £4.61m and 4.61 are different claims —
- * but a percent sign is not, because a paper may write "14%" where an answer
- * writes "14 per cent" and those are the same claim.
+ * Every part of that is identity. Dropping the unit made an invented percentage
+ * verify against an unrelated count — "attendance fell by 3.1 per cent" passed
+ * because a paper mentioned "an average of 3.1" — and dropping the sign made a
+ * deficit verify against a surplus. Dropping the SCALE, meanwhile, made sound
+ * answers fail: a corpus writing "£4.61 million" withheld an answer saying
+ * "£4.61m", which is the over-strictness that killed an earlier check here.
+ *
+ * So: amounts are compared as numbers with their scale applied, and the unit
+ * and sign travel with them.
  */
+type Unit = 'money' | 'percent' | 'plain'
+
 interface Figure {
   /** As written, for the error message. */
   raw: string
-  /** Digits and decimal point only, separators removed. */
-  value: string
-  /** 'm' | 'k' | 'bn', or '' when the number stands alone. */
-  magnitude: string
-  /** True when written as money or as a percentage. */
-  qualified: boolean
+  /** The amount, scale applied: "£4.61m" and "£4,610,000" are both 4610000. */
+  amount: number
+  unit: Unit
+  negative: boolean
+  /** True when the number reads as a reference — "section 4.2" — not a figure. */
+  reference: boolean
+}
+
+/** Words and letters that scale a number, mapped to their multiplier. */
+const SCALES: Record<string, number> = {
+  k: 1_000,
+  thousand: 1_000,
+  m: 1_000_000,
+  mn: 1_000_000,
+  million: 1_000_000,
+  bn: 1_000_000_000,
+  billion: 1_000_000_000,
 }
 
 /**
- * Matches the forms a board paper uses: £4.61m, 11.4, 14 per cent, 2026,
- * £412,000, 96%.
+ * Matches the forms a board paper uses: £4.61m, £4.61 million, 11.4,
+ * 14 per cent, 96%, 2026, £412,000, £412k, -£4.61m, (4.61) million.
  */
 const FIGURE_PATTERN =
-  /(£|\$|€)?\s*(\d[\d,]*(?:\.\d+)?)\s*(m\b|k\b|bn\b|%|per cent|percent)?/gi
+  /(\(|-|minus\s+)?\s*(£|\$|€)?\s*(\d[\d,]*(?:\.\d+)?)\s*(k|thousand|mn?|million|bn|billion|%|per\s?cent)?/gi
+
+/** A number introduced as a reference is not a claim about the data. */
+const REFERENCE_BEFORE = /\b(section|paragraph|para|clause|appendix|table|figure|note|item|page|question)\s*$/i
 
 function parseFigures(text: string): Figure[] {
   const out: Figure[] = []
   for (const match of text.matchAll(FIGURE_PATTERN)) {
-    const [raw, currency, digits, unit] = match
+    const [raw, opener, currency, digits, unitRaw] = match
     if (!digits) continue
-    const suffix = (unit ?? '').toLowerCase()
-    const isPercent = suffix === '%' || suffix === 'per cent' || suffix === 'percent'
+
+    const unitText = (unitRaw ?? '').toLowerCase().replace(/\s+/g, '')
+    const isPercent = unitText === '%' || unitText === 'percent'
+    const scale = isPercent ? 1 : (SCALES[unitText] ?? 1)
+
+    // A trailing separator is punctuation, never part of the number:
+    // "£412,000." normalised to "412000." once matched nothing and rejected a
+    // correct, sourced answer.
+    const digitsOnly = digits.replace(/,/g, '').replace(/\.$/, '')
+    const amount = Number(digitsOnly) * scale
+    if (!Number.isFinite(amount)) continue
+
+    const before = text.slice(0, match.index)
     out.push({
       raw: raw.trim(),
-      // A trailing separator is punctuation, never part of the number:
-      // "£412,000." normalised to "412000." once matched nothing and rejected a
-      // correct, sourced answer.
-      value: digits.replace(/,/g, '').replace(/\.$/, ''),
-      magnitude: isPercent ? '' : suffix,
-      qualified: Boolean(currency) || isPercent || Boolean(suffix),
+      amount,
+      unit: currency ? 'money' : isPercent ? 'percent' : 'plain',
+      // A bracketed number is the accountant's negative; so is a leading minus.
+      negative: Boolean(opener),
+      reference: REFERENCE_BEFORE.test(before),
     })
   }
   return out
 }
 
-/** Identity for comparison. Two figures match when value and magnitude match. */
-function key(figure: Figure): string {
-  return `${figure.value}|${figure.magnitude}`
+/**
+ * Whether an answer's figure is supported by one in a passage.
+ *
+ * The unit comparison is deliberately ONE-WAY. An answer may state a bare
+ * number where the source gave a unit — dropping "%" understates rather than
+ * invents. It may not do the reverse: attaching "%" or "£" to a number the
+ * source left bare is the fabrication this check exists to catch, and it is
+ * how "3.1" in a sentence about travel distance became "3.1 per cent" of
+ * attendance.
+ */
+function supports(passage: Figure, claim: Figure): boolean {
+  if (passage.amount !== claim.amount) return false
+  if (passage.negative !== claim.negative) return false
+  return claim.unit === passage.unit || claim.unit === 'plain'
 }
 
 /**
  * Whether a number is a claim about the data, or incidental prose.
  *
- * Ordinals, section numbers and small counts are not claims about the figures,
- * and demanding they appear verbatim would reject sound answers — "the three
- * papers" is not a finding. So a bare small integer is still not checked.
+ * Ordinals and small counts are not claims about the figures, and demanding
+ * they appear verbatim would reject sound answers — "the three papers" is not a
+ * finding. So a bare small integer is still not checked, and neither is a
+ * cross-reference: "section 4.2" is a decimal, and withholding an answer
+ * because a section number is absent from the prose it points at is the
+ * over-strictness that gets a check switched off.
  *
- * But money and percentages are claims at any size. "a 14 per cent fall" and
- * "£12" are assertions about the data whether or not they have four digits,
- * and a percentage is the single most likely thing for a model to compute from
- * two numbers it was shown. Those are checked regardless of magnitude.
+ * Money and percentages are claims at any size. "a 14 per cent fall" and "£12"
+ * are assertions about the data whether or not they have four digits, and a
+ * percentage is the single most likely thing for a model to compute from two
+ * numbers it was shown.
  */
 function isClaim(figure: Figure): boolean {
-  if (figure.qualified) return true
-  if (figure.value.includes('.')) return true
-  return figure.value.replace(/[^\d]/g, '').length >= 4
+  if (figure.reference) return false
+  if (figure.unit !== 'plain') return true
+  if (!Number.isInteger(figure.amount)) return true
+  return figure.amount >= 1000
 }
 
 /**
@@ -133,17 +180,14 @@ export function verifyAgainstPassages(
   // uncited answer still deserves its figures checked.
   const scope = cited.length > 0 ? cited : passages
 
-  // A set of whole values rather than one concatenated string, so a figure can
-  // no longer verify by being a digit-substring of a larger one.
-  const supported = new Set<string>()
-  for (const passage of scope) {
-    for (const figure of parseFigures(passage.text)) supported.add(key(figure))
-  }
+  // Compared as whole figures rather than as text, so a number can no longer
+  // verify by being a digit-substring of a larger one.
+  const inScope = scope.flatMap((passage) => parseFigures(passage.text))
 
   const figures = parseFigures(answer).filter(isClaim)
   const unsupported: string[] = []
   for (const figure of figures) {
-    if (!supported.has(key(figure))) unsupported.push(figure.raw)
+    if (!inScope.some((source) => supports(source, figure))) unsupported.push(figure.raw)
   }
 
   // A cited passage should carry at least one of the figures the answer quotes.
@@ -152,8 +196,10 @@ export function verifyAgainstPassages(
   const unsupportedCitations: string[] = []
   if (figures.length > 0 && cited.length > 0) {
     for (const passage of cited) {
-      const inPassage = new Set(parseFigures(passage.text).map(key))
-      const carries = figures.some((f) => inPassage.has(key(f)))
+      const inPassage = parseFigures(passage.text)
+      const carries = figures.some((claim) =>
+        inPassage.some((source) => supports(source, claim)),
+      )
       if (!carries) unsupportedCitations.push(`${passage.paperId} / ${passage.section}`)
     }
   }

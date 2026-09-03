@@ -210,3 +210,49 @@ test('bare small integers are still not treated as claims', () => {
   )
   assert.equal(check.ok, true, JSON.stringify(check.unsupported))
 })
+
+// ---------------------------------------------------------------------------
+// A figure's identity is how much, of what, and which way. Dropping any part of
+// that let an invented number verify against an unrelated one; dropping the
+// SCALE made sound answers fail, which is the over-strictness that killed an
+// earlier check here. Both directions are pinned.
+
+const IDENTITY: [label: string, passage: string, answer: string, ok: boolean][] = [
+  // A model computing a percentage from numbers it was shown is the likeliest
+  // fabrication, and it used to verify against any bare number with the digits.
+  ['a percentage invented from a bare number', 'an average of 3.1 travel more than twelve miles', 'attendance per session fell by 3.1 per cent', false],
+  ['money invented from a bare year', 'the 2026 plan was approved', 'the shortfall was £2,026', false],
+  ['a percentage invented from an action number', 'action 82 remains open', 'attendance was 82%', false],
+  ['a sign inversion', 'Income was £4.61m', 'The variance was -£4.61m', false],
+  ['a digit-substring of a larger figure', 'the agency nursing budget is £112,000', 'the overspend is £12,000', false],
+
+  // Sound answers that must not be withheld.
+  ['a scale spelled out', 'Income was £4.61 million', 'Income was £4.61m', true],
+  ['a k against a comma-grouped figure', 'Pay was £412,000 above budget', 'Pay was £412k above budget', true],
+  ['a percentage written differently', 'Deferred actions rose to 14%', 'Deferred actions reached 14 per cent', true],
+  ['a cross-reference, which is not a figure', 'The case for change is set out plainly.', 'Section 4.2 sets out the case.', true],
+  ['a bare number where the source gave a unit', 'Attendance was 96%', 'Attendance was 96 that month', true],
+]
+
+for (const [label, text, answer, ok] of IDENTITY) {
+  test(`figure identity: ${label}`, () => {
+    const passages = [passage(text)]
+    const check = verifyAgainstPassages(answer, passages, passages)
+    assert.equal(
+      check.ok,
+      ok,
+      ok
+        ? `a sound answer was withheld: ${check.unsupported.join(', ')}`
+        : `an unsupported figure passed: ${answer}`,
+    )
+  })
+}
+
+test('a bare number may lose its unit but never gain one', () => {
+  // The asymmetry is the point. Dropping "%" understates; adding it invents.
+  const passages = [passage('Attendance was 96%')]
+  assert.equal(verifyAgainstPassages('Attendance was 96', passages, passages).ok, true)
+
+  const bare = [passage('There were 96 apologies')]
+  assert.equal(verifyAgainstPassages('Attendance was 96%', bare, bare).ok, false)
+})
