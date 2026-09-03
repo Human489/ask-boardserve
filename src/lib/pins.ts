@@ -58,8 +58,6 @@ export interface Pin {
   routedBy: 'model' | 'fallback'
   /** Wall clock: when the reader pinned it. Not a figure, so a real clock is right. */
   pinnedAt: string
-  /** Wall clock: when Refresh last replaced the snapshot, if it ever has. */
-  refreshedAt?: string
   /** The dataset as-at the frozen figures were computed against. */
   datasetAsAt: string
 }
@@ -209,21 +207,6 @@ export async function removePin(datasetId: string, id: string): Promise<MutateOu
   return { ok: true, pins: next, durable }
 }
 
-/** Replaces one pin's frozen snapshot in place, keeping its position. */
-export async function replacePin(
-  datasetId: string,
-  id: string,
-  updated: Pin,
-): Promise<MutateOutcome> {
-  const { pins, durable, reachable } = await listPins(datasetId)
-  if (!reachable) return { ok: false, reason: 'unreachable' }
-  const index = pins.findIndex((p) => p.id === id)
-  if (index === -1) return { ok: false, reason: 'not-found' }
-  const next = [...pins]
-  next[index] = updated
-  if (!(await write(datasetId, next))) return { ok: false, reason: 'write-failed' }
-  return { ok: true, pins: next, durable }
-}
 
 /**
  * Removes a dataset's whole dashboard.

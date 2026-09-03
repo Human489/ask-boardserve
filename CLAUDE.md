@@ -257,6 +257,19 @@ The brief's list verbatim, since paraphrasing it is what introduced a fifth:
 4. **A second dataset loads with no code changes** — not run. Worth running
    exactly once, blind. See the `dataset-b` rules above.
 
+### Deliberately out of scope, for later
+
+- **Refreshing a pinned card.** Built and then removed. A dataset here is a
+  dated snapshot — every figure is measured from `dataset.asAt` — so re-running
+  a pinned analysis against the same dataset can only ever produce the same
+  figures. The control did nothing a reader could see, and keeping it implied
+  live data the demo does not have. Worth adding when this sits inside the main
+  BoardServe app against data that actually moves; the pin already stores its
+  `tool` and `args` for exactly that, so re-adding it is a route and a button
+  rather than a redesign. The removed version re-ran the recorded tool and
+  arguments and never re-routed the question, because a refresh that changes
+  which tool answered is not a refresh — keep that property.
+
 ### Deliverables — two not started
 
 The brief's Friday list is "your deployed link, repo, README, and handover

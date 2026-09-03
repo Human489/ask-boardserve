@@ -348,7 +348,7 @@ async function main() {
       `headline=${String(mine?.result?.headline).slice(0, 60)}`,
     )
     check(
-      'the pin records the tool and arguments a refresh will re-run',
+      'the pin records the tool and arguments that produced it',
       mine?.tool === 'attendance_below_threshold' && mine?.args?.threshold === 80,
       JSON.stringify({ tool: mine?.tool, args: mine?.args }),
     )
@@ -381,25 +381,6 @@ async function main() {
         'the same analysis cannot be pinned twice',
         duplicate.res.status === 409,
         `got ${duplicate.res.status}`,
-      )
-    }
-
-    {
-      const refreshed = await asJson('PATCH', { id: mine?.id })
-      const after = (refreshed.json?.pins ?? []).find((p) => p.id === mine?.id)
-      check(
-        'a pin can be refreshed in place',
-        refreshed.res.status === 200 && Boolean(after?.refreshedAt) && after?.tool === mine?.tool,
-        `status ${refreshed.res.status} refreshedAt=${after?.refreshedAt ?? 'none'}`,
-      )
-    }
-
-    {
-      const missing = await asJson('PATCH', { id: 'does-not-exist' })
-      check(
-        'refreshing a pin that is gone reports it rather than erroring',
-        missing.res.status === 404,
-        `got ${missing.res.status}`,
       )
     }
 

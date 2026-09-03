@@ -32,7 +32,6 @@ export interface PinsState {
     routedBy?: 'model' | 'fallback'
   }) => Promise<void>
   remove: (id: string) => Promise<void>
-  refresh: (id: string) => Promise<void>
   reload: () => Promise<void>
   dismissError: () => void
 }
@@ -132,15 +131,6 @@ export function usePins(onRejected: () => void): PinsState {
     [busyKey, call],
   )
 
-  const refresh = useCallback(
-    async (id: string) => {
-      if (busyKey) return
-      setBusyKey(id)
-      await call('PATCH', { id })
-      setBusyKey(null)
-    },
-    [busyKey, call],
-  )
 
   const pinnedKeys = new Set(pins.map((p) => pinKey(p.tool, p.args)))
 
@@ -153,7 +143,6 @@ export function usePins(onRejected: () => void): PinsState {
     busyKey,
     add,
     remove,
-    refresh,
     reload,
     dismissError: () => setError(null),
   }

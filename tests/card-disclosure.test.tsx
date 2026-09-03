@@ -140,3 +140,31 @@ test('collapsing the table does not take the chart data with it', () => {
   assert.match(html, /sr-only/, 'the accessible fallback must survive compacting')
   assert.match(html, /Bar chart\./, 'and it must still describe the chart')
 })
+
+test('the compact finding is complete but is not a heading', () => {
+  // The pinned card's title is the question, rendered by the section around
+  // it. A second heading here made two competing labels for one region, and at
+  // the display step a long finding read as a paragraph impersonating a title:
+  // the twelve headlines run 130 to 470 characters, median 202.
+  //
+  // What must NOT happen is shortening it. Every headline is computed, and the
+  // notable clause can be anywhere in the sentence, so truncating could cut
+  // the one thing worth reading.
+  const long = '3 directors are below 80% — A at 70%, B at 70% and C at 78.6%, and B is concentrated at Board level at 50% against 100% elsewhere.'
+  const html = renderToStaticMarkup(
+    React.createElement(ChartCard, { result: { ...result, headline: long }, compact: true }),
+  )
+
+  assert.match(html, /class="finding"/, 'the finding is a paragraph, not a heading')
+  assert.doesNotMatch(html, /<h[1-6][^>]*class="headline"/, 'no competing heading')
+  // Complete, to the final full stop.
+  assert.ok(html.includes(long.replace(/—/g, '—')), 'the finding must be rendered in full')
+  assert.ok(html.includes('against 100% elsewhere.'), 'including its last clause')
+})
+
+test('the full card still gives the finding a real heading', () => {
+  // The chat is one answer read closely, and there the finding IS the title.
+  const html = render(false)
+  assert.match(html, /<h2[^>]*class="headline"/, 'the chat keeps a heading')
+  assert.doesNotMatch(html, /class="finding"/, 'and does not use the compact treatment')
+})

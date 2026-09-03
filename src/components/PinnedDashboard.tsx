@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import ChartCard from './ChartCard'
-import { RefreshMark, RemoveMark } from './marks'
+import { RemoveMark } from './marks'
 import type { PinsState } from './usePins'
 import type { Pin } from '@/lib/pins'
 
@@ -14,8 +14,7 @@ import type { Pin } from '@/lib/pins'
 // question of whether it is still the same figure.
 
 function formatPinned(pin: Pin): string {
-  const stamp = pin.refreshedAt ?? pin.pinnedAt
-  const when = new Date(stamp)
+  const when = new Date(pin.pinnedAt)
   if (Number.isNaN(when.getTime())) return ''
   const date = when.toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -23,7 +22,7 @@ function formatPinned(pin: Pin): string {
     year: 'numeric',
   })
   const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-  return `${pin.refreshedAt ? 'Refreshed' : 'Pinned'} ${date} at ${time}`
+  return `Pinned ${date} at ${time}`
 }
 
 export default function PinnedDashboard({
@@ -36,7 +35,7 @@ export default function PinnedDashboard({
   /** The app-level live region, owned by Workspace. */
   announce: (text: string) => void
 }) {
-  const { pins: items, durable, loading, error, busyKey, remove, refresh, reload } = pins
+  const { pins: items, durable, loading, error, busyKey, remove, reload } = pins
 
   // A second failure produces the identical error string, so the alert's text
   // never changes and nothing is re-announced — from the reader's side "Try
@@ -141,16 +140,17 @@ export default function PinnedDashboard({
             // screen reader can list and jump between rather than an anonymous
             // <section> that is not exposed at all.
             <section className="pinned" key={pin.id} aria-labelledby={questionId}>
-              <p className="pinned-question" id={questionId}>
+              {/* The question is the card's title: it is short, it is what a
+                  reader recognises the card by, and it was already the
+                  section's accessible name — so making it the visible heading
+                  is what finally makes those two the same string. */}
+              <h3 className="pinned-question" id={questionId}>
                 <span className="sr-only">Pinned from the question: </span>
                 {pin.question}
-              </p>
+              </h3>
               <ChartCard
                 result={pin.result}
                 routedBy={pin.routedBy}
-                // The section title above is the h2, so the card's headline is
-                // content within it rather than its sibling.
-                headingLevel={3}
                 // The dashboard is several answers compared against each other,
                 // not one answer read closely, and the brief only asked to pin
                 // charts. The full treatment made three cards 3,534px tall.
@@ -161,18 +161,6 @@ export default function PinnedDashboard({
                     {/* aria-disabled rather than disabled throughout: these are
                         the buttons the reader just pressed, and disabling one
                         under their focus drops them onto <body>. */}
-                    <button
-                      type="button"
-                      className="card-action"
-                      onClick={() => {
-                        if (inert) return
-                        void refresh(pin.id).then(() => announce('Chart refreshed.'))
-                      }}
-                      aria-disabled={inert}
-                    >
-                      <RefreshMark />
-                      {busy ? 'Refreshing…' : 'Refresh'}
-                    </button>
                     <button
                       type="button"
                       className="card-action"

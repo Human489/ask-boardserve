@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-import { addPin, listPins, MAX_PINS, pinKey, removePin, replacePin, resetPins } from '../src/lib/pins'
+import { addPin, listPins, MAX_PINS, pinKey, removePin, resetPins } from '../src/lib/pins'
 import type { Pin } from '../src/lib/pins'
 import type { ToolResult } from '../src/lib/types'
 
@@ -135,42 +135,6 @@ test('removing the last pin empties the dashboard', async () => {
   assert.equal(pins.length, 0)
 })
 
-test('refreshing replaces a snapshot in place, keeping its position', async () => {
-  resetPins()
-  await addPin(DS, pin('a', { n: 1 }))
-  await addPin(DS, pin('b', { n: 2 }))
-  await addPin(DS, pin('c', { n: 3 }))
-
-  const { pins: before } = await listPins(DS)
-  const target = before.find((p) => p.id === 'b')!
-  const outcome = await replacePin(DS, 'b', {
-    ...target,
-    result: result('refreshed headline'),
-    refreshedAt: '2026-09-02T12:00:00.000Z',
-  })
-  assert.equal(outcome.ok, true)
-
-  const { pins } = await listPins(DS)
-  // Position matters: a refreshed card jumping to the top of the dashboard
-  // would look like a new pin.
-  assert.deepEqual(
-    pins.map((p) => p.id),
-    ['c', 'b', 'a'],
-  )
-  const refreshed = pins.find((p) => p.id === 'b')!
-  assert.equal(refreshed.result.headline, 'refreshed headline')
-  assert.equal(refreshed.refreshedAt, '2026-09-02T12:00:00.000Z')
-  // The question and the analysis are unchanged — a refresh is the same card.
-  assert.equal(refreshed.question, target.question)
-  assert.deepEqual(refreshed.args, target.args)
-})
-
-test('refreshing a pin that is not there reports not-found', async () => {
-  resetPins()
-  const outcome = await replacePin(DS, 'nope', pin('nope'))
-  assert.equal(outcome.ok, false)
-  assert.equal(outcome.ok === false && outcome.reason, 'not-found')
-})
 
 test('the pin route computes the frozen result rather than trusting the client', () => {
   // The governing rule is that no figure on screen was produced outside a tool.

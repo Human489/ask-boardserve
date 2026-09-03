@@ -110,7 +110,7 @@
       },
       "subhead": {
         "displayName": "Finding (small)",
-        "purpose": "The finding sentence under 640px. The only responsive type step in the system."
+        "purpose": "The serif at its small step: the finding sentence under 640px, and the pinned card's title (the question it answers)."
       },
       "body": {
         "displayName": "Body",

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { ANALYTICS_TOOLS, getTool } from '@/lib/analytics/registry'
 import { clientIp, rejectUnauthorised } from '@/lib/apiauth'
 import { activeDatasetId, resolveDataset } from '@/lib/datasets'
-import { addPin, listPins, MAX_PINS, pinKey, removePin, replacePin, type Pin } from '@/lib/pins'
+import { addPin, listPins, MAX_PINS, pinKey, removePin, type Pin } from '@/lib/pins'
 import { checkRateLimit } from '@/lib/ratelimit'
 import { coerceArgs } from '@/lib/router'
 import { isRefusal } from '@/lib/types'
@@ -22,8 +22,7 @@ const MAX_QUESTION_CHARS = 500
 const MAX_ARGS_CHARS = 2_000
 
 /**
- * Every method is throttled, not just the expensive ones. POST and PATCH each
- * run a tool — which for the paper-retrieval tool means a vector query and two
+ * Every method is throttled, not just the expensive ones. POST runs a tool — which for the paper-retrieval tool means a vector query and two
  * model calls — so an unthrottled pin endpoint is a cheaper way to spend the
  * Cloudflare account than the question endpoint it sits beside.
  */
@@ -282,58 +281,6 @@ export async function POST(req: Request) {
       )
     }
     return fail(502, 'The dashboard could not be saved. Nothing was changed — try again.')
-  }
-
-  return NextResponse.json({ ok: true, pins: outcome.pins, durable: outcome.durable })
-}
-
-/** Refresh one pin: re-run its tool and replace the frozen snapshot in place. */
-export async function PATCH(req: Request) {
-  const denied = await rejectUnauthorised(req)
-  if (denied) return denied
-
-  const limited = await throttled(req)
-  if (limited) return limited
-
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch (e) {
-    logDetail('request body', e)
-    return fail(400, 'The request body was not valid JSON.')
-  }
-
-  const { id } = (body ?? {}) as { id?: unknown }
-  if (typeof id !== 'string' || id === '') return fail(400, 'Which pin should be refreshed?')
-
-  const scope = await pinScope()
-  if (!scope.ok) return fail(scope.status, scope.error)
-  const { pins, reachable } = await listPins(scope.datasetId)
-  if (!reachable) {
-    return fail(502, 'The dashboard could not be read, so nothing was refreshed. Try again.')
-  }
-  const existing = pins.find((p) => p.id === id)
-  if (!existing) return fail(404, 'That chart is no longer on the dashboard.')
-
-  // Re-runs the tool and arguments recorded at pin time, never a re-route: the
-  // same question sent through the router again could reach a different tool,
-  // and a Refresh that changes what the card is measuring is not a refresh.
-  const computed = await compute(existing.tool, existing.args)
-  if (!computed.ok) return fail(computed.status, computed.error)
-
-  const outcome = await replacePin(scope.datasetId, id, {
-    ...existing,
-    ...computed.pin,
-    refreshedAt: new Date().toISOString(),
-  })
-  if (!outcome.ok) {
-    if (outcome.reason === 'not-found') {
-      return fail(404, 'That chart is no longer on the dashboard.')
-    }
-    if (outcome.reason === 'unreachable') {
-      return fail(502, 'The dashboard could not be read, so nothing was refreshed. Try again.')
-    }
-    return fail(502, 'The refreshed figures could not be saved. Try again.')
   }
 
   return NextResponse.json({ ok: true, pins: outcome.pins, durable: outcome.durable })

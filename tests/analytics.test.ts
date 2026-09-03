@@ -1195,3 +1195,75 @@ test('a model writing "null" as a string means it gave no argument', () => {
   const filtered = run('attendance_below_threshold', { body: real })
   assert.notEqual(filtered.headline, omitted.headline)
 })
+
+test('an action owner whose role several directors hold is not attributed to one', async () => {
+  // "owner" is a job title. The join to a name was `find()` on the role, and
+  // roles are not unique: six directors here hold "Trustee". So an action
+  // owned by "Trustee" would have been attributed to whichever of the six
+  // happened to be first in the file — one named person blamed for an action
+  // any of six could own.
+  //
+  // No action in this dataset is owned by "Trustee", which is why nothing
+  // caught it. The owner is substituted here so the rule is tested rather than
+  // the coincidence.
+  const roleCounts = new Map<string, number>()
+  for (const s of dataset.skills) {
+    const role = s.role.trim().toLowerCase()
+    roleCounts.set(role, (roleCounts.get(role) ?? 0) + 1)
+  }
+  const shared = [...roleCounts.entries()].find(([, n]) => n > 1)
+  assert.ok(shared, 'this dataset must have a role held by more than one director')
+  const [sharedRole, holders] = shared
+  assert.ok(holders > 1)
+
+  // Must be an UNRESOLVED action, or the tool takes its nil path ("no
+  // unresolved actions remain") and there is no owner grouping to caveat.
+  const source = dataset.actions.actions.find((a) => a.status !== 'complete')
+  assert.ok(source, 'this dataset must contain an unresolved action')
+  const withSharedRole = {
+    ...dataset,
+    actions: {
+      ...dataset.actions,
+      actions: [{ ...source, owner: sharedRole }],
+    },
+  }
+
+  const tool = getTool('actions_distribution')
+  assert.ok(tool)
+  const result = await tool!.run(withSharedRole, { group_by: 'owner' })
+  assert.ok('caveats' in result)
+
+  const ownerCaveat = result.caveats.find((c) => c.includes('job title'))
+  assert.ok(ownerCaveat, 'the owner caveat must still be present')
+
+  // No director name may appear: the role is ambiguous, so it is unresolved.
+  for (const s of dataset.skills) {
+    assert.ok(
+      !ownerCaveat.includes(s.director_name),
+      `named ${s.director_name} for a role ${holders} directors hold`,
+    )
+  }
+  assert.match(ownerCaveat, /No director holds/, 'it reads as unresolved')
+})
+
+test('the owner caveat names the one owner that does resolve', async () => {
+  // The question this answers: "why does it show a role and not a name?"
+  // Because for all but one owner there is no name anywhere in the dataset.
+  // Saying so beats "N of M cannot be resolved", which prompted the question
+  // without answering it.
+  const tool = getTool('actions_distribution')
+  const result = await tool!.run(dataset, { group_by: 'owner' })
+  assert.ok('caveats' in result)
+  const ownerCaveat = result.caveats.find((c) => c.includes('job title'))
+  assert.ok(ownerCaveat)
+
+  // Exactly one role in this dataset is held by a single director AND owns
+  // actions: the Chair.
+  const chair = dataset.skills.find((s) => s.role.trim().toLowerCase() === 'chair')
+  assert.ok(chair, 'this dataset has a Chair')
+  assert.ok(
+    ownerCaveat.includes(chair.director_name),
+    'the resolvable owner should be named, not just counted',
+  )
+  assert.match(ownerCaveat, /No director holds/, 'and the rest explained')
+})

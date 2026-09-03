@@ -32,8 +32,15 @@ function isUnresolved(a: BoardAction): boolean {
  */
 function resolveOwner(dataset: Dataset, owner: string): string | null {
   const want = owner.trim().toLowerCase()
-  const hit = dataset.skills.find((s) => s.role.trim().toLowerCase() === want)
-  return hit ? hit.director_name : null
+  // find() would return the FIRST director holding the role, and roles are not
+  // unique: six directors in this dataset hold "Trustee". An action owned by
+  // "Trustee" would then be attributed to one named person out of six who
+  // could equally own it — the same wrong-attribution bug that was fixed in
+  // disagreement.ts, arrived at from a different direction.
+  //
+  // Ambiguity is unresolved, not a guess.
+  const hits = dataset.skills.filter((s) => s.role.trim().toLowerCase() === want)
+  return hits.length === 1 ? hits[0].director_name : null
 }
 
 /**
@@ -47,12 +54,33 @@ function resolveOwner(dataset: Dataset, owner: string): string | null {
 function ownerCaveat(dataset: Dataset, actions: BoardAction[]): string | null {
   const owners = [...new Set(actions.map((a) => a.owner))]
   if (owners.length === 0) return null
-  const unresolved = owners.filter((o) => resolveOwner(dataset, o) === null)
-  return (
-    `"owner" is a job title, not a director: ${unresolved.length} of ${owners.length} ` +
-    'distinct owners in this answer cannot be resolved to a named director, so these ' +
-    'bars are roles, not people.'
-  )
+
+  const resolved: string[] = []
+  const unresolved: string[] = []
+  for (const owner of owners) {
+    const name = resolveOwner(dataset, owner)
+    if (name === null) unresolved.push(owner)
+    else resolved.push(`${owner} is ${name}`)
+  }
+
+  // Says WHICH owners have a name and why the rest do not, because "N of M
+  // cannot be resolved" prompted the obvious question and did not answer it:
+  // the reason is that no director in the skills audit holds that role, which
+  // is a fact about the data rather than a shortcoming of the join.
+  const parts = [
+    `"owner" is a job title, not a director.`,
+    resolved.length > 0
+      ? `${list(resolved)}.`
+      : 'None of them matches a director in the skills audit.',
+  ]
+  if (unresolved.length > 0) {
+    parts.push(
+      `No director holds ${list(unresolved.map((o) => `"${o}"`))}, so ` +
+        `${unresolved.length === 1 ? 'that owner is' : 'those owners are'} shown as ` +
+        'the role recorded in the log and nothing more.',
+    )
+  }
+  return parts.join(' ')
 }
 
 /** Drops a caveat that had nothing to say, so callers can spread it inline. */

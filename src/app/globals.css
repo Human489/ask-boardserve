@@ -1442,14 +1442,25 @@ table.answer-table {
   gap: 10px;
 }
 
-/* The question is what the reader recognises the card by, so it labels the
-   card from above rather than hiding inside the provenance. */
+/* The pinned card's title, and what a reader recognises the card by. Set in
+   the display face because it IS the heading now — the finding below it
+   carries the answer in body text, so only one of the two competes for the
+   eye.
+   
+   Uses the documented `subhead` step (20px). It was 19px, which is on no step
+   at all: the detector caught the drift against DESIGN.md, which is exactly
+   what that file is for. */
 .pinned-question {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 500;
+  margin: 0 0 2px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: -0.011em;
   color: var(--ink);
+  max-width: 52ch;
   overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .provenance-pinned {
@@ -1796,4 +1807,17 @@ table.answer-table {
 /* A compact card carries less, so it needs less room around it. */
 .card-compact {
   padding: 18px 20px;
+}
+
+/* The finding on a pinned card. Complete, never truncated — the headlines run
+   130 to 470 characters and the notable clause can be anywhere in one — but at
+   the body-small step, so a 470-character sentence reads as the answer rather
+   than as a paragraph impersonating a title. */
+.finding {
+  margin: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  max-width: var(--measure-prose);
+  overflow-wrap: anywhere;
 }

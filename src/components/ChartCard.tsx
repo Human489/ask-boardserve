@@ -237,7 +237,20 @@ export default function ChartCard({
 
   return (
     <article className={compact ? 'card card-compact' : 'card'}>
-      <Headline className="headline">{headline}</Headline>
+      {/* On the dashboard the card's TITLE is the question, rendered by the
+          section around it, so the finding is a paragraph rather than a second
+          heading competing to name the same region.
+
+          It is set in body text there too. The findings run 130 to 470
+          characters (median 202), and at the 23px display step a 470-character
+          one is a paragraph pretending to be a title. It is never shortened:
+          every headline is computed, and the notable clause can be anywhere in
+          it, so truncating could cut the very thing worth reading. */}
+      {compact ? (
+        <p className="finding">{headline}</p>
+      ) : (
+        <Headline className="headline">{headline}</Headline>
+      )}
 
       {chart && chart.points.length > 0 && <BoardChart spec={chart} />}
 
