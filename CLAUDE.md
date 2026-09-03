@@ -350,6 +350,57 @@ To reproduce a Vercel build exactly, with no `.env.local` and no dataset:
 git archive main | tar -x -C /tmp/vercel-repro && cd /tmp/vercel-repro && npm ci && npm run build
 ```
 
+## Data protection — noted, not implemented
+
+None of this is built. It is recorded because the demo now persists real-shaped
+board data, and because the next Excellence item makes it sharper rather than
+softer.
+
+**What is stored is personal data.** Attendance names identifiable directors and
+records whether each one turned up; the skills audit records self-assessed
+competence per person. Under UK GDPR that is personal data and arguably
+performance data, held about people who are not the users of this app. Nothing
+here is special-category today, but a board paper mentioning a director's health
+or absence reason would make it so.
+
+**A tokened share link is an unauthenticated route to it.** The Excellence list
+has "shareable read-only dashboard links". A guessable or immortal token is an
+open door to named individuals' attendance. If built, it needs a high-entropy
+token, an expiry, revocation, `noindex`, and no personal data in the URL path.
+
+**Retention.** Datasets, pins and transcripts are written to KV with no TTL,
+deliberately — a pin that expired on its own would be a silent loss. That is
+right for a demo and wrong for real data: there is no retention period and
+nothing deletes anything on a schedule.
+
+**Access control is one shared passcode.** No per-user identity, so no record of
+who read what, no way to revoke one person, and no audit trail. For board
+attendance and skills data that is thin, and it is the first thing to change
+before real data.
+
+**No erasure or rectification path.** A director cannot be removed or corrected
+except by re-uploading the whole dataset.
+
+**Residency and processors.** KV replicates globally; a UK charity may require
+UK or EU residency. Cloudflare and Vercel are processors and would need a DPA.
+Errors are logged server-side — worth checking none carries a director's name.
+
+**Minimisation.** Transcripts store headlines, and headlines contain figures
+about named people. Storing conversations indefinitely keeps more than answering
+a question requires.
+
+## Brief compliance — two known gaps
+
+- **The brief asks for "a simple middleware check protecting every page and API
+  route".** Every API route is protected per-request, which is what stops
+  credits being spent. The page itself is served to anyone and the gate is
+  client-side, so the HTML and JS are public even though no data is. A
+  `middleware.ts` would close it; the per-request check stays either way,
+  because it is what makes the app stateless.
+- **The brief says the system must cache AI results in KV.** It does not. Rate
+  limits, pins and datasets are in KV; routing and retrieval calls are not
+  cached, so an identical question spends credits twice.
+
 ## Open decisions
 
 - **No attendance threshold exists in the data.** Defaults to 80%, always stated.
