@@ -44,11 +44,29 @@ typography:
     fontWeight: 400
     lineHeight: 1.1
     letterSpacing: "-0.02em"
+  subhead:
+    fontFamily: "Instrument Serif, Charter, Iowan Old Style, Georgia, serif"
+    fontSize: "20px"
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: "-0.011em"
   body:
     fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
     fontSize: "15px"
     fontWeight: 400
     lineHeight: 1.55
+    fontFeature: "tabular-nums"
+  body-sm:
+    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: "13px"
+    fontWeight: 400
+    lineHeight: 1.55
+    fontFeature: "tabular-nums"
+  caption:
+    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: "11.5px"
+    fontWeight: 400
+    lineHeight: 1.6
     fontFeature: "tabular-nums"
   label:
     fontFamily: "Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
@@ -56,10 +74,19 @@ typography:
     fontWeight: 500
     lineHeight: 1.4
     letterSpacing: "0.14em"
+  label-sm:
+    fontFamily: "Geist Mono, ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontSize: "10px"
+    fontWeight: 500
+    lineHeight: 1.4
+    letterSpacing: "0.10em"
 rounded:
+  mark: "2px"
+  xs: "4px"
   sm: "6px"
   md: "8px"
   lg: "16px"
+  pill: "99px"
 spacing:
   xs: "6px"
   sm: "10px"
@@ -99,6 +126,17 @@ components:
     rounded: "{rounded.sm}"
     padding: "0 11px"
     height: "30px"
+  theme-option:
+    backgroundColor: "{colors.surface-sunken}"
+    textColor: "{colors.ink-muted}"
+    typography: "{typography.label-sm}"
+    rounded: "{rounded.mark}"
+    padding: "0 9px"
+    height: "26px"
+  theme-option-selected:
+    backgroundColor: "{colors.surface}"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.mark}"
 ---
 
 # Design System: Ask BoardServe
@@ -128,6 +166,11 @@ the sparkline standing in for a finding, the progress ring. This product exists
 because a fixed dashboard could not answer the question, so looking like one
 would be a lie about what it does. There is one chart per answer, at the size
 the answer needs, with the sentence above it.
+
+Both themes are first-class, and the reader picks: System, Light or Dark.
+Light is the default and the one the parent brand leads with; dark exists
+because this is read at a desk for long stretches. System is the default
+choice, so the app already matches the desk it landed on.
 
 **Key Characteristics:**
 
@@ -222,11 +265,16 @@ live in meetings; a third-party font request is a dependency nobody chose.
 - **Headline / Lede** (400, 25px, 1.2, -0.015em): the first line of an empty
   screen — the Ask view's opening, the gate's title.
 - **Title / Wordmark** (400, 21px, 1.1, -0.02em): the masthead.
-- **Body** (400, 15px, 1.55, tabular figures): everything explanatory.
-  Assumptions, caveats, table cells, example questions. Capped at 72ch inside
-  the card.
-- **Label** (500, 10–11px, 0.10–0.14em, uppercase, mono): section labels,
-  provenance field names, chart legends. Never a sentence.
+- **Body** (400, 15px, 1.55, tabular figures): the composer, example
+  questions, the lead paragraph. Capped at 72ch inside the card.
+- **Body Small** (400, 13px, 1.55, tabular figures): the workhorse. Table
+  cells, assumptions, caveats. By far the most-used step in the stylesheet.
+- **Caption** (400, 11.5px, 1.6): provenance values and axis captions, held at
+  4.5:1 against the sunken surface.
+- **Label** (500, 11px, 0.14em, uppercase, mono): section labels and chart
+  legends. Never a sentence.
+- **Label Small** (500, 10px, 0.10em, uppercase, mono): provenance field names.
+  Looser tracking than Label because the size is tighter.
 
 ### Named Rules
 
@@ -240,6 +288,14 @@ single serif sentence reads as a conclusion.
 thin-thick contrast is the entire reason it was chosen. Presence comes from
 size and tighter tracking, which is how the parent brand sets it (-1.5px at
 60px).
+
+**The Ramp-Is-The-Frontmatter Rule.** The type steps and radii in this file's
+frontmatter are the whole permitted set, and they were widened once — from the
+five display roles to the nine steps the stylesheet genuinely uses — because a
+scale documented narrower than the code makes every literal a finding and
+teaches the reader to ignore all of them. Add a step by documenting it here
+first. The two exceptions on record are a 1px radius on chart legend swatches
+smaller than any step, and nothing else.
 
 **The Mono-Means-Measured Rule.** Geist Mono is for labels, provenance and
 figures — things that were counted. It is never used to make prose look
@@ -361,6 +417,30 @@ The signature component, and the reason the palette is split.
 - Figures everywhere use tabular numerals, because they are read off the screen
   and typed into board papers by hand.
 
+### Brand Lockup
+
+BoardServe's own mark beside the product name, inlined as SVG rather than
+served as a file: it is 3KB, it appears on the passcode screen before anything
+else has loaded, and one fewer request is one fewer thing to go wrong in a
+meeting. Every path is `currentColor`, so the mark takes the active theme's
+accent from one property — the source asset ships with a fixed `#0F766E`,
+which goes muddy on the dark ground. Sized in ems so it tracks the wordmark
+with no breakpoint of its own, and `aria-hidden`, because the wordmark beside
+it already says the product's name.
+
+### Theme Toggle
+
+- **Style:** three mono uppercase options in a sunken track — System, Light,
+  Dark — at 26px tall with the 2px mark radius.
+- **Selected:** card-white ground, hairline border, full-strength ink. Marked
+  with `aria-checked` on a `role="radio"`, so the state is in the
+  accessibility tree and not only in the fill.
+- **Role:** a radio group, not a cycling button. Three states cannot be cycled
+  discoverably — the reader cannot see what the next press does — and "System"
+  is unexpressable in a two-state toggle.
+- **Placement:** in the masthead, outside the view switch, so it is reachable
+  from the passcode screen too.
+
 ### Provenance Block
 
 Under every answer, without a disclosure: as-at date, sources, rows considered,
@@ -384,6 +464,12 @@ the reader is accountable for what they repeat.
   large card, rather than introducing a third value.
 - **Do** use tabular numerals for anything a reader might copy.
 - **Do** state a threshold's value wherever its line is drawn.
+- **Do** add any new dark token to BOTH dark blocks. `tests/theme.test.ts`
+  fails if they differ, because a token in only one of them means readers on
+  System and readers who chose Dark see different colours.
+- **Do** make anything that reads a token at runtime re-read on a `data-theme`
+  change as well as a media change. The chart listened only to the media query
+  and kept the dark palette on a white card when the reader chose Light.
 
 ### Don't:
 
@@ -404,3 +490,10 @@ the reader is accountable for what they repeat.
 - **Don't** hard-code any organisation's name, committee, skill or figure into
   a style or a string. A test greps `src/lib` for exactly this, comments
   included.
+- **Don't** treat light or dark as the only theme. Both are shipped, both are
+  contrast-computed, and a change made to one is not done until it is made to
+  the other.
+- **Don't** apply the theme only in an effect. React's hydration removes an
+  attribute the server did not render, so the choice must be stamped by the
+  inline script before paint AND re-applied on the client — the script for no
+  flash, the effect for correctness.

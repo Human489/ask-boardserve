@@ -94,6 +94,8 @@
   --shadow-tooltip: 0 4px 14px rgba(23, 20, 18, 0.14);
 
   /* 8px is BoardServe's --radius (.5rem); its cards round to 16px. */
+  --radius-mark: 2px;
+  --radius-xs: 4px;
   --radius: 8px;
   --radius-sm: 6px;
   --radius-lg: 16px;
@@ -114,10 +116,41 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
+/* Theme selection.
+   ---------------------------------------------------------------------------
+   The light palette above is the default and the one the parent brand leads
+   with. Dark is offered because this is read at a desk for long stretches, and
+   the reader chooses: System (default), Light, or Dark.
 
+   Three states, not two. A boolean toggle cannot express "follow the machine",
+   which is the right default for a tool someone opens between other work.
+
+   THE DARK TOKENS ARE DECLARED TWICE, deliberately. CSS has no way to share
+   one declaration block between a media query and an attribute selector, and
+   the alternative — light-dark() — is too new to rely on for something opened
+   live in a board meeting. So:
+
+     - inside the media query, for readers who chose System and whose machine
+       says dark. Guarded with :not([data-theme='light']) so an explicit Light
+       choice still wins on a dark machine.
+     - on [data-theme='dark'], for readers who chose Dark on a light machine.
+
+   Two copies can drift, and a drifted copy means one theme silently loses a
+   contrast fix. tests/theme.test.ts asserts the two blocks declare an
+   identical set of tokens with identical values, so drift fails the suite
+   rather than reaching a reader. */
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* dark:begin */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
     /* Warm-dark rather than neutral-dark, so the dark theme reads as the same
        brand with the lights off and not as a different product. */
     --plane: #0f0d0c;
@@ -168,8 +201,64 @@
        lift in the border plus a deeper, wider cast. */
     --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-tooltip: 0 6px 20px rgba(0, 0, 0, 0.55);
+
   }
 }
+
+:root[data-theme='dark'] {
+  /* Warm-dark rather than neutral-dark, so the dark theme reads as the same
+     brand with the lights off and not as a different product. */
+  --plane: #0f0d0c;
+  --surface: #1a1816;
+  --surface-sunken: #131211;
+
+  --ink: #faf8f6;
+  --ink-2: #d6cfc9;
+  /* 6.23:1 on --surface, 6.58:1 on --surface-sunken. */
+  --ink-muted: #a09890;
+
+  --hairline: rgba(250, 248, 246, 0.12);
+  /* Same 3:1 obligation as light: 3.34:1 on --surface, 3.65:1 on --plane,
+     3.53:1 on --surface-sunken. */
+  --hairline-strong: #726a63;
+  --grid: #2c2926;
+  /* 3.34:1 on --surface. */
+  --axis: #726a63;
+
+  /* Separated in greyscale like the light trio: 4.75 / 6.36 / 10.16 on
+     --surface. The order is deliberately the same — highlight darkest,
+     series-2 lightest — so a reader who learns one theme reads the other. */
+  --series-1: #5f9ee8;
+  --series-2: #5cd9b6;
+  --highlight: #d95c5c;
+  --reference: #a09890;
+
+  /* Lifted so the dark ink on a filled button still measures 7.6:1. */
+  --accent: #4db39b;
+  --accent-ink: #0f0d0c;
+  --accent-tint: #12211d;
+
+  --refusal-bg: #141b26;
+  --refusal-edge: #33507a;
+  --refusal-ink: #8fbaf4;
+
+  --error-bg: #241615;
+  --error-edge: #6e3a38;
+  --error-ink: #f0a0a0;
+
+  --notice-bg: #1f1d1b;
+  --notice-edge: #39352f;
+
+  --focus: #6fd6bb;
+  --selection: #1e3b34;
+
+  /* A black shadow is invisible on a dark plane; depth has to come from a
+     lift in the border plus a deeper, wider cast. */
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-tooltip: 0 6px 20px rgba(0, 0, 0, 0.55);
+
+}
+/* dark:end */
 
 /* Self-hosted, latin subsets only. See public/fonts/README.md for the
    licences and why these are not loaded from a CDN. */
@@ -1002,10 +1091,12 @@ table.answer-table {
 .gate-title {
   margin: 0 0 8px;
   font-family: var(--font-display);
-  font-size: 1.375rem;
+  /* The same step as .empty-lede. Both are the first line of an empty screen,
+     which is how DESIGN.md describes the role, and they were 22px and 25px. */
+  font-size: 25px;
   font-weight: 400;
   letter-spacing: -0.015em;
-  line-height: 1.25;
+  line-height: 1.2;
   color: var(--ink);
 }
 
@@ -1061,8 +1152,9 @@ table.answer-table {
 .gate-button {
   margin-top: 18px;
   font: inherit;
-  font-size: 0.875rem;
-  font-weight: 500;
+  /* Same control as the composer's send button, so the same body step. */
+  font-size: 15px;
+  font-weight: 600;
   padding: 10px 14px;
   color: var(--accent-ink);
   background: var(--accent);
@@ -1513,4 +1605,79 @@ table.answer-table {
   margin: 3px 0 0;
   font-size: 12.5px;
   color: var(--ink-2);
+}
+
+/* ------------------------------------------------------------- brand lockup
+   BoardServe's mark beside the product name. The mark is sized in ems so it
+   tracks the wordmark rather than needing its own breakpoint, and it is
+   optically nudged: the glyph's ink sits low in its box, so aligning the boxes
+   leaves it looking dropped. */
+
+.lockup {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+
+.lockup-mark {
+  width: 0.72em;
+  height: auto;
+  flex: none;
+  /* currentColor on the paths; the accent is the brand green in either theme. */
+  color: var(--accent);
+  align-self: center;
+  position: relative;
+  top: 0.03em;
+}
+
+/* -------------------------------------------------------------- theme toggle
+   System / Light / Dark as a radio group, in the masthead so it is reachable
+   from the passcode screen too.
+
+   The light palette shipped from the start and could not be reached: the
+   stylesheet keyed off prefers-color-scheme alone, so a reader on a dark
+   machine only ever saw dark and had no way to learn otherwise. */
+
+.theme-toggle {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  flex: none;
+}
+
+.theme-option {
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-mark);
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 120ms ease, background-color 120ms ease;
+}
+
+.theme-option:hover:not([aria-checked='true']) {
+  color: var(--ink);
+}
+
+.theme-option[aria-checked='true'] {
+  background: var(--surface);
+  border-color: var(--hairline);
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  /* The masthead row wraps on a phone, and the toggle should sit with the view
+     switch rather than being pushed onto a line of its own. */
+  .masthead-row {
+    flex-wrap: wrap;
+  }
 }

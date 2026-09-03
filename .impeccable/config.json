@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "instrument serif",
+        "createdAt": "2026-09-03T15:15:23.421Z",
+        "reason": "user confirmed: pinned boardserve.co.uk as the reference and chose to self-host this exact face; it is BoardServe's own display type"
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist mono",
+        "createdAt": "2026-09-03T15:15:23.536Z",
+        "reason": "user confirmed: pinned boardserve.co.uk as the reference and chose to self-host this exact face; it is BoardServe's own label/mono type"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "1px",
+        "createdAt": "2026-09-03T15:15:32.127Z",
+        "reason": "Claude decided: softens the 3px-tall line swatch and the 10px flagged swatch in the chart legend. Sub-scale by intent on marks smaller than any scale step; 2px is documented as rounded.mark for the 11px square swatch"
+      }
+    ]
+  }
+}

@@ -72,6 +72,7 @@ export default function Workspace() {
         onView={changeView}
         pinCount={pins.pins.length}
         organisation={active?.organisation ?? (datasets.localAvailable ? null : null)}
+        announce={announcer.announce}
       />
       {/* The live region sits outside every view, because a hidden view is
           removed from the accessibility tree and takes its region with it. */}

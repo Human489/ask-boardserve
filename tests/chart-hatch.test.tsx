@@ -24,10 +24,10 @@ import BoardChart, {
 
 const palette: Palette = {
   series1: '#256cc4',
-  series2: '#0f8e61',
-  highlight: '#c62f2f',
-  reference: '#6b6963',
-  grid: '#e1e0d9',
+  series2: '#2a9d7f',
+  highlight: '#8f1d1d',
+  reference: '#6a615b',
+  grid: '#e7e4e1',
   axis: '#b4b3a8',
   muted: '#6b6963',
   surface: '#fcfcfb',

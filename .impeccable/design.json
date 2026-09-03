@@ -102,19 +102,35 @@
       },
       "headline": {
         "displayName": "Lede",
-        "purpose": "The first line of an empty screen: the Ask view's opening and the gate title."
+        "purpose": "The first line of an empty screen: the Ask view's opening and the gate title. One step shared by both — they were 25px and 22px until the detector caught the drift against this file."
       },
       "title": {
         "displayName": "Wordmark",
         "purpose": "The masthead only."
       },
+      "subhead": {
+        "displayName": "Finding (small)",
+        "purpose": "The finding sentence under 640px. The only responsive type step in the system."
+      },
       "body": {
         "displayName": "Body",
         "purpose": "Everything explanatory. Tabular figures, capped at 72ch inside the card."
       },
+      "body-sm": {
+        "displayName": "Body Small",
+        "purpose": "The workhorse small size: table cells, assumptions, caveats, example questions. By far the most-used step in the stylesheet."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Provenance values and chart axis captions. Held at 4.5:1 against the sunken surface."
+      },
       "label": {
         "displayName": "Label",
-        "purpose": "Mono uppercase: section labels, provenance field names, legends. Never a sentence."
+        "purpose": "Mono uppercase: section labels and legends. Never a sentence."
+      },
+      "label-sm": {
+        "displayName": "Label Small",
+        "purpose": "Mono uppercase at its smallest: provenance field names, at looser tracking than Label because the size is tighter."
       }
     },
     "shadows": [
@@ -168,8 +184,14 @@
         "rule": "overused-font",
         "target": "Instrument Serif, Geist Mono",
         "reason": "These are BoardServe's own typefaces, read off boardserve.co.uk, and the brief pinned that site as the reference. A pinned brief overrides a saturated-pattern warning; changing them would break the brand alignment that was the point of the work."
+      },
+      {
+        "rule": "design-system-radius",
+        "target": "1px",
+        "reason": "Softens the 3px-tall line swatch and the 10px flagged swatch in the chart legend. Sub-scale by intent, on marks smaller than any scale step. The 11px square swatch uses rounded.mark (2px), which IS documented."
       }
-    ]
+    ],
+    "scaleNote": "The typography and rounded scales in DESIGN.md's frontmatter were first written narrower than the stylesheet, and the detector reported 41 findings against them. Widening them to the values actually in use was the fix, because a check that fires 41 times on day one is ignored as reliably as one that can never fire. Two findings were real drift and were fixed in the CSS instead: the gate title and the gate button were off the ramp."
   },
   "components": [
     {

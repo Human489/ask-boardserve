@@ -67,9 +67,30 @@ function usePalette(): Palette | null {
       setPalette(next)
     }
     read()
+
+    // Two triggers, because there are now two ways the theme can change.
+    //
+    // The media query alone was enough while the OS was the only input. Adding
+    // the System/Light/Dark control broke that: switching to Light on a dark
+    // machine changes the data-theme attribute and fires no media event, so the
+    // chart kept the palette it read on mount. Measured — the tokens said
+    // --series-1: #256cc4 while the bars were still filled #5f9ee8, the dark
+    // blue, on a white card. That is not merely stale: a dark-theme series
+    // colour is tuned for a dark ground and #5f9ee8 on white is about 2.6:1,
+    // under the 3:1 a chart mark has to hold.
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     mq.addEventListener('change', read)
-    return () => mq.removeEventListener('change', read)
+
+    const observer = new MutationObserver(read)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    })
+
+    return () => {
+      mq.removeEventListener('change', read)
+      observer.disconnect()
+    }
   }, [])
 
   return palette
