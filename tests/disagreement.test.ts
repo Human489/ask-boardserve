@@ -168,3 +168,66 @@ test('a sentence that counts terms as well as years extracts nothing', () => {
     assert.equal(findTermLimit([passage(prose)]), null, prose)
   }
 })
+
+// ---------------------------------------------------------------------------
+// This module's own comment says a false accusation is worse than a missed one.
+// It was producing them two ways.
+
+const paperSaying = (body: string) => ({
+  ...dataset,
+  papers: [{ id: 'p1', filename: 'paper-01.md', title: 'Report', body: `# Report\n\n## Skills\n\n${body}` }],
+})
+
+const HEDGED = [
+  'Fewer than eight',
+  'No more than nine',
+  'At most six',
+  'Up to eight',
+  'Around six',
+  'At least eight',
+  'More than seven',
+]
+
+for (const hedge of HEDGED) {
+  test(`a hedged count is not an assertion to contradict: "${hedge}"`, () => {
+    const skill = dataset.skillNames[0]
+    const found = findDisagreements(
+      paperSaying(`${hedge} trustees score 4 or above on ${skill}.`),
+    )
+    // The sentence is true as written; there is no exact claim in it.
+    assert.equal(
+      found.length,
+      0,
+      `accused the paper of claiming ${found[0]?.paperSays}: "${found[0]?.sentence}"`,
+    )
+  })
+}
+
+test('a claim is attributed to the skill it names, not the first one mentioned', () => {
+  const [first, second] = dataset.skillNames
+  // The paper says nothing wrong about `first`, but used to be reported for it
+  // because the skill was chosen by the audit's column order.
+  const found = findDisagreements(
+    paperSaying(`${first} remains strong. Six trustees score 4 or above on ${second}.`),
+  )
+  assert.equal(found.length, 1)
+  assert.equal(found[0].skill, second)
+})
+
+test('a sentence naming two skills is left alone rather than guessed at', () => {
+  const [first, second] = dataset.skillNames
+  const found = findDisagreements(
+    paperSaying(`Six trustees score 4 or above on ${first} and ${second}.`),
+  )
+  assert.equal(found.length, 0, 'an ambiguous sentence must not be attributed')
+})
+
+test('an exact claim that contradicts the audit is still reported', () => {
+  // The guards must not have silenced the feature itself.
+  const real = findDisagreements(dataset)
+  assert.ok(real.length > 0, 'the real corpus has genuine disagreements to report')
+  for (const d of real) {
+    assert.notEqual(d.paperSays, d.dataSays)
+    assert.ok(dataset.skillNames.includes(d.skill))
+  }
+})

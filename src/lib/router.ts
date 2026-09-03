@@ -54,7 +54,22 @@ export interface HistoryTurn {
  * ones" while leaving anything that states its own subject alone, so the
  * remainder is capped rather than parsed.
  */
-const FRAGMENT = /^(and|what about|how about|just|only|same for|what if)\b[^?.!]{0,28}[?.!]?$/i
+const FRAGMENT_OPENER = /^(and|what about|how about|just|only|same for|what if)\b/i
+
+/**
+ * A word that gives a question its own subject.
+ *
+ * The first version of this guard used LENGTH as the discriminator — a marker
+ * plus fewer than 29 characters — and so refused "What about overdue actions?"
+ * and "Just show me the skills gaps", which name exactly what they want. A
+ * reader was told there was no earlier question for theirs to refine, about a
+ * question that needed none.
+ *
+ * These are the product's own vocabulary — what it measures, not who it
+ * measures — so they carry no organisation with them.
+ */
+const NAMES_A_SUBJECT =
+  /\b(attendance|attend|meeting|committee|board|director|trustee|action|overdue|defer|skill|gap|coverage|tenure|paper|minute|apolog|owner|threshold|risk)/i
 
 const TIMEOUT_MS = 20_000
 
@@ -154,7 +169,11 @@ function toOpenAiTools(tools: ToolDefinition[]) {
 // not a qualifications one, so retrieval is tested before qualifications.
 
 const PACK_PATTERNS =
-  /\b(board )?pack(s)?\b|\bnotice period\b|\benough notice\b|\bcirculat|\bdespatch|\bdispatch|\bpage count\b|\bhow long are our\b/
+  // "how long are our" was here to catch "how long are our board packs", and
+  // caught "how long are our overdue actions outstanding?" as well — which
+  // longest_overdue computes exactly. Tied to the pack itself, so it can no
+  // longer refuse a question about anything else's length.
+  /\b(board )?pack(s)?\b|\bnotice period\b|\benough notice\b|\bcirculat|\bdespatch|\bdispatch|\bpage count\b|\bhow long (are|is) (our |the )?(board )?pack/
 
 /**
  * Genuine meeting-minutes questions only.
@@ -187,7 +206,12 @@ const QUALIFICATION_PATTERNS =
  * Giving these the qualification wording would be a wrong explanation of a
  * right refusal.
  */
-const UNMEASURED_PATTERNS = /\biq\b|\bintelligence\b|\bpersonality\b|\bage(s)?\b|\bsalary\b|\bpay\b/
+// A bare "age" refused "what is the average age of an overdue action?", which
+// is computable from due dates and completion dates. These patterns are about
+// attributes of PEOPLE that the dataset does not record, so the person is now
+// part of the pattern rather than assumed.
+const UNMEASURED_PATTERNS =
+  /\biq\b|\bintelligence\b|\bpersonality\b|\bsalary\b|\bhow much .*(paid|earn)\b|\b(age|ages|birthday|date of birth)\s+of\s+(the\s+)?(director|trustee|member|chair|board)/
 
 /**
  * Tenure and term-limit questions. These read as structured questions but are
@@ -381,14 +405,17 @@ function genericScore(q: string, tool: ToolDefinition): number {
  * to a dataset.
  */
 const UNAMBIGUOUS = new Set([
+  // These must be terms that actually appear as a one-word hint group, or they
+  // are never consulted. The first version listed 'overdue', 'deferred',
+  // 'quorum', 'attendance' and 'skills audit', none of which do — so the set
+  // read as though it covered them while "What has been deferred?" scored half
+  // a point and refused, against a tool that answers it.
   'apolog',
   'eligible',
-  'overdue',
-  'deferred',
-  'quorum',
   'tenure',
-  'attendance',
-  'skills audit',
+  'defer',
+  'threshold',
+  'unresolved',
 ])
 
 /**
@@ -765,7 +792,11 @@ export async function routeQuestion(
   // Deliberately narrow: a marker at the very start, a short remainder, and no
   // history at all. "Now show me overdue actions" states its own subject and is
   // not caught, which is why "now" is not a marker here.
-  if (history.length === 0 && FRAGMENT.test(question.trim())) {
+  const trimmed = question.trim()
+  // A marker with no subject of its own. Both halves matter: the marker says it
+  // reads as a continuation, the missing subject says it cannot stand alone.
+  const isOrphanFollowUp = FRAGMENT_OPENER.test(trimmed) && !NAMES_A_SUBJECT.test(trimmed)
+  if (history.length === 0 && isOrphanFollowUp) {
     return {
       kind: 'refusal',
       routedBy: 'guard',

@@ -225,3 +225,49 @@ for (const [question, expected] of MUST_STILL_ROUTE) {
     if (routed.kind !== 'refusal') assert.equal(routed.name, expected)
   })
 }
+
+// A refusal must say what no TOOL computes, never that the data lacks
+// something it holds — and it must not fire on a question that stands alone.
+// Each of these was refused by the code as written, and each is answerable.
+const WRONGLY_REFUSED: [string, string][] = [
+  // "how long are our" was meant for board packs and caught this too.
+  ['How long are our overdue actions outstanding?', 'overdue_actions'],
+  // A bare "age" refused this; due dates and completion dates are recorded.
+  ['What is the average age of an overdue action?', 'overdue_actions'],
+  // The fragment guard used LENGTH as its discriminator, so a question that
+  // names its own subject was told it had nothing to refine.
+  ['What about overdue actions?', 'overdue_actions'],
+  ['Just show me the skills gaps', 'skills_gaps'],
+  ['How about the skills gaps?', 'skills_gaps'],
+  // 'defer' was absent from the unambiguous set, so this scored half a point.
+  ['What has been deferred?', 'deferred_more_than_once'],
+]
+
+for (const [question, expected] of WRONGLY_REFUSED) {
+  test(`answerable, so not refused: "${question}"`, async () => {
+    const routed = await routeQuestion(question, TOOLS)
+    assert.notEqual(
+      routed.kind,
+      'refusal',
+      `refused a question a tool answers: ${routed.kind === 'refusal' ? routed.reason : ''}`,
+    )
+    if (routed.kind !== 'refusal') assert.equal(routed.name, expected)
+  })
+}
+
+// The guards those fixes loosened must still hold.
+const STILL_REFUSED = [
+  'How long are our board packs?',
+  'What are the directors paid?',
+  'and at 90%?',
+  'what about it?',
+  'Who is absent from the staff car park most often?',
+  'which director has the longest commute?',
+]
+
+for (const question of STILL_REFUSED) {
+  test(`still refused: "${question}"`, async () => {
+    const routed = await routeQuestion(question, TOOLS)
+    assert.equal(routed.kind, 'refusal')
+  })
+}

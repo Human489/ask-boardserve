@@ -97,6 +97,45 @@ function computed(dataset: Dataset, skill: string) {
 const OF_THE_WHOLE = '(?:\\s+(?:of|out of)\\s+(?:the\\s+)?(?:\\w+\\s+)?)?'
 const PEOPLE = '(?:trustees?|directors?|members?|board)'
 
+/**
+ * Words that make a count a bound rather than an assertion.
+ *
+ * "Fewer than eight trustees score 4 or above" was read as the paper claiming
+ * eight, and reported as a governance finding against a sentence that is
+ * perfectly true. The comment above says a false accusation is worse than a
+ * missed one; this is how one was produced. A hedged sentence is now left
+ * alone, because there is no exact claim in it to disagree with.
+ */
+const HEDGES = [
+  'fewer than',
+  'less than',
+  'no more than',
+  'not more than',
+  'at most',
+  'up to',
+  'more than',
+  'at least',
+  'over',
+  'around',
+  'about',
+  'roughly',
+  'approximately',
+  'nearly',
+  'almost',
+  'some',
+  'several',
+]
+
+function isHedged(sentence: string, token: string): boolean {
+  const lower = sentence.toLowerCase()
+  const at = lower.indexOf(token.toLowerCase())
+  if (at === -1) return false
+  // Only the words immediately before the count matter: a hedge elsewhere in a
+  // long sentence says nothing about this number.
+  const before = lower.slice(Math.max(0, at - 24), at)
+  return HEDGES.some((hedge) => before.trimEnd().endsWith(hedge))
+}
+
 const STRONG_CLAIM = new RegExp(
   `\\b(\\w+)${OF_THE_WHOLE}\\s*(?:the\\s+)?${PEOPLE}\\s+scores?\\s+4\\s+or\\s+(?:5|above)\\b`,
   'i',
@@ -120,12 +159,25 @@ export function findDisagreements(dataset: Dataset): Disagreement[] {
   for (const chunk of chunkPapers(dataset.papers)) {
     const lines = sentences(chunk.text)
     lines.forEach((sentence, i) => {
-      // A skill named in this sentence, or in the one before it — papers often
-      // name the area then make the claim in the next breath. No further back
-      // than that: attribution stops being safe.
-      const context = `${lines[i - 1] ?? ''} ${sentence}`.toLowerCase()
-      const skill = dataset.skillNames.find((s) => context.includes(s.toLowerCase()))
-      if (!skill) return
+      // The skill the claim NAMES, not the first one that happens to appear.
+      //
+      // This used to search the sentence and the one before it and take
+      // whichever skill came first in the audit's column order. A paper that
+      // praised one area and then made a count about a DIFFERENT one in the
+      // next sentence was therefore reported as mis-stating the first — about
+      // which it had said nothing wrong.
+      //
+      // The claim's own sentence wins. Two skills in it, and the sentence is
+      // ambiguous about which the count belongs to, so it is left alone: a
+      // missed disagreement costs a caveat, a misattributed one accuses a paper
+      // of an error it did not make.
+      const named = (text: string) =>
+        dataset.skillNames.filter((s) => text.toLowerCase().includes(s.toLowerCase()))
+      const inSentence = named(sentence)
+      const inPrevious = inSentence.length === 0 ? named(lines[i - 1] ?? '') : []
+      const candidates = inSentence.length > 0 ? inSentence : inPrevious
+      if (candidates.length !== 1) return
+      const skill = candidates[0]
 
       const actual = computed(dataset, skill)
 
@@ -135,6 +187,7 @@ export function findDisagreements(dataset: Dataset): Disagreement[] {
       ] as const) {
         const token = firstCapture(sentence.match(pattern))
         if (token === null) continue
+        if (isHedged(sentence, token)) continue
         const paperSays = toCount(token, boardSize)
         if (paperSays === null || paperSays === dataSays) continue
 
