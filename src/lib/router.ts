@@ -826,6 +826,13 @@ export async function routeQuestion(
       ].join(' :: '),
       CACHE_TTL_SECONDS,
       () => modelRoute(question, tools, history),
+      // A REFUSAL IS NEVER CACHED. Routing is not deterministic, so a question
+      // the dataset answers can be refused on one call in three — and caching
+      // that hands the same refusal to every later reader for an hour, looking
+      // entirely settled. Measured: six identical refusals from one unlucky
+      // first call. A good route is safe to keep, because the model would have
+      // chosen it again; a refusal is the one result worth paying to re-ask.
+      (route) => route.kind !== 'refusal',
     )
     if (routed) return guardPapersRoute(routed, question, tools, dataset)
     console.warn('[router] model routing unavailable; using the deterministic fallback')

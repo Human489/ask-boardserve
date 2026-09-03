@@ -72,10 +72,31 @@ export async function cached<T>(
   material: string,
   ttlSeconds: number,
   produce: () => Promise<T | null>,
+  /**
+   * Whether a produced value is worth keeping. Default: anything non-null.
+   *
+   * Exists because the cache does not merely HIDE a flaky model, it FREEZES
+   * one. Measured: a spec question's shortened wording routes correctly about
+   * two thirds of the time and refuses the rest. With the cache on, whichever
+   * answer the first caller happened to get was then served to everyone for
+   * the full hour — six identical refusals in a row, looking perfectly
+   * deterministic, for a question the dataset answers.
+   *
+   * A cached GOOD route is harmless: the model would have chosen it again. A
+   * cached refusal is a wrong answer with a one-hour lease. So the caller says
+   * which of its results are safe to keep, and pays a model call for the rest.
+   */
+  worthKeeping: (value: T) => boolean = () => true,
 ): Promise<T | null> {
   if (!kvAvailable() || cacheDisabled()) return produce()
 
-  const key = `aicache:v1:${namespace}:${await digest(material)}`
+  // v2, not v1. The caching RULE changed — a refusal is no longer stored — and
+  // entries written under the old rule are still out there with an hour to
+  // live, including the frozen refusals that prompted the change. Without the
+  // bump the fix would not take effect on the very questions it was written
+  // for until their leases expired. Verified: six calls after the code fix
+  // still returned a stale cached refusal and made zero model calls.
+  const key = `aicache:v2:${namespace}:${await digest(material)}`
 
   const read = await kvRead(key)
   if (read.ok && !read.missing) {
@@ -88,6 +109,7 @@ export async function cached<T>(
 
   const produced = await produce()
   if (produced === null || produced === undefined) return produced
+  if (!worthKeeping(produced)) return produced
   void kvPut(key, JSON.stringify(produced), ttlSeconds)
   return produced
 }

@@ -92,3 +92,48 @@ test('every input that changes an answer is inside the key material', async () =
     assert.ok(groundCall.includes(part), `grounding cache key omits ${part}`)
   }
 })
+
+test('routing never caches a refusal', () => {
+  // The cache does not merely hide a flaky model, it FREEZES one. Routing is
+  // not deterministic: a spec question's shortened wording was measured
+  // routing correctly about two thirds of the time and refusing the rest, and
+  // with the cache on whichever answer the FIRST caller happened to get was
+  // then served to everyone for the full hour — six identical refusals in a
+  // row, looking entirely settled, for a question the dataset answers.
+  //
+  // A cached GOOD route is harmless, because the model would have chosen it
+  // again. A cached refusal is a wrong answer with a one-hour lease.
+  //
+  // Asserted on the source, like the key-material test above, because this
+  // file runs with KV deliberately unconfigured — so `cached` short-circuits
+  // to its producer and the storing branch cannot be exercised here at all.
+  // The behaviour itself was verified against a running server.
+  const source = readFileSync('src/lib/router.ts', 'utf8')
+  const call = source.slice(source.indexOf('cached<Route>'))
+  // The first 900 characters of the call, which is well inside it and needs no
+  // newline escape — one of those was mangled into a real line break here
+  // once, which is the failure tests/sources.test.ts exists to catch.
+  const predicate = call.slice(0, 900)
+  assert.match(
+    predicate,
+    /kind !== 'refusal'/,
+    'the routing cache must be given a predicate that refuses to store a refusal',
+  )
+})
+
+test('the cache only stores what its caller judges worth keeping', () => {
+  // The mechanism behind the rule above: a predicate, defaulting to "keep
+  // anything non-null" so every existing call site is unchanged.
+  const source = readFileSync('src/lib/aicache.ts', 'utf8')
+  assert.match(source, /worthKeeping/, 'the predicate parameter exists')
+  assert.match(
+    source,
+    /if \(!worthKeeping\(produced\)\) return produced/,
+    'and it gates the write rather than the return',
+  )
+  assert.match(
+    source,
+    /worthKeeping: \(value: T\) => boolean = \(\) => true/,
+    'defaulting to keeping everything, so no existing caller changes behaviour',
+  )
+})
