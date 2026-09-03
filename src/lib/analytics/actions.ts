@@ -5,7 +5,7 @@ import type {
   ToolDefinition,
   ToolResult,
 } from '@/lib/types'
-import { daysBetween } from '@/lib/dataset/loader'
+import { choice, daysBetween, list, num, pct, strOr } from '@/lib/dataset/loader'
 
 // Action-log tools.
 //
@@ -15,25 +15,6 @@ import { daysBetween } from '@/lib/dataset/loader'
 // described from the actual numbers — it can run in either direction.
 
 const SOURCES = ['actions.json']
-
-function num(v: unknown, fallback: number): number {
-  const n = Number(v)
-  return Number.isFinite(n) ? n : fallback
-}
-
-function str(v: unknown, fallback: string): string {
-  return typeof v === 'string' && v.trim() ? v.trim() : fallback
-}
-
-function choice<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
-  return allowed.includes(v as T) ? (v as T) : fallback
-}
-
-function list(items: string[]): string {
-  if (items.length === 0) return 'none'
-  if (items.length === 1) return items[0]
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
-}
 
 /** due_date < as_at AND not complete. The honest definition. */
 function isDerivedOverdue(a: BoardAction, asAt: string): boolean {
@@ -116,7 +97,7 @@ export const overdueActions: ToolDefinition = {
     // Without a filter the tool answered a question naming one owner with every
     // overdue action in the log: the right data at the wrong scope,
     // which reads as an answer and buries the one row that was asked for.
-    const wantedOwner = str(args.owner, '')
+    const wantedOwner = strOr(args.owner, '')
     const knownOwners = [...new Set(dataset.actions.actions.map((a) => a.owner))].sort()
     const matchedOwner = wantedOwner
       ? knownOwners.find(
@@ -452,13 +433,21 @@ export const unresolvedByCommittee: ToolDefinition = {
         body: b,
         raised: own.length,
         unresolved,
-        rate: own.length > 0 ? Math.round((unresolved / own.length) * 100) : 0,
-        shareOfAll: totalUnresolved > 0 ? Math.round((unresolved / totalUnresolved) * 100) : 0,
+        // Ranked on the exact ratio, displayed through the canonical pct().
+        //
+        // These were rounded to whole numbers and then SORTED on, and byRate[0]
+        // decides both the headline and which bar is highlighted. Two bodies
+        // whose rates round to the same integer were therefore tied, and the
+        // tie was resolved alphabetically — so the body named as carrying the
+        // highest rate could be the one that does not.
+        ratio: own.length > 0 ? unresolved / own.length : 0,
+        rate: pct(unresolved, own.length),
+        shareOfAll: pct(unresolved, totalUnresolved),
       }
     })
 
     const byCount = [...stats].sort((a, b) => b.unresolved - a.unresolved || a.body.localeCompare(b.body))
-    const byRate = [...stats].sort((a, b) => b.rate - a.rate || a.body.localeCompare(b.body))
+    const byRate = [...stats].sort((a, b) => b.ratio - a.ratio || a.body.localeCompare(b.body))
     // The only tool with no nil path: an empty action log — which buildDataset
     // accepts, because a board with nothing outstanding is a real state — read
     // byCount[0].body and threw, so the answer became "the analysis could not
@@ -594,7 +583,7 @@ export const actionsDistribution: ToolDefinition = {
         total: v.total,
         overdue: v.overdue,
         notYetDue: v.total - v.overdue,
-        share: unresolved.length > 0 ? Math.round((v.total / unresolved.length) * 100) : 0,
+        share: pct(v.total, unresolved.length),
       }))
       .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label))
 

@@ -1,4 +1,4 @@
-import { daysBetween } from '@/lib/dataset/loader'
+import { daysBetween, list, num } from '@/lib/dataset/loader'
 import { chunkPapers } from '@/lib/retrieval/chunk'
 import { findCommitments } from '@/lib/retrieval/commitments'
 import type { AnswerResult, BoardAction, DataPoint, ToolDefinition } from '@/lib/types'
@@ -16,17 +16,6 @@ import type { AnswerResult, BoardAction, DataPoint, ToolDefinition } from '@/lib
 // assembled rather than read off a schedule.
 
 const NOT_STARTED = 'not started'
-
-function num(v: unknown, fallback: number): number {
-  const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) ? n : fallback
-}
-
-function list(items: string[]): string {
-  if (items.length === 0) return 'none'
-  if (items.length === 1) return items[0]
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
-}
 
 export const upcomingUnprepared: ToolDefinition = {
   name: 'upcoming_unprepared',

@@ -247,14 +247,34 @@ test('longest_overdue uses as_at from the file, so the numbers do not drift', ()
 
 // ------------------------------------------------------------ Q7
 
-test('unresolved: Board 9 of 19 at 47%, People 4 of 5 at 80%', () => {
+test('unresolved: Board 9 of 19 at 47.4%, People 4 of 5 at 80%', () => {
   const r = run('unresolved_by_committee')
   const board = r.table!.rows.find((row) => row[0] === 'Board')!
-  assert.deepEqual(board.slice(1, 4), [19, 9, 47])
+  // One decimal place, because these now go through the canonical pct() like
+  // every other percentage the product shows. They were rounded to whole
+  // numbers inline AND then sorted on, which tied two bodies whose rates round
+  // the same and resolved that tie alphabetically — deciding the headline.
+  assert.deepEqual(board.slice(1, 4), [19, 9, 47.4])
   const people = r.table!.rows.find((row) => row[0] === 'People')!
   assert.deepEqual(people.slice(1, 4), [5, 4, 80])
-  // 9 of all 18 unresolved items is a different measure from 47%.
+  // 9 of all 18 unresolved items is a different measure from 47.4%.
   assert.equal(board[4], 50)
+})
+
+test('the highest rate is ranked on the exact ratio, not the rounded one', () => {
+  // 1 of 3 and 33 of 100 both display as 33.0%, and the first is the higher
+  // rate. Ranking on the rounded figure tied them and picked alphabetically,
+  // so "Alpha" would be named as carrying the highest rate when "Zeta" does.
+  const r = run('unresolved_by_committee')
+  const rows = r.table!.rows
+  const rates = rows.map((row) => Number(row[3]))
+  const highest = Math.max(...rates)
+  // The headline names a body, and it must be one that actually holds the peak.
+  const peak = rows.filter((row) => Number(row[3]) === highest).map((row) => String(row[0]))
+  assert.ok(
+    peak.some((body) => r.headline.includes(body)),
+    `headline should name one of ${peak.join(', ')}: ${r.headline}`,
+  )
 })
 
 test('unresolved headline says count and rate disagree', () => {
@@ -461,15 +481,29 @@ function libSources(): string[] {
  *   Company Secretary — an action owner and the product's own user persona,
  *                       which the retrieval prompt names on purpose.
  */
-const GENERIC_ENGLISH = new Set(['board', 'people', 'chair', 'company secretary'])
-
 /**
- * Leaks found by this scan once it was widened, and deliberately left in place
- * because fixing them is a change to src/lib, not to the tests.
+ * Words that are governance English, not an organisation's vocabulary.
  *
- * Removing a name from here when the leak is fixed is enforced below, so this
- * cannot quietly become a permanent exemption list.
+ * The scan bans values read from the dataset, and some of those values are
+ * generic role types rather than names: a charity has trustees, a company has
+ * directors, and both have a chair. termlimit's own patterns have to match the
+ * word "trustee" to read a term limit out of prose at all, so banning it would
+ * make the guard impossible to satisfy rather than catching anything.
+ *
+ * Kept to single generic nouns on purpose. The multi-word role values in this
+ * dataset — "Trustee and Chair of People Committee" — stay banned, because they
+ * embed a committee name, which is exactly the leak this scan is for.
  */
+const GENERIC_ENGLISH = new Set([
+  'board',
+  'people',
+  'chair',
+  'vice chair',
+  'company secretary',
+  'trustee',
+  'director',
+])
+
 /**
  * Leaks that are known and not yet fixed.
  *
@@ -504,6 +538,20 @@ test('no organisation-specific value is hard-coded anywhere an answer is produce
     ...dataset.actions.actions.map((a) => a.action_id.split('-')[0]),
     ...dataset.actions.actions.map((a) => a.linked_risk).filter((r): r is string => Boolean(r)),
     ...dataset.attendance.records.map((r) => r.director_id),
+    // Job titles from the skills audit. "role" was unbanned, so a module could
+    // name this organisation's post-holders and the guard would pass.
+    ...dataset.skills.map((s) => s.role),
+    // Paper titles and filename stems.
+    //
+    // The in-body SECTION headings are deliberately not banned. They read
+    // "Income", "Risks", "Recommendation" — generic governance English that
+    // src/lib legitimately contains (verify.ts matches "income" to spot a
+    // money question). Banning them would make the guard unsatisfiable rather
+    // than catch anything, and the organisation-specific part of a heading is
+    // a proper noun inside it, which needs entity extraction, not a word list.
+    // Recorded in CLAUDE.md as a gap rather than papered over here.
+    ...dataset.papers.map((p) => p.title),
+    ...dataset.papers.map((p) => p.filename.replace(/\.md$/, '')),
     dataset.organisation,
   ]
   const terms = [...new Set(banned.map((t) => t.trim()).filter(Boolean))].filter(

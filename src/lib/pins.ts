@@ -28,7 +28,18 @@ import type { ToolResult } from '@/lib/types'
  * dashboard. Keys are sorted so the identity is the content.
  */
 export function pinKey(tool: string, args: Record<string, unknown>): string {
+  // An absent argument and an argument explicitly set to nothing are the same
+  // request, and this treated them as different: `{}` keyed as "tool:" while
+  // `{ body: undefined }` keyed as "tool:body=undefined". The duplicate check
+  // below is the only thing stopping one chart being pinned twice, so the
+  // dashboard could show two identical cards, each with its own Refresh.
+  //
+  // NOT normalised: an argument set to a tool's own default value. "tool:" and
+  // "tool:threshold=80" still differ when 80 is the default. Fixing that means
+  // reading defaults out of the tool definitions, which is a wider change than
+  // a key function should make on its own. Recorded in CLAUDE.md.
   const canonical = Object.keys(args)
+    .filter((k) => args[k] !== undefined && args[k] !== null)
     .sort()
     .map((k) => `${k}=${JSON.stringify(args[k])}`)
     .join('&')

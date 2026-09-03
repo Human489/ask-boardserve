@@ -306,17 +306,57 @@ that breaks dataset-agnosticism. It fails safe, refusing rather than misrouting.
 **The CQC refusal now passes for the right reason** (no paper covers it), having
 previously passed only because retrieval was unbuilt.
 
+### Known, and not easily fixable
+
+These are the ones an audit keeps re-finding. Each has been looked at properly
+and left alone for a stated reason, so the next person does not spend a day
+rediscovering why.
+
+- **Prose faithfulness is unsolved** — see the Limitations section above. A
+  claim-and-quote check caught 3 of 3 injected fabrications and withheld 3 of 9
+  faithful answers. Not shipped. The route worth trying is constraining the
+  answer to claim-plus-quote pairs at generation time.
+- **`verify.ts` settles presence, not attribution.** Same underlying problem.
+  The caveat says so in as many words.
+- **`verify.ts` cannot see numbers written as words.** "nine hundred thousand"
+  bypasses the figure check entirely. Tractable, but widening a check that
+  already withholds answers needs measuring in both directions — over-strictness
+  is what killed the previous version of this check.
+- **The corpus is not guarded against prompt injection.** Retrieved passages are
+  put in front of the model as trusted text, so a board paper containing
+  instructions is one. Mitigable (delimit passages, instruct the model to treat
+  them as data) but not solvable, and mitigation must not be described as a fix.
+  The blast radius is bounded by the rule that no figure comes from a model, and
+  by `verify.ts` — an injected instruction cannot invent a number that passes.
+- **Model refusal reasons are shown verbatim.** The one path where
+  model-authored prose reaches the screen. Mapping them to deterministic wording
+  needs the real refusals in front of you first, or the wording gets worse.
+- **The hard-coding scan cannot cover paper section headings.** They read
+  "Income", "Risks", "Recommendation" — generic governance English that
+  `src/lib` legitimately contains (`verify.ts` matches "income" to spot a money
+  question). Banning them makes the guard unsatisfiable rather than catching
+  anything; the organisation-specific part of a heading is a proper noun inside
+  it, which needs entity extraction, not a word list. `role`, paper titles and
+  filename stems ARE now banned.
+- **`pinKey` does not normalise defaulted arguments.** `{}` and
+  `{ threshold: 80 }` key differently when 80 is the default, so one chart can
+  be pinned twice. Fixing it means reading defaults out of the tool
+  definitions. The `undefined`/`null` half is fixed and tested.
+- **Scroll position is lost on view switch.** A `content-visibility` fix was
+  written, could not be verified, and was reverted — recorded in `globals.css`.
+  Needs a browser pass, not more code.
+- **`recharts` is on a deprecated 2.x.** See below; the upgrade is a breaking
+  major over exactly the render props the flagged marker depends on.
+
 ### Recorded, not fixed
 
 Found by audit, judged not worth fixing. None affects a user.
 
-- `unresolvedByCommittee` and `actionsDistribution` compute percentages inline
-  rather than via the canonical `pct()`.
-- `list()`, `num()` and `str()` are duplicated across the analytics modules.
 - `Chat.tsx`'s `run()` does not enforce single-flight itself; the UI guards do.
-- `bearerCredential`'s regex accepts a broad token shape.
 - The usage meter is dev-only and resets with the server; `/api/usage` 404s in
-  production.
+  production. Intended, not a defect: it is auth-checked, unlinked from the UI,
+  and 404s so a deployment cannot confirm the endpoint exists.
+- `bearerCredential`'s regex accepts a broad token shape.
 - **`recharts` is on 2.15.4, which upstream has deprecated** — the 1.x and 2.x
   branches get no further fixes. `npm ci` prints a deprecation notice; nothing
   fails. Deliberately not upgraded: v3 is a breaking major, and the parts it

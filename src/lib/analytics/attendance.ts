@@ -5,7 +5,7 @@ import type {
   ToolDefinition,
   ToolResult,
 } from '@/lib/types'
-import { allBodies, committeesOf, pct } from '@/lib/dataset/loader'
+import { allBodies, choice, committeesOf, list, num, pct, strOrUndefined } from '@/lib/dataset/loader'
 
 // Attendance tools.
 //
@@ -22,19 +22,6 @@ function isPresent(r: AttendanceRecord): boolean {
   return r.status === 'present'
 }
 
-function num(v: unknown, fallback: number): number {
-  const n = Number(v)
-  return Number.isFinite(n) ? n : fallback
-}
-
-function choice<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
-  return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback
-}
-
-function str(v: unknown): string | undefined {
-  return typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined
-}
-
 /** Records for one body, or all records when no body is given. */
 function scope(dataset: Dataset, body?: string): AttendanceRecord[] {
   const rows = dataset.attendance.records
@@ -43,7 +30,7 @@ function scope(dataset: Dataset, body?: string): AttendanceRecord[] {
 
 /** Resolves a caller-supplied body name against the bodies actually in the data. */
 function resolveBody(dataset: Dataset, raw: unknown): string | undefined {
-  const wanted = str(raw)
+  const wanted = strOrUndefined(raw)
   if (!wanted) return undefined
   const found = allBodies(dataset).find((b) => b.toLowerCase() === wanted.toLowerCase())
   return found ?? wanted
@@ -72,12 +59,6 @@ function ratesByDirector(rows: AttendanceRecord[]): DirectorRate[] {
       rate: pct(v.attended, v.eligible),
     }))
     .sort((a, b) => a.rate - b.rate || a.name.localeCompare(b.name))
-}
-
-function list(items: string[]): string {
-  if (items.length === 0) return 'none'
-  if (items.length === 1) return items[0]
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
 }
 
 // ------------------------------------------------------------ Q1
@@ -662,7 +643,7 @@ export const meetingsMissed: ToolDefinition = {
     // Without this, a question naming one director was answered with a
     // full-year trend across every meeting: a real chart, correct figures, and
     // not the question that was asked.
-    const wanted = str(args.director) ?? ''
+    const wanted = strOrUndefined(args.director) ?? ''
     const knownDirectors = [
       ...new Set(dataset.attendance.records.map((r) => r.director_name)),
     ].sort()

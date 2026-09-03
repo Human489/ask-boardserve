@@ -317,6 +317,51 @@ export function allBodies(dataset: Dataset): string[] {
 }
 
 /** Rounds to one decimal place, avoiding 88.99999999 in the UI. */
+// Argument coercion and sentence helpers, shared by the analytics modules.
+//
+// Each of these existed as its own copy in five files. They are here rather
+// than in a utils module because loader.ts is already the shared home for
+// daysBetween, committeesOf, membersOf and pct.
+//
+// `str` deliberately did NOT become one function. Two incompatible shapes were
+// in use — one substituting a fallback, one returning undefined — and merging
+// them would have changed how a missing argument is treated in whichever
+// caller lost. Argument handling decides which rows a tool computes over, so
+// that is not a refactor to do silently. They keep both behaviours under names
+// that say which is which.
+
+/** A number from an unknown argument, or the fallback when it is not one. */
+export function num(v: unknown, fallback: number): number {
+  const n = typeof v === 'number' ? v : Number(v)
+  return Number.isFinite(n) ? n : fallback
+}
+
+/** A trimmed non-empty string, or the fallback. */
+export function strOr(v: unknown, fallback: string): string {
+  return typeof v === 'string' && v.trim() ? v.trim() : fallback
+}
+
+/** A trimmed non-empty string, or undefined when the argument was not given. */
+export function strOrUndefined(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined
+}
+
+/** One of a fixed set of allowed values, or the fallback. */
+export function choice<T extends string>(v: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback
+}
+
+/**
+ * "a", "a and b", "a, b and c" — an Oxford-comma-free English list.
+ *
+ * Headlines are generated sentences, so this decides how one reads.
+ */
+export function list(items: string[]): string {
+  if (items.length === 0) return 'none'
+  if (items.length === 1) return items[0]
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+}
+
 export function pct(numerator: number, denominator: number): number {
   if (denominator === 0) return 0
   return Math.round((numerator / denominator) * 1000) / 10

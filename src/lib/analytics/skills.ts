@@ -1,5 +1,5 @@
 import type { DataPoint, Dataset, ToolDefinition, ToolResult } from '@/lib/types'
-import { allBodies, membersOf } from '@/lib/dataset/loader'
+import { allBodies, list, membersOf, num, strOrUndefined } from '@/lib/dataset/loader'
 import { disagreementsFor } from '@/lib/retrieval/disagreement'
 
 // Skills-audit tools.
@@ -16,23 +16,8 @@ const SELF_ASSESSMENT_CAVEAT =
   'Scores are self-assessed on a 1-5 scale, not tested or verified, so they measure ' +
   'confidence as much as capability and are not comparable between individuals.'
 
-function num(v: unknown, fallback: number): number {
-  const n = Number(v)
-  return Number.isFinite(n) ? n : fallback
-}
-
-function str(v: unknown): string | undefined {
-  return typeof v === 'string' && v.trim().length > 0 ? v.trim() : undefined
-}
-
 function round2(n: number): number {
   return Math.round(n * 100) / 100
-}
-
-function list(items: string[]): string {
-  if (items.length === 0) return 'none'
-  if (items.length === 1) return items[0]
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
 }
 
 interface SkillStat {
@@ -89,7 +74,7 @@ export const skillsGaps: ToolDefinition = {
     // Asking for one skill's average previously fell through to the whole-board
     // ranking, which answers a different question. The skill is matched against
     // the audit's own columns, so a second organisation's columns work unchanged.
-    const wanted = str(args.skill) ?? ''
+    const wanted = strOrUndefined(args.skill) ?? ''
     const focus = wanted
       ? stats.find(
           (candidate) =>
@@ -366,7 +351,7 @@ export const committeeSkillsGaps: ToolDefinition = {
   },
   required: [],
   run(dataset, args): ToolResult {
-    const wanted = str(args.body)
+    const wanted = strOrUndefined(args.body)
     const bodies = allBodies(dataset).filter((b) =>
       wanted ? b.toLowerCase() === wanted.toLowerCase() : true,
     )
@@ -422,7 +407,7 @@ export const committeeSkillsGaps: ToolDefinition = {
       const known = allBodies(dataset)
       return {
         tool: 'committee_skills_gaps',
-        headline: `No body matching "${str(args.body) ?? ''}" appears in the attendance records, so its skills coverage cannot be assessed. The bodies present are ${list(
+        headline: `No body matching "${strOrUndefined(args.body) ?? ''}" appears in the attendance records, so its skills coverage cannot be assessed. The bodies present are ${list(
           known,
         )}.`,
         chart: null,

@@ -1,6 +1,7 @@
 import { searchPapers } from '@/lib/retrieval/search'
 import { findTermLimit } from '@/lib/retrieval/termlimit'
 import type { AnswerResult, DataPoint, Dataset, ToolDefinition } from '@/lib/types'
+import { list, num } from '@/lib/dataset/loader'
 
 // The hybrid tool: who reaches the end of their term, and what the board loses.
 //
@@ -15,17 +16,6 @@ import type { AnswerResult, DataPoint, Dataset, ToolDefinition } from '@/lib/typ
 
 const STRONG = 4
 const MONTHS_PER_YEAR = 12
-
-function num(v: unknown, fallback: number): number {
-  const n = typeof v === 'number' ? v : Number(v)
-  return Number.isFinite(n) ? n : fallback
-}
-
-function list(items: string[]): string {
-  if (items.length === 0) return 'none'
-  if (items.length === 1) return items[0]
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
-}
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10

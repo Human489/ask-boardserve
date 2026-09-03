@@ -253,3 +253,25 @@ test('genuinely different arguments remain different pins', async () => {
   assert.equal(other.ok, true)
   assert.equal((await listPins(DS)).pins.length, 2)
 })
+
+test('an absent argument and an explicitly empty one are the same pin', () => {
+  // Otherwise the duplicate check misses, and the dashboard shows two
+  // identical cards each with its own Refresh button.
+  assert.equal(pinKey('attendance_by_body', {}), pinKey('attendance_by_body', { body: undefined }))
+  assert.equal(
+    pinKey('attendance_by_body', { body: 'Board' }),
+    pinKey('attendance_by_body', { body: 'Board', threshold: undefined }),
+  )
+  // Real arguments must still separate pins, or Refresh would recompute the
+  // wrong question.
+  assert.notEqual(
+    pinKey('attendance_by_body', { body: 'Board' }),
+    pinKey('attendance_by_body', { body: 'People' }),
+  )
+  // And a defaulted value is still NOT equal to the absent one, which is the
+  // half of this deliberately left alone.
+  assert.notEqual(
+    pinKey('attendance_by_body', {}),
+    pinKey('attendance_by_body', { threshold: 80 }),
+  )
+})
