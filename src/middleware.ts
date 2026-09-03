@@ -37,7 +37,11 @@ export const config = {
   //
   // Excluding them costs nothing: a typeface is not board data, and it is the
   // gate — the one page guaranteed to be unauthenticated — that needs them.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|fonts/).*)'],
+  // icon.svg is Next's own route for src/app/icon.svg, and it was caught the
+  // same way the fonts were: the gate is by definition unauthenticated, so the
+  // browser's request for the tab icon came back as the gate's HTML. Anything
+  // that is part of the app's identity rather than its data belongs here.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon|fonts/).*)'],
 }
 
 function bearer(req: NextRequest): string | null {

@@ -39,10 +39,6 @@ export default function Masthead({
               <BoardServeMark className="lockup-mark" />
               <h1 className="wordmark">Ask BoardServe</h1>
             </div>
-            <p className="positioning">
-              A companion to BoardServe&rsquo;s analytics, not a replacement — for the
-              questions a fixed dashboard was never built to answer.
-            </p>
             {organisation && (
               <p className="masthead-dataset">
                 Answering from <strong>{organisation}</strong>

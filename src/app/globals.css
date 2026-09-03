@@ -104,6 +104,10 @@
      explains, the mono measures. Each has a real fallback of similar
      proportions, so a failed font swap changes the texture and not the
      layout. */
+  /* Drives the wordmark AND the mark beside it. The mark was set in ems and
+     inherited the body's 15px rather than the wordmark's size, so it rendered
+     15px tall against 26px letters — visibly undersized. */
+  --wordmark-size: 26px;
   --font-display: 'Instrument Serif', Charter, 'Iowan Old Style', Georgia, serif;
   --font: system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
@@ -435,16 +439,10 @@ textarea {
 .wordmark {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 21px;
+  font-size: var(--wordmark-size);
   font-weight: 400;
   letter-spacing: -0.02em;
   line-height: 1.1;
-}
-
-.positioning {
-  margin: 2px 0 0;
-  font-size: 13px;
-  color: var(--ink-2);
 }
 
 .chat {
@@ -1616,12 +1614,20 @@ table.answer-table {
 .lockup {
   display: flex;
   align-items: baseline;
-  gap: 9px;
+  gap: 10px;
+  /* So the mark's own em matches the wordmark rather than the body text. */
+  font-size: var(--wordmark-size);
 }
 
 .lockup-mark {
-  width: 0.72em;
-  height: auto;
+  /* Sized by HEIGHT, not width: the glyph is tall and narrow (375x472), so
+     setting a width left it visibly shorter than the letters beside it. At 1em
+     its cap height reads as the same size as the wordmark. */
+  /* 0.82em, not 1em: matched to the ASCENDER height of the letters beside it
+     rather than to the type size, which a full em overshoots because the glyph
+     has no descender to spend. */
+  height: 0.82em;
+  width: auto;
   flex: none;
   /* currentColor on the paths; the accent is the brand green in either theme. */
   color: var(--accent);

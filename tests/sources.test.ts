@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 
 // Regexes have twice been written into these sources with backslash-b escapes
 // that were mangled into literal backspace characters by the editing tool.
@@ -43,4 +43,62 @@ test('no source file contains a stray control character', () => {
     }
   }
   assert.deepEqual(offenders, [], `control characters found at ${offenders.join(', ')}`)
+})
+
+// CLAUDE.md: "Refusals must not claim data is absent when it is not. Say what
+// no TOOL computes, not what the DATA lacks."
+//
+// That invariant was tested for the router's `reason` field and never for the
+// copy a reader actually sees. Both the refusal card's status chip and its
+// headline said the data could not answer — "Not answerable from this data"
+// above "This question cannot be answered from the data available" — which is
+// false whenever the dataset holds the figures and simply no tool computes
+// that particular cut. Asking for a median rather than a mean is exactly that
+// case: the numbers are all there.
+//
+// It also said the same thing three times before the reason added anything,
+// which is how the wording survived review: it read as a house style.
+const REFUSAL_COPY_ROOTS = ['src/lib', 'src/app', 'src/components']
+
+/** Phrasings that attribute the limit to the data rather than to the tools. */
+const BLAMES_THE_DATA = [
+  /cannot be answered from the data/i,
+  /not answerable from this data/i,
+  /the data (?:cannot|does not|doesn't|can't) answer/i,
+  /no data (?:for|on) (?:this|that)/i,
+  /data (?:is|are) not available for/i,
+]
+
+test('no user-facing refusal copy blames the data', () => {
+  const found: string[] = []
+  for (const root of REFUSAL_COPY_ROOTS) {
+    for (const file of sourceFiles(root)) {
+      const src = readFileSync(file, 'utf8')
+      const rel = file.slice(process.cwd().length + 1).split(sep).join('/')
+      // Quoted strings only, scanned a line at a time.
+      //
+      // A comment may legitimately quote the banned wording: this suite has to
+      // name what it forbids, and so does the commit that removed it. Only the
+      // copy a reader can actually see is a finding.
+      //
+      // Matching per line rather than across the file keeps the pattern free of
+      // a newline escape. The first version of this test carried one, an
+      // editing step turned it into a literal newline, and the regex no longer
+      // parsed — which is the exact failure the control-character test above
+      // exists to catch, arrived at from a different direction.
+      for (const line of src.split('\n')) {
+        for (const quoted of line.matchAll(/'([^']{12,})'/g)) {
+          for (const pattern of BLAMES_THE_DATA) {
+            if (pattern.test(quoted[1])) found.push(`${rel}: ${quoted[1].slice(0, 80)}`)
+          }
+        }
+      }
+    }
+  }
+  assert.deepEqual(
+    found,
+    [],
+    'refusal copy must say what no analysis computes, not that the data lacks it:\n' +
+      found.join('\n'),
+  )
 })

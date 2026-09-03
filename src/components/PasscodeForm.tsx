@@ -64,8 +64,8 @@ export default function PasscodeForm() {
     >
       <h2 className="gate-title">Enter your passcode</h2>
       <p className="gate-sub">
-        Ask BoardServe holds board attendance, action and skills data. Access is by
-        passcode.
+        Ask BoardServe holds board attendance, action and skills data, so access
+        is by passcode.
       </p>
 
       <label className="gate-label" htmlFor="passcode">
@@ -99,7 +99,7 @@ export default function PasscodeForm() {
           if (checking || passcode.trim().length === 0) event.preventDefault()
         }}
       >
-        {checking ? 'Checking…' : 'Continue'}
+        {checking ? 'Checking…' : 'Sign in'}
       </button>
     </form>
   )

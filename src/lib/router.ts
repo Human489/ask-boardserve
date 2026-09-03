@@ -106,7 +106,7 @@ function systemPrompt(tools: ToolDefinition[]): string {
     'attendance, risk references or action fields is never a papers question.',
     '',
     'Call exactly one tool. Never compute or state a number yourself; the tools produce every figure.',
-    'Refuse by calling the refuse tool when the data cannot answer the question. Specifically:',
+    'Refuse by calling the refuse tool when no tool here computes the answer. Specifically:',
     ...REFUSAL_RULES.map((r) => `- ${r}`),
     'Questions about what the board papers say, recommend or explain go to search_board_papers. It reads the papers and will itself refuse if they do not cover the subject, so route there rather than refusing on their behalf.',
     `The tools you may call are: ${tools.map((t) => t.name).join(', ')}, refuse.`,

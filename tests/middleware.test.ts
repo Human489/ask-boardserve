@@ -121,6 +121,11 @@ test('the matcher excludes the self-hosted fonts', () => {
 
   assert.ok(!re.test('/fonts/instrument-serif-400.woff2'), 'fonts must bypass middleware')
   assert.ok(!re.test('/fonts/geist-mono.woff2'), 'fonts must bypass middleware')
+  // The tab icon, caught exactly the way the fonts were: Next serves
+  // src/app/icon.svg at /icon.svg, the gate is unauthenticated by definition,
+  // so the browser asked for an icon and was handed the gate's HTML.
+  assert.ok(!re.test('/icon.svg'), 'the app icon must bypass middleware')
+  assert.ok(!re.test('/apple-icon'), 'the touch icon must bypass middleware')
   assert.ok(!re.test('/_next/static/chunks/main.js'), 'Next assets already bypassed')
   assert.ok(!re.test('/favicon.ico'), 'favicon already bypassed')
 

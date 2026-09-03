@@ -40,7 +40,7 @@ typography:
     letterSpacing: "-0.015em"
   title:
     fontFamily: "Instrument Serif, Charter, Iowan Old Style, Georgia, serif"
-    fontSize: "21px"
+    fontSize: "26px"
     fontWeight: 400
     lineHeight: 1.1
     letterSpacing: "-0.02em"
@@ -264,7 +264,9 @@ live in meetings; a third-party font request is a dependency nobody chose.
   that states what was found. The only body copy in the serif.
 - **Headline / Lede** (400, 25px, 1.2, -0.015em): the first line of an empty
   screen — the Ask view's opening, the gate's title.
-- **Title / Wordmark** (400, 21px, 1.1, -0.02em): the masthead.
+- **Title / Wordmark** (400, 26px, 1.1, -0.02em): the masthead. Driven by
+  `--wordmark-size`, which also sizes the mark beside it so the two cannot
+  drift — the mark was set in ems and inherited the body's 15px instead.
 - **Body** (400, 15px, 1.55, tabular figures): the composer, example
   questions, the lead paragraph. Capped at 72ch inside the card.
 - **Body Small** (400, 13px, 1.55, tabular figures): the workhorse. Table
@@ -400,6 +402,18 @@ a real SVG pattern, because colour may never be the only carrier of meaning.
   the state is in the accessibility tree and not only in the paint.
 - **Mobile:** unchanged. Three short words fit at 375px.
 
+### Masthead
+
+The lockup, the view switch, the theme toggle, and the dataset currently
+answering. Nothing else: it carried the product's positioning line as a
+permanent subtitle, which is chrome a daily reader stops seeing, and it pushed
+the masthead to 127px. It is 90px now, and the positioning is stated where a
+first-time reader actually needs it — the Ask view's own empty state.
+
+The dataset line stays, because a swap must never be invisible: a pinned card
+refreshed under a different organisation would show the same question above
+different figures.
+
 ### Chart
 
 The signature component, and the reason the palette is split.
@@ -419,14 +433,15 @@ The signature component, and the reason the palette is split.
 
 ### Brand Lockup
 
-BoardServe's own mark beside the product name, inlined as SVG rather than
-served as a file: it is 3KB, it appears on the passcode screen before anything
+BoardServe's own mark beside the product name — and the site's tab icon, from
+the same paths. Inlined as SVG rather than served as a file: it is 3KB, it appears on the passcode screen before anything
 else has loaded, and one fewer request is one fewer thing to go wrong in a
 meeting. Every path is `currentColor`, so the mark takes the active theme's
 accent from one property — the source asset ships with a fixed `#0F766E`,
-which goes muddy on the dark ground. Sized in ems so it tracks the wordmark
-with no breakpoint of its own, and `aria-hidden`, because the wordmark beside
-it already says the product's name.
+which goes muddy on the dark ground. Sized at `0.82em` of `--wordmark-size` — matched to
+the ASCENDER height of the letters rather than to the type size, which a full
+em overshoots because the glyph has no descender to spend — and `aria-hidden`,
+because the wordmark beside it already says the product's name.
 
 ### Theme Toggle
 

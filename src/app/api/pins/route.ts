@@ -118,7 +118,7 @@ async function compute(
 ): Promise<{ ok: true; pin: Omit<Pin, 'id' | 'question' | 'routedBy' | 'pinnedAt'> } | { ok: false; status: number; error: string }> {
   const definition = getTool(tool)
   if (!definition) {
-    return { ok: false, status: 400, error: 'That analysis is not available.' }
+    return { ok: false, status: 400, error: 'That analysis is no longer available, so it cannot be pinned or refreshed.' }
   }
   if (!PINNABLE.has(definition.name)) {
     return {
@@ -153,7 +153,7 @@ async function compute(
       return {
         ok: false,
         status: 400,
-        error: 'That answer has no figures to pin — the data cannot answer the question.',
+        error: 'That answer has no figures to pin, because no analysis answered the question.',
       }
     }
     return { ok: true, pin: { tool, args, result, datasetAsAt: result.provenance.asAt } }

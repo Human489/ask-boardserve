@@ -43,7 +43,7 @@ export const searchBoardPapers: ToolDefinition = {
     if (!question) {
       return {
         tool: 'refusal',
-        headline: 'This question cannot be answered from the data available.',
+        headline: 'No analysis here answers this question.',
         reason: 'No question was supplied to search the board papers for.',
       }
     }
@@ -71,7 +71,7 @@ export const searchBoardPapers: ToolDefinition = {
     if (search.offDomain) {
       return {
         tool: 'refusal',
-        headline: 'This question cannot be answered from the data available.',
+        headline: 'No analysis here answers this question.',
         reason:
           `Nothing in the ${dataset.papers.length} board papers is on this subject. The ` +
           `closest passage scored ${search.topScore.toFixed(2)}, below the ${search.floor} ` +

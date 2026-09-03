@@ -33,7 +33,7 @@ interface AskFailure {
 }
 
 const GENERIC_ERROR =
-  'Something went wrong reaching the analytics service. Nothing was changed — try again.'
+  'The question could not be sent. Nothing was changed — try again.'
 
 function newId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`

@@ -85,7 +85,7 @@ export async function rejectUnauthorised(req: Request): Promise<NextResponse | n
   const throttled = await throttleFailedAuth(req)
   if (throttled) return throttled
   return NextResponse.json(
-    { ok: false, error: 'That passcode was not accepted. Enter it again to continue.' },
+    { ok: false, error: 'That passcode was not recognised.' },
     { status: 401 },
   )
 }

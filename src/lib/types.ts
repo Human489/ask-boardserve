@@ -176,7 +176,8 @@ export interface ToolResult {
 export interface RefusalResult {
   tool: 'refusal'
   headline: string
-  /** Why the data cannot answer it. Specific, not a shrug. */
+  /** Why no analysis here answers it. Specific, not a shrug, and never a
+   *  claim that the data lacks something it holds. */
   reason: string
   /** What the data CAN offer instead, if anything. */
   alternative?: string

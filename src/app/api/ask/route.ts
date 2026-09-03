@@ -108,7 +108,7 @@ export async function POST(req: Request) {
   if (route.kind === 'refusal') {
     const result: AnswerResult = {
       tool: 'refusal',
-      headline: 'This question cannot be answered from the data available.',
+      headline: 'No analysis here answers this question.',
       reason: route.reason,
       alternative: route.alternative,
     }

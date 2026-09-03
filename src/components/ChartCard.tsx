@@ -96,15 +96,19 @@ export default function ChartCard({
   if (isRefusal(result)) {
     return (
       <article className="card card-refusal">
+        {/* A state label, and only that. It said "Not answerable from this
+            data", the headline said the data could not answer, and the reason
+            then explained why — the same idea three times, twice in wording
+            the refusal invariant forbids. */}
         <p className="card-status status-refusal">
           <UnavailableMark />
-          Not answerable from this data
+          Not answerable
         </p>
         <Headline className="headline">{result.headline}</Headline>
         <p className="refusal-body">{result.reason}</p>
         {result.alternative && (
           <p className="refusal-alt">
-            <strong>What the data can offer instead: </strong>
+            <strong>What this can answer instead: </strong>
             {result.alternative}
           </p>
         )}
