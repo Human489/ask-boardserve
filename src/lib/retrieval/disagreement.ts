@@ -4,9 +4,10 @@ import type { Dataset } from '@/lib/types'
 // Where a board paper's numbers disagree with the underlying data.
 //
 // The papers restate figures from the skills audit in prose, and some of those
-// restatements are wrong. One says six trustees score 4 or 5 on strategy; the
-// audit says four. Another gives four at 4-or-above and four at 2-or-below for
-// governance; the audit says three and three.
+// restatements are wrong: a paper gives a count at 4-or-above for a skill that
+// the audit contradicts. Which skills, and by how much, is a property of the
+// dataset rather than of this code, so no example is named here — naming one
+// would tie the module to a single organisation's audit.
 //
 // The obvious behaviour is to prefer the computed figure and say nothing. That
 // is the wrong product. A secretary reading a paper that says six, and a tool

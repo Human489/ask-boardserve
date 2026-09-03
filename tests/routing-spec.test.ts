@@ -2,8 +2,16 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { TOOLS } from '../src/lib/analytics/registry'
 import { coerceArgsForTest, fallbackRoute, routeQuestion } from '../src/lib/router'
+import {
+  SPEC_DOCUMENT,
+  SPEC_HYBRID,
+  SPEC_REFUSALS,
+  SPEC_STRUCTURED,
+  SPEC_UPCOMING,
+} from './spec-questions'
 
-// The questions EXACTLY as they appear in the specification document.
+// The questions EXACTLY as they appear in the specification document, routed
+// through the real entry point.
 //
 // This file exists because the first version of the fallback classifier scored
 // three broad subject categories and then took the first tool in the winning
@@ -11,37 +19,21 @@ import { coerceArgsForTest, fallbackRoute, routeQuestion } from '../src/lib/rout
 // unit tests because those tests were written in paraphrases that had been
 // tuned to the classifier. Routing tests must use the customer's wording, not
 // wording chosen to suit the implementation.
+//
+// And it had drifted back into exactly that. Several entries here were shorter
+// rewrites of the spec — "Which meetings had unusually low attendance, and
+// when?" for a question that in fact asks whether a movement is bigger than one
+// meeting's noise — while the verbatim wordings sat in tests/router.test.ts,
+// which only ever calls fallbackRoute. The wording now lives once, in
+// tests/spec-questions.ts, and is asserted here through routeQuestion (the
+// function the API actually calls) and in router.test.ts through fallbackRoute
+// (the path that must hold with no credentials).
 
-const STRUCTURED: [string, string][] = [
-  ['Who is below our attendance threshold, and on which committee?', 'attendance_below_threshold'],
-  ['Which meetings had unusually low attendance, and when?', 'attendance_by_meeting'],
-  ['Which committees have the lowest attendance?', 'attendance_by_committee'],
-  [
-    'Which directors have missed the most meetings they were eligible to attend?',
-    'meetings_missed',
-  ],
-  ['What actions are overdue, and who owns them?', 'overdue_actions'],
-  ['Which overdue actions have been outstanding the longest?', 'longest_overdue'],
-  ['Which committee is carrying the most unresolved work?', 'unresolved_by_committee'],
-  ['How are outstanding actions distributed across owners or committees?', 'actions_distribution'],
-  ['What has been deferred more than once?', 'deferred_more_than_once'],
-  ['Where are our biggest skill gaps?', 'skills_gaps'],
-  [
-    'Which directors provide the strongest coverage for the areas where the board has gaps?',
-    'gap_coverage',
-  ],
-  ['Which committees have the greatest skills gaps?', 'committee_skills_gaps'],
-]
-
-const REFUSALS = [
-  'How long are our packs, and are they going out with enough notice?',
-  'What did we decide in the last 3 meetings, and what happened?',
-  'How many directors are qualified accountants?',
-  'What was the board’s average IQ?',
-]
+const STRUCTURED: [string, string][] = SPEC_STRUCTURED.map((s) => [s.q, s.tool])
+const REFUSALS = SPEC_REFUSALS
 
 for (const [question, expected] of STRUCTURED) {
-  test(`spec wording routes correctly: ${question}`, async () => {
+  test(`spec wording routes correctly: ${question.slice(0, 56)}`, async () => {
     const route = await routeQuestion(question, TOOLS)
     assert.equal(route.kind, 'tool', `expected a tool, got a refusal for "${question}"`)
     assert.equal(route.kind === 'tool' && route.name, expected)
@@ -49,9 +41,11 @@ for (const [question, expected] of STRUCTURED) {
 }
 
 for (const question of REFUSALS) {
-  test(`spec wording refuses: ${question}`, async () => {
+  test(`spec wording refuses: ${question.slice(0, 56)}`, async () => {
     const route = await routeQuestion(question, TOOLS)
     assert.equal(route.kind, 'refusal')
+    if (route.kind !== 'refusal') return
+    assert.ok(route.reason.length > 20, 'a refusal must say why, specifically')
   })
 }
 
@@ -145,11 +139,7 @@ test('every numeric tool parameter declares bounds', () => {
 // Spec Q15 is hybrid: the term limit is prose in a paper, the tenure is a CSV
 // column, and neither source answers it alone. It used to refuse because no
 // tool could combine them.
-const HYBRID_QUESTIONS = [
-  'Who times out in the next 12 months, and what does that do to the skills matrix?',
-  'Are there any directors whose term limit affects committee skills coverage?',
-  'Who has served more than nine years on the board?',
-]
+const HYBRID_QUESTIONS = SPEC_HYBRID
 
 for (const question of HYBRID_QUESTIONS) {
   test(`hybrid question reaches the tenure tool: ${question.slice(0, 44)}`, () => {
@@ -162,10 +152,7 @@ for (const question of HYBRID_QUESTIONS) {
 
 // Spec Q16, the other hybrid: due dates from the action log, plus promises made
 // in paper prose that never became actions.
-const UPCOMING_QUESTIONS = [
-  'What is coming next quarter that we have not started preparing for?',
-  'What have we not started preparing for?',
-]
+const UPCOMING_QUESTIONS = SPEC_UPCOMING
 
 for (const question of UPCOMING_QUESTIONS) {
   test(`hybrid question reaches the upcoming tool: ${question.slice(0, 44)}`, () => {
@@ -176,11 +163,7 @@ for (const question of UPCOMING_QUESTIONS) {
   })
 }
 
-const DOCUMENT_QUESTIONS = [
-  'What do the board papers say about a particular risk, project or issue?',
-  'What concerns or themes recur across recent board papers?',
-  'What do the board papers say about our CQC readiness?',
-]
+const DOCUMENT_QUESTIONS = SPEC_DOCUMENT
 
 for (const question of DOCUMENT_QUESTIONS) {
   test(`document question reaches retrieval: ${question.slice(0, 48)}`, () => {

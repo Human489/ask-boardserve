@@ -65,9 +65,19 @@ test('an uncontested skill produces no conflict caveat', () => {
   const contested = new Set(findDisagreements(dataset).map((d) => d.skill))
   const clean = dataset.skillNames.find((s) => !contested.has(s))!
   const result = getTool('skills_gaps')!.run(dataset, { skill: clean })
+  assert.ok(!(result instanceof Promise), 'skills_gaps must be synchronous')
   const r = result as Exclude<typeof result, Promise<unknown>>
+  // `if (isRefusal(r)) return` with nothing asserted before it meant this test
+  // would pass silently the day skills_gaps started refusing — the sibling test
+  // above guards the same call with assert.ok(!isRefusal(r)), and this one did
+  // not.
+  assert.ok(!isRefusal(r), `skills_gaps must not refuse for "${clean}"`)
   if (isRefusal(r)) return
   assert.equal(r.caveats.filter((c) => /disagrees with the audit/i.test(c)).length, 0)
+  // And the answer really is about the uncontested skill, so the absence of a
+  // conflict caveat means something.
+  assert.ok(r.headline.startsWith(clean), r.headline)
+  assert.ok(r.caveats.length > 0, 'a clean skill still needs its caveats')
 })
 
 // ------------------------------------------------------- reading prose safely

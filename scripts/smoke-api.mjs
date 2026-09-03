@@ -27,7 +27,19 @@ function safeRead(p) {
 
 let passed = 0
 let failed = 0
+let skipped = 0
 const failures = []
+
+/** Model routing can only be asserted where the credentials for it exist. */
+const HAS_MODEL_CREDENTIALS = Boolean(
+  (process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID) &&
+    (process.env.CF_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN),
+)
+
+function skip(name, why) {
+  skipped++
+  console.log(`  skip  ${name} — ${why}`)
+}
 
 function check(name, ok, detail = '') {
   if (ok) {
@@ -173,6 +185,27 @@ async function main() {
     check(`${expected}`, ok, ok ? '' : `got tool=${tool} status=${res.status}`)
   }
 
+  // Model routing is the primary path; the keyword classifier is the safety
+  // net. Counting how often the model was used and only PRINTING the number
+  // meant a completely broken AI Gateway — wrong credentials, a deleted
+  // gateway, an expired token — passed the whole suite silently, because the
+  // fallback answers the same twelve questions correctly. The count is now an
+  // assertion wherever it can be one.
+  if (HAS_MODEL_CREDENTIALS) {
+    check(
+      'every structured question was routed by the model, not the fallback',
+      routedByModel === STRUCTURED.length,
+      `${routedByModel}/${STRUCTURED.length} routed by model — with CF_ credentials set, a ` +
+        `fallback means the model call failed (check the gateway id, the token, and that a ` +
+        `gateway exists under that exact name)`,
+    )
+  } else {
+    skip(
+      'every structured question was routed by the model',
+      'no CF_ACCOUNT_ID / CF_API_TOKEN, so only the offline classifier can run',
+    )
+  }
+
   console.log('\nRefusals')
   for (const question of REFUSALS) {
     const { res, json } = await post('/api/ask', { question }, token)
@@ -223,10 +256,25 @@ async function main() {
   {
     // A follow-up with no history must not pretend to have one.
     const { json } = await post('/api/ask', { question: 'and at 90%?' }, token)
+    const tool = json?.result?.tool
+    // The old check here asserted only `json?.ok === true` under a name that
+    // promised something much stronger, so it passed however the subject was
+    // invented. Both properties are now checked, separately, so a failure says
+    // which one broke.
+    check(
+      'a follow-up without history answers or refuses cleanly, never errors',
+      json?.ok === true,
+      `got ${JSON.stringify(json).slice(0, 90)}`,
+    )
     check(
       'the same follow-up without history does not invent a subject',
-      json?.ok === true,
-      'it should still answer or refuse cleanly, never error',
+      // Nothing in "and at 90%?" names attendance, directors or a threshold.
+      // Reaching the previous question's tool means the subject came from
+      // somewhere the reader never supplied.
+      tool !== 'attendance_below_threshold',
+      `routed to ${tool} — the subject was carried in from nowhere: ${String(
+        json?.result?.headline ?? '',
+      ).slice(0, 70)}`,
     )
   }
 
@@ -362,9 +410,13 @@ async function main() {
 
   // ---------------------------------------------------------------- done
   console.log('\n' + '-'.repeat(60))
-  console.log(`passed ${passed}   failed ${failed}`)
-  console.log(`routed by model: ${routedByModel}/${STRUCTURED.length}` +
-    (routedByModel === 0 ? '  (offline classifier — check CF_ credentials)' : ''))
+  console.log(`passed ${passed}   failed ${failed}   skipped ${skipped}`)
+  console.log(
+    `routed by model: ${routedByModel}/${STRUCTURED.length}` +
+      (HAS_MODEL_CREDENTIALS
+        ? ''
+        : '  (no CF_ credentials, so the offline classifier is the only path available)'),
+  )
   if (failures.length) {
     console.log('\nFailures:')
     for (const f of failures) console.log(`  - ${f}`)

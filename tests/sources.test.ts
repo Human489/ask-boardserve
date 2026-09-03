@@ -23,7 +23,10 @@ function sourceFiles(dir: string): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
     if (entry.isDirectory()) out.push(...sourceFiles(full))
-    else if (/\.tsx?$/.test(entry.name)) out.push(full)
+    // .mjs too: the smoke suite is the only coverage several routes have, and
+    // it was outside this scan entirely — a mangled escape in one of its
+    // regexes would silently stop a check from ever matching.
+    else if (/\.(tsx?|mjs)$/.test(entry.name)) out.push(full)
   }
   return out
 }

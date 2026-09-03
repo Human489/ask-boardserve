@@ -104,7 +104,8 @@ export const overdueActions: ToolDefinition = {
       type: 'string',
       description:
         'Restrict to actions owned by this job title, for questions like "what is overdue ' +
-        'for the Head of IT". Owners are roles, not people. Omit for all owners.',
+        'for the finance lead". Use the wording the question uses; owners are roles, not ' +
+        'people, and the roles differ per organisation. Omit for all owners.',
     },
   },
   required: [],
@@ -112,8 +113,8 @@ export const overdueActions: ToolDefinition = {
     const groupBy = choice(args.group_by, ['owner', 'committee'] as const, 'owner')
     const asAt = dataset.asAt
 
-    // Without a filter the tool answered "which actions does the Head of IT own"
-    // with every overdue action in the log: the right data at the wrong scope,
+    // Without a filter the tool answered a question naming one owner with every
+    // overdue action in the log: the right data at the wrong scope,
     // which reads as an answer and buries the one row that was asked for.
     const wantedOwner = str(args.owner, '')
     const knownOwners = [...new Set(dataset.actions.actions.map((a) => a.owner))].sort()

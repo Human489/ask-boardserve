@@ -1,5 +1,6 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
+import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 
 // There was no linter at all. `npm run lint` ran `next lint`, which is
@@ -26,6 +27,10 @@ export default tseslint.config(
     rules: reactHooks.configs.recommended.rules,
   },
   {
+    // Type-aware rules need the TypeScript program, so they are scoped to the
+    // files that are in it. A .mjs script is not, and asking the project
+    // service for one is a parse error rather than a lint finding.
+    files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parserOptions: {
         projectService: true,
@@ -53,15 +58,9 @@ export default tseslint.config(
     },
   },
   {
-    // Plain .mjs scripts are outside the TypeScript project, so type-aware
-    // rules cannot run on them. They still get the syntax and correctness
-    // rules, which is what matters for a script.
-    files: ['**/*.mjs'],
-    ...tseslint.configs.disableTypeChecked,
-  },
-  {
     // Tests reach into internals and build deliberately malformed fixtures.
     files: ['tests/**', 'scripts/**'],
+    languageOptions: { globals: { ...globals.node } },
     rules: {
       // node:test's `test()` returns a promise by design; every call site would
       // otherwise need a `void`, which says nothing and reads as noise.
@@ -81,5 +80,13 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/no-unsafe-call': 'off',
     },
+  },
+  {
+    // Plain .mjs scripts are outside the TypeScript project, so type-aware
+    // rules cannot run on them. They still get the syntax and correctness
+    // rules, which is what matters for a script.
+    files: ['**/*.mjs'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: { globals: { ...globals.node } },
   },
 )

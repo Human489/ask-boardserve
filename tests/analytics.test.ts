@@ -5,7 +5,6 @@ import { join } from 'node:path'
 
 import { allBodies, loadDataset, pct } from '../src/lib/dataset/loader'
 import { ANALYTICS_TOOLS, TOOLS, getTool } from '../src/lib/analytics/registry'
-import { isRefusal } from '../src/lib/types'
 import type { ToolResult } from '../src/lib/types'
 
 const dataset = loadDataset()
@@ -123,14 +122,25 @@ test('attendance_by_meeting is a line chart, one point per meeting, in date orde
 
 test('attendance_by_meeting finds the December-January dip', () => {
   const r = run('attendance_by_meeting')
+  // Looking a meeting up by its id must give the same rate as looking it up by
+  // body and date. This used to be defined and never called, then asserted with
+  // `typeof rate === 'function'` — a test that could not fail.
   const rate = (id: string) => r.table!.rows.find((row) => row[0] === id)?.[5]
+
   const people = r.table!.rows.find((row) => row[1] === 'People Committee' && row[2] === '2025-12-03')
   assert.equal(people?.[5], 50)
+  assert.equal(rate(String(people![0])), 50)
   const cg = r.table!.rows.find((row) => row[1] === 'Clinical Governance Committee' && row[2] === '2025-12-22')
   assert.equal(cg?.[5], 60)
+  assert.equal(rate(String(cg![0])), 60)
   const board = r.table!.rows.find((row) => row[1] === 'Board' && row[2] === '2026-01-17')
   assert.equal(board?.[5], 70)
-  assert.equal(typeof rate, 'function')
+  assert.equal(rate(String(board![0])), 70)
+  // Meeting ids are unique, or a lookup by id would silently return the first
+  // of several.
+  const ids = r.table!.rows.map((row) => String(row[0]))
+  assert.equal(new Set(ids).size, ids.length, 'meeting ids in the table must be unique')
+  assert.equal(rate('no-such-meeting'), undefined)
 })
 
 // ------------------------------------------------------------ Q3
@@ -418,48 +428,123 @@ test('no tool output contains NaN or Infinity', () => {
   }
 })
 
-test('no organisation-specific value is hard-coded anywhere an answer is produced', async () => {
-  const { readFileSync } = await import('node:fs')
+/**
+ * Every .ts under src/lib, found by walking rather than listed by hand.
+ *
+ * The list used to be eleven paths typed out in this file, so eight modules —
+ * analytics/tenure, analytics/upcoming, retrieval/termlimit, commitments,
+ * disagreement, pins, datasets and dataset/loader — were never scanned at all.
+ * A list has to be maintained; a walk does not.
+ */
+function libSources(): string[] {
+  const root = new URL('../src/lib/', import.meta.url).pathname.replace(/^\/(?=[A-Za-z]:)/, '')
+  const out: string[] = []
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name)
+      if (entry.isDirectory()) walk(full)
+      else if (/\.tsx?$/.test(entry.name)) out.push(full)
+    }
+  }
+  walk(root)
+  return out
+}
+
+/**
+ * Words that are this organisation's vocabulary AND ordinary English, so a
+ * substring scan cannot tell a leak from prose. Each is listed with the reason
+ * it cannot be enforced, rather than the whole scan being weakened.
+ *
+ *   Board    — a body name and the commonest noun in the domain.
+ *   People   — a body name ("People Committee") and the plural of person.
+ *   Chair    — an action owner and the ordinary word for the role.
+ *   Company Secretary — an action owner and the product's own user persona,
+ *                       which the retrieval prompt names on purpose.
+ */
+const GENERIC_ENGLISH = new Set(['board', 'people', 'chair', 'company secretary'])
+
+/**
+ * Leaks found by this scan once it was widened, and deliberately left in place
+ * because fixing them is a change to src/lib, not to the tests.
+ *
+ * Removing a name from here when the leak is fixed is enforced below, so this
+ * cannot quietly become a permanent exemption list.
+ */
+/**
+ * Leaks that are known and not yet fixed.
+ *
+ * Empty, and it should stay that way. The list is asserted in both directions:
+ * a leak that is fixed but still listed fails, so an entry cannot quietly
+ * become a permanent exemption for something nobody intends to fix.
+ */
+const KNOWN_LEAKS: [file: string, term: string][] = []
+
+test('no organisation-specific value is hard-coded anywhere an answer is produced', () => {
   // Retrieval was added later and was never covered by this test. Its scope
   // guard held a list of words — board, finance, audit, people — chosen by
   // reading THIS organisation's committee names, which is exactly the leak this
   // test exists to catch.
-  const files = [
-    'analytics/attendance',
-    'analytics/actions',
-    'analytics/skills',
-    'analytics/registry',
-    'retrieval/scope',
-    'retrieval/search',
-    'retrieval/chunk',
-    'retrieval/tool',
-    'retrieval/answer',
-    'retrieval/verify',
-    'router',
-  ]
+  //
+  // Three blind spots were found by audit and are closed here: the hand-written
+  // file list (now a walk of src/lib), the case-SENSITIVE comparison (a
+  // lowercase leak passed), and a banned list built only from attendance.json's
+  // body names — so the DIFFERENT spelling the same bodies carry in
+  // actions.json ("Finance and Audit" against "Finance and Audit Committee"),
+  // the risk codes, the director ids and the owner job titles all went unbanned.
   const banned = [
     ...dataset.skills.map((s) => s.director_name),
     ...dataset.skillNames,
-    // "Board" alone is a generic English word; the distinctive body names are the risk.
-    ...[...new Set(dataset.attendance.meetings.map((m) => m.body))].filter(
-      (b) => b !== 'Board',
-    ),
-    // Identifier prefixes: SAH-, R03 and so on differ between organisations.
-    ...[...new Set(dataset.actions.actions.map((a) => a.action_id.split('-')[0]))],
+    // Body names as attendance.json spells them...
+    ...dataset.attendance.meetings.map((m) => m.body),
+    // ...and as actions.json spells them, which is not the same string.
+    ...dataset.actions.actions.map((a) => a.committee_or_board),
+    // Owners are job titles at this organisation, not roles that travel.
+    ...dataset.actions.actions.map((a) => a.owner),
+    // Identifiers: SAH-, R03, D07 and so on differ between organisations.
+    ...dataset.actions.actions.map((a) => a.action_id.split('-')[0]),
+    ...dataset.actions.actions.map((a) => a.linked_risk).filter((r): r is string => Boolean(r)),
+    ...dataset.attendance.records.map((r) => r.director_id),
     dataset.organisation,
   ]
-  for (const f of files) {
-    const src = readFileSync(new URL(`../src/lib/${f}.ts`, import.meta.url), 'utf8')
-    for (const term of banned) {
-      assert.ok(!src.includes(term), `${f}.ts must not hard-code "${term}"`)
+  const terms = [...new Set(banned.map((t) => t.trim()).filter(Boolean))].filter(
+    (t) => !GENERIC_ENGLISH.has(t.toLowerCase()),
+  )
+  assert.ok(terms.length > 20, 'the banned list is built from the data, and must not be empty')
+
+  const libRoot = new URL('../src/lib/', import.meta.url).pathname.replace(/^\/(?=[A-Za-z]:)/, '')
+  const known = new Set(KNOWN_LEAKS.map(([f, t]) => `${f}::${t}`))
+  const stillLeaking = new Set<string>()
+  const found: string[] = []
+
+  for (const file of libSources()) {
+    const rel = file.slice(libRoot.length).replace(/\\/g, '/')
+    // Case-insensitive: `src.includes(term)` let a lower-cased copy of a
+    // director's name or a skill column through untouched.
+    const src = readFileSync(file, 'utf8').toLowerCase()
+    for (const term of terms) {
+      if (!src.includes(term.toLowerCase())) continue
+      const key = `${rel}::${term}`
+      if (known.has(key)) stillLeaking.add(key)
+      else found.push(`${rel} hard-codes "${term}"`)
     }
   }
+  assert.deepEqual(found, [], found.join('; '))
+
+  // A known leak that has been fixed must be struck off this list, or the list
+  // becomes a permanent exemption nobody rereads.
+  assert.deepEqual(
+    [...known].filter((k) => !stillLeaking.has(k)),
+    [],
+    'these leaks are recorded as known but no longer present — remove them from KNOWN_LEAKS',
+  )
 
   // Only the analytics layer is barred from the clock; retrieval measures
   // timeouts and the usage meter stamps a date, neither of which is an answer.
-  for (const f of files.filter((x) => x.startsWith('analytics/'))) {
-    const src = readFileSync(new URL(`../src/lib/${f}.ts`, import.meta.url), 'utf8')
-    assert.ok(!/Date\.now\(\)|new Date\(/.test(src), `${f}.ts must not read the system clock`)
+  for (const file of libSources()) {
+    const rel = file.slice(libRoot.length).replace(/\\/g, '/')
+    if (!rel.startsWith('analytics/')) continue
+    const src = readFileSync(file, 'utf8')
+    assert.ok(!/Date\.now\(\)|new Date\(/.test(src), `${rel} must not read the system clock`)
   }
 })
 
@@ -717,41 +802,12 @@ test('a chunk spanning two sections says so, rather than naming one', async () =
   }
 })
 
-// The hybrid tool. Neither source answers "who times out": the audit records
-// how long each director has served, nothing records how long they MAY serve,
-// and that limit is prose in a board paper.
-test('the term limit is read from a paper, and every consequence is computed', async () => {
-  const { getTool } = await import('../src/lib/analytics/registry')
-  const result = await getTool('tenure_and_skills_impact')!.run(dataset, {})
-
-  // Without credentials the papers cannot be searched. That must be a graceful
-  // refusal rather than a crash, and the rest of the contract cannot be checked.
-  if (isRefusal(result)) {
-    assert.match(result.reason, /could not be reached|no term limit/i)
-    return
-  }
-
-  // The limit must be attributed, not assumed. An assumption that silently
-  // supplied nine years would answer confidently from a number nobody wrote.
-  const attribution = result.assumptions.find((a) => /read from/i.test(a))
-  assert.ok(attribution, 'the answer must say where the limit came from')
-  assert.match(attribution!, /paper/i)
-  assert.ok(result.provenance.sources.some((s) => s.startsWith('paper-')))
-  assert.ok(result.provenance.sources.includes('skills-audit.csv'))
-
-  // Whoever is listed must genuinely be at or past the limit, computed from the
-  // CSV rather than taken from the answer.
-  const limitMatch = attribution!.match(/(\d+)-year limit/)
-  assert.ok(limitMatch, `expected the limit stated in: ${attribution}`)
-  const limit = Number(limitMatch![1])
-
-  const expected = dataset.skills
-    .filter((d) => (limit - d.tenure_years) * 12 <= 12)
-    .map((d) => d.director_name)
-    .sort()
-  const listed = (result.table?.rows ?? []).map((r) => String(r[0])).sort()
-  assert.deepEqual(listed, expected)
-})
+// The hybrid tool's own contract — that the limit is attributed to a paper and
+// every consequence computed — is exercised in tests/retrieval-offline.test.ts.
+// It used to live here behind `if (isRefusal(result)) return`, which with no
+// credentials in the environment was taken on EVERY run: the tool always
+// refused, so nothing below the early return ever executed, and the test also
+// made a real network call.
 
 test('the tenure tool refuses when no paper states a limit', async () => {
   const { findTermLimit } = await import('../src/lib/retrieval/termlimit')

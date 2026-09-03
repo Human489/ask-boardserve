@@ -78,10 +78,11 @@ const NAMES_DOCUMENTS = new RegExp(
 
 /**
  * Phrasings that ask what a source SAYS without naming which source. They read
- * as documentary but are not on their own: "what does the skills audit say about
- * digital and data" was sent to the papers, which answered that the papers do
- * not cover it — implying the audit holds no such figure when it holds exactly
- * that. So these only excuse a question that names no structured source.
+ * as documentary but are not on their own: a question asking what the skills
+ * audit says about a named skill was sent to the papers, which answered that
+ * the papers do not cover it — implying the audit holds no such figure when it
+ * holds exactly that. So these only excuse a question that names no structured
+ * source.
  */
 const ASKS_WHAT_A_SOURCE_SAYS = /\bwritten\b|\bsay(s)? about\b|\bwhat does the .* say\b/
 
