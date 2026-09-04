@@ -36,7 +36,7 @@ npm run dev          # dev server on :3000
 npm run build        # production build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint src tests scripts
-npm test             # 389 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
+npm test             # 392 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
 npm run smoke        # end-to-end checks against a RUNNING server
 npm run eval         # the eval harness, against a RUNNING server
 npm run predeploy    # typecheck + lint + tests + eval, and writes the README
@@ -78,6 +78,37 @@ so a good score there proves it does not regress — not that it generalises.
 Last run: **24/25**, the miss being "How diverse is the board?" routing to
 `skills_gaps`. That miss is now guarded in code (`guardUnmeasured`), not in the
 prompt.
+
+### Running this as an outside reviewer
+
+Written because an external auditor has none of the credentials and would
+otherwise report configuration as defects.
+
+```bash
+npm ci && npm run typecheck && npm run lint && npm test   # no credentials needed
+```
+
+**The unit tests need nothing.** No `.env.local`, no network, no model access.
+`npm run dev` also works with no credentials at all: the dataset is committed,
+and `router.ts` falls back to a deterministic keyword classifier when the
+Cloudflare variables are missing, so questions still route and still answer.
+What you lose without credentials is the model routing path, the board-paper
+retrieval, and KV — pins and conversations fall back to per-process memory,
+and uploading a dataset REFUSES rather than pretending to work.
+
+**`npm run smoke` and `npm run eval` need a running server**, and the eval
+needs it started with `AI_CACHE=off` or it measures its own cache. Both need
+`APP_PASSCODE` set, because everything is behind the gate.
+
+Three things that look like bugs and are not, each recorded in full below:
+
+- **The passcode is a bot fence, not an access control.** No per-user identity,
+  no idle timeout, revocation is all-or-nothing. Deliberate for a demo over a
+  fictional dataset; see "The gate is a bot fence".
+- **Rate limiting is approximate** and the write is not awaited. KV has no
+  atomic increment and a write costs ~330ms.
+- **Six of smoke's twelve structured questions are paraphrases**, not the
+  spec's wording. Known, argued both ways, deliberately not changed.
 
 **Stop the dev server before `npm run build`.** They share `.next`, and running
 both corrupts it: the browser 404s on chunks and the page silently stops
@@ -439,10 +470,13 @@ fixed and merged. **The bug backlog is empty**, and the only known problems are
 the ones under "Known, and not easily fixable" below, each of which has been
 looked at properly and left alone for a stated reason.
 
-Verified state at the last merge: **389 tests, smoke 62/62, eval 130/130 over 5
+Verified state at the last merge: **392 tests, smoke 62/62, eval 130/130 over 5
 runs with nothing unstable, typecheck, lint and production build clean, the
 hard-coding detector at 0 findings.** Branches: `main` only, everything merged
 with `--no-ff`.
+
+The eval figure is the one number here NOT re-measured since; it predates the
+recharts upgrade, which touched no routing code. Re-run it before quoting it.
 
 The failures worth carrying forward, because each is a CLASS rather than a
 one-off:
