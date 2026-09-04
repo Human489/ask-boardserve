@@ -24,6 +24,8 @@ g.document = dom.window.document
 g.HTMLElement = dom.window.HTMLElement
 g.Element = dom.window.Element
 g.SVGElement = dom.window.SVGElement
+g.getComputedStyle = dom.window.getComputedStyle
+g.MutationObserver = dom.window.MutationObserver
 g.requestAnimationFrame = dom.window.requestAnimationFrame
 g.cancelAnimationFrame = dom.window.cancelAnimationFrame
 // navigator is a getter-only global in Node, so it cannot simply be assigned.
@@ -38,6 +40,34 @@ g.ResizeObserver = class {
   unobserve(): void {}
   disconnect(): void {}
 }
+// jsdom has no matchMedia, and BoardChart uses two: one for the OS theme and
+// one for the narrow-screen layout. Neither ever changes during a test.
+if (typeof dom.window.matchMedia !== 'function') {
+  dom.window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof dom.window.matchMedia
+}
+
+// Components fetch relative paths on mount (ShareLinks asks for /api/shares).
+// Node's fetch cannot parse a relative URL and the rejection surfaces AFTER the
+// test has ended, where it is reported as an unhandled rejection rather than as
+// a failure — noise that hides a real one. These tests assert on markup, so the
+// request never needs to succeed; it only needs not to explode.
+g.fetch = (() =>
+  Promise.resolve({
+    ok: false,
+    status: 500,
+    json: () => Promise.resolve({}),
+    text: () => Promise.resolve(''),
+  })) as unknown as typeof fetch
+
 g.IS_REACT_ACT_ENVIRONMENT = true
 
 export const jsdomWindow = dom.window

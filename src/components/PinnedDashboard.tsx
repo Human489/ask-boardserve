@@ -1,6 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+// The default import is here for the same reason BoardChart carries one: this
+// module is rendered outside Next's JSX transform by
+// tests/pinned-visibility.test.tsx, which drives it through react-dom/client.
+import React, { useEffect, useRef, useState } from 'react'
 import ChartCard from './ChartCard'
 import ShareLinks from './ShareLinks'
 import { RemoveMark } from './marks'
@@ -56,6 +59,33 @@ export default function PinnedDashboard({
   // again from the top of the document; the heading is the nearest sensible
   // place to put them back.
   const heading = useRef<HTMLHeadingElement>(null)
+
+  // EVERY PINNED CHART RENDERED BLANK until this existed.
+  //
+  // Workspace keeps all three views mounted and hides the inactive ones, so
+  // the transcript survives a switch. That means the dashboard's cards mount
+  // on page load, inside a `display: none` subtree — and recharts 3 measures
+  // its container on mount, gets zero, and does not draw. recharts 2.x
+  // recovered when the view was shown; 3.x does not.
+  //
+  // A chart that mounts while VISIBLE is fine, including across later hides,
+  // so the cards only have to wait for their first showing. This is a latch
+  // rather than `!hidden` so switching away does not throw the cards out and
+  // rebuild them on every visit.
+  //
+  // Deliberately not an IntersectionObserver or a ResizeObserver watching for
+  // the moment the view appears: both are the mechanism that is already
+  // failing here, and neither could be verified in the browser available.
+  // `hidden` is a prop this component is already given, and a render is a
+  // thing that definitely happens.
+  //
+  // Found by clicking Dashboard after a recharts upgrade. All 389 tests passed
+  // with every pinned chart empty, because nothing here asserts on rendered
+  // SVG — which is exactly the failure the upgrade was predicted to have.
+  const [shown, setShown] = useState(!hidden)
+  useEffect(() => {
+    if (!hidden) setShown(true)
+  }, [hidden])
 
   const tryAgain = async () => {
     if (retrying) return
@@ -138,7 +168,8 @@ export default function PinnedDashboard({
           </p>
         )}
 
-        {items.map((pin) => {
+        {shown &&
+          items.map((pin) => {
           const busy = busyKey === pin.id
           const inert = busy || busyKey !== null
           const questionId = `pinned-question-${pin.id}`
