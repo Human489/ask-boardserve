@@ -1,10 +1,26 @@
 # ---------------------------------------------------------------
-# NEVER COMMIT: board data and secrets
+# Board data and secrets
 # ---------------------------------------------------------------
-# Anchored to the repo root: an unanchored "dataset/" also matches
-# src/lib/dataset/, which silently drops application code from commits.
-/dataset/
+# ONE DATASET IS COMMITTED ON PURPOSE, and it is the only one.
+#
+# `/dataset/` used to be ignored outright. The instruction that changed it:
+# "commit one dataset to the repo as the default so the deployed app works for
+# someone opening it cold, then upload becomes the way to swap rather than the
+# only way in." Without it a cold visitor meets the 409/needsDataset path and
+# has to be handed a .zip before the app does anything at all.
+#
+# It is safe to commit because BOTH ORGANISATIONS IN THIS EXERCISE ARE
+# FICTIONAL — the dataset's own README says so in as many words. Nothing here
+# is a real director. That is the whole reason this line could be relaxed, and
+# it is the first thing to re-check if a real dataset ever arrives: real board
+# attendance is personal data and would go straight back behind the ignore.
+#
+# `/dataset-*/` STAYS IGNORED, so dataset-b cannot be committed by accident.
 /dataset-*/
+# The dataset's own README describes BOTH organisations, including the second
+# one by name and sector. Committing it would put dataset-b's identity in the
+# repo and spoil a test whose entire value is being run blind.
+/dataset/README.md
 /data/private/
 *.dataset.json
 

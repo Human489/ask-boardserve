@@ -1,0 +1,1372 @@
+{
+  "organisation": "St Ambrose Hospice Care",
+  "period": "1 September 2025 to 31 August 2026",
+  "generated": "2026-08-31",
+  "notes": "Attendance status is one of present, apologies, absent. Apologies means advance notice was given; absent means no notice. Eligibility for committee meetings is limited to committee members.",
+  "meetings": [
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "type": "Board",
+      "date": "2025-09-17"
+    },
+    {
+      "meeting_id": "FA-2025-10",
+      "body": "Finance and Audit Committee",
+      "type": "Committee",
+      "date": "2025-10-08"
+    },
+    {
+      "meeting_id": "CG-2025-10",
+      "body": "Clinical Governance Committee",
+      "type": "Committee",
+      "date": "2025-10-22"
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "type": "Board",
+      "date": "2025-11-17"
+    },
+    {
+      "meeting_id": "PC-2025-12",
+      "body": "People Committee",
+      "type": "Committee",
+      "date": "2025-12-03"
+    },
+    {
+      "meeting_id": "CG-2025-12",
+      "body": "Clinical Governance Committee",
+      "type": "Committee",
+      "date": "2025-12-22"
+    },
+    {
+      "meeting_id": "FA-2026-01",
+      "body": "Finance and Audit Committee",
+      "type": "Committee",
+      "date": "2026-01-08"
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "type": "Board",
+      "date": "2026-01-17"
+    },
+    {
+      "meeting_id": "PC-2026-02",
+      "body": "People Committee",
+      "type": "Committee",
+      "date": "2026-02-03"
+    },
+    {
+      "meeting_id": "CG-2026-02",
+      "body": "Clinical Governance Committee",
+      "type": "Committee",
+      "date": "2026-02-22"
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "type": "Board",
+      "date": "2026-03-17"
+    },
+    {
+      "meeting_id": "FA-2026-04",
+      "body": "Finance and Audit Committee",
+      "type": "Committee",
+      "date": "2026-04-08"
+    },
+    {
+      "meeting_id": "CG-2026-04",
+      "body": "Clinical Governance Committee",
+      "type": "Committee",
+      "date": "2026-04-22"
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "type": "Board",
+      "date": "2026-05-17"
+    },
+    {
+      "meeting_id": "PC-2026-06",
+      "body": "People Committee",
+      "type": "Committee",
+      "date": "2026-06-03"
+    },
+    {
+      "meeting_id": "CG-2026-06",
+      "body": "Clinical Governance Committee",
+      "type": "Committee",
+      "date": "2026-06-22"
+    },
+    {
+      "meeting_id": "FA-2026-07",
+      "body": "Finance and Audit Committee",
+      "type": "Committee",
+      "date": "2026-07-08"
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "type": "Board",
+      "date": "2026-07-17"
+    }
+  ],
+  "records": [
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "present",
+      "joined_late_minutes": 10,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "status": "present",
+      "joined_late_minutes": 10,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-09",
+      "body": "Board",
+      "date": "2025-09-17",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2025-10",
+      "body": "Finance and Audit Committee",
+      "date": "2025-10-08",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2025-10",
+      "body": "Finance and Audit Committee",
+      "date": "2025-10-08",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "FA-2025-10",
+      "body": "Finance and Audit Committee",
+      "date": "2025-10-08",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 10,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2025-10",
+      "body": "Finance and Audit Committee",
+      "date": "2025-10-08",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2025-10",
+      "body": "Finance and Audit Committee",
+      "date": "2025-10-08",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2025-10",
+      "body": "Clinical Governance Committee",
+      "date": "2025-10-22",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2025-10",
+      "body": "Clinical Governance Committee",
+      "date": "2025-10-22",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2025-10",
+      "body": "Clinical Governance Committee",
+      "date": "2025-10-22",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2025-10",
+      "body": "Clinical Governance Committee",
+      "date": "2025-10-22",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2025-10",
+      "body": "Clinical Governance Committee",
+      "date": "2025-10-22",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2025-11",
+      "body": "Board",
+      "date": "2025-11-17",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "PC-2025-12",
+      "body": "People Committee",
+      "date": "2025-12-03",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "absent"
+    },
+    {
+      "meeting_id": "PC-2025-12",
+      "body": "People Committee",
+      "date": "2025-12-03",
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "PC-2025-12",
+      "body": "People Committee",
+      "date": "2025-12-03",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "PC-2025-12",
+      "body": "People Committee",
+      "date": "2025-12-03",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2025-12",
+      "body": "Clinical Governance Committee",
+      "date": "2025-12-22",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2025-12",
+      "body": "Clinical Governance Committee",
+      "date": "2025-12-22",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "CG-2025-12",
+      "body": "Clinical Governance Committee",
+      "date": "2025-12-22",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "CG-2025-12",
+      "body": "Clinical Governance Committee",
+      "date": "2025-12-22",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2025-12",
+      "body": "Clinical Governance Committee",
+      "date": "2025-12-22",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-01",
+      "body": "Finance and Audit Committee",
+      "date": "2026-01-08",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-01",
+      "body": "Finance and Audit Committee",
+      "date": "2026-01-08",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-01",
+      "body": "Finance and Audit Committee",
+      "date": "2026-01-08",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "FA-2026-01",
+      "body": "Finance and Audit Committee",
+      "date": "2026-01-08",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-01",
+      "body": "Finance and Audit Committee",
+      "date": "2026-01-08",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "status": "present",
+      "joined_late_minutes": 10,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "absent"
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "BD-2026-01",
+      "body": "Board",
+      "date": "2026-01-17",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "PC-2026-02",
+      "body": "People Committee",
+      "date": "2026-02-03",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "PC-2026-02",
+      "body": "People Committee",
+      "date": "2026-02-03",
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "PC-2026-02",
+      "body": "People Committee",
+      "date": "2026-02-03",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "PC-2026-02",
+      "body": "People Committee",
+      "date": "2026-02-03",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-02",
+      "body": "Clinical Governance Committee",
+      "date": "2026-02-22",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-02",
+      "body": "Clinical Governance Committee",
+      "date": "2026-02-22",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-02",
+      "body": "Clinical Governance Committee",
+      "date": "2026-02-22",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-02",
+      "body": "Clinical Governance Committee",
+      "date": "2026-02-22",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-02",
+      "body": "Clinical Governance Committee",
+      "date": "2026-02-22",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "present",
+      "joined_late_minutes": 10,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 10,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-03",
+      "body": "Board",
+      "date": "2026-03-17",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-04",
+      "body": "Finance and Audit Committee",
+      "date": "2026-04-08",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-04",
+      "body": "Finance and Audit Committee",
+      "date": "2026-04-08",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-04",
+      "body": "Finance and Audit Committee",
+      "date": "2026-04-08",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-04",
+      "body": "Finance and Audit Committee",
+      "date": "2026-04-08",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "FA-2026-04",
+      "body": "Finance and Audit Committee",
+      "date": "2026-04-08",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "CG-2026-04",
+      "body": "Clinical Governance Committee",
+      "date": "2026-04-22",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-04",
+      "body": "Clinical Governance Committee",
+      "date": "2026-04-22",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-04",
+      "body": "Clinical Governance Committee",
+      "date": "2026-04-22",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-04",
+      "body": "Clinical Governance Committee",
+      "date": "2026-04-22",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-04",
+      "body": "Clinical Governance Committee",
+      "date": "2026-04-22",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "BD-2026-05",
+      "body": "Board",
+      "date": "2026-05-17",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "PC-2026-06",
+      "body": "People Committee",
+      "date": "2026-06-03",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "PC-2026-06",
+      "body": "People Committee",
+      "date": "2026-06-03",
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "status": "present",
+      "joined_late_minutes": 10,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "PC-2026-06",
+      "body": "People Committee",
+      "date": "2026-06-03",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "PC-2026-06",
+      "body": "People Committee",
+      "date": "2026-06-03",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "CG-2026-06",
+      "body": "Clinical Governance Committee",
+      "date": "2026-06-22",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-06",
+      "body": "Clinical Governance Committee",
+      "date": "2026-06-22",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-06",
+      "body": "Clinical Governance Committee",
+      "date": "2026-06-22",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-06",
+      "body": "Clinical Governance Committee",
+      "date": "2026-06-22",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "CG-2026-06",
+      "body": "Clinical Governance Committee",
+      "date": "2026-06-22",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "FA-2026-07",
+      "body": "Finance and Audit Committee",
+      "date": "2026-07-08",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-07",
+      "body": "Finance and Audit Committee",
+      "date": "2026-07-08",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-07",
+      "body": "Finance and Audit Committee",
+      "date": "2026-07-08",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-07",
+      "body": "Finance and Audit Committee",
+      "date": "2026-07-08",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "FA-2026-07",
+      "body": "Finance and Audit Committee",
+      "date": "2026-07-08",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "absent"
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "status": "present",
+      "joined_late_minutes": 5,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": false
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "status": "apologies"
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "status": "present",
+      "joined_late_minutes": 0,
+      "attended_remotely": true
+    },
+    {
+      "meeting_id": "BD-2026-07",
+      "body": "Board",
+      "date": "2026-07-17",
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "status": "present",
+      "joined_late_minutes": 15,
+      "attended_remotely": true
+    }
+  ],
+  "director_summary": [
+    {
+      "director_id": "D01",
+      "director_name": "Eleanor Vance-Prichard",
+      "role": "Chair",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 6,
+      "board_attendance_pct": 100.0,
+      "all_meetings_eligible": 15,
+      "all_meetings_attended": 15,
+      "overall_attendance_pct": 100.0
+    },
+    {
+      "director_id": "D02",
+      "director_name": "Gareth Pomeroy",
+      "role": "Vice Chair and Chair of Finance and Audit",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 5,
+      "board_attendance_pct": 83.3,
+      "all_meetings_eligible": 10,
+      "all_meetings_attended": 9,
+      "overall_attendance_pct": 90.0
+    },
+    {
+      "director_id": "D03",
+      "director_name": "Dr Amara Nwachukwu",
+      "role": "Trustee and Chair of Clinical Governance",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 6,
+      "board_attendance_pct": 100.0,
+      "all_meetings_eligible": 11,
+      "all_meetings_attended": 10,
+      "overall_attendance_pct": 90.9
+    },
+    {
+      "director_id": "D04",
+      "director_name": "Hilary Batchford",
+      "role": "Trustee",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 5,
+      "board_attendance_pct": 83.3,
+      "all_meetings_eligible": 14,
+      "all_meetings_attended": 11,
+      "overall_attendance_pct": 78.6
+    },
+    {
+      "director_id": "D05",
+      "director_name": "Idris Bahri",
+      "role": "Trustee and Chair of People Committee",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 6,
+      "board_attendance_pct": 100.0,
+      "all_meetings_eligible": 9,
+      "all_meetings_attended": 8,
+      "overall_attendance_pct": 88.9
+    },
+    {
+      "director_id": "D06",
+      "director_name": "Rosalind Cheatle",
+      "role": "Trustee",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 6,
+      "board_attendance_pct": 100.0,
+      "all_meetings_eligible": 10,
+      "all_meetings_attended": 10,
+      "overall_attendance_pct": 100.0
+    },
+    {
+      "director_id": "D07",
+      "director_name": "Terence Oduya",
+      "role": "Trustee",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 3,
+      "board_attendance_pct": 50.0,
+      "all_meetings_eligible": 10,
+      "all_meetings_attended": 7,
+      "overall_attendance_pct": 70.0
+    },
+    {
+      "director_id": "D08",
+      "director_name": "Josephine Ferrand-Clark",
+      "role": "Trustee",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 5,
+      "board_attendance_pct": 83.3,
+      "all_meetings_eligible": 14,
+      "all_meetings_attended": 13,
+      "overall_attendance_pct": 92.9
+    },
+    {
+      "director_id": "D09",
+      "director_name": "Malcolm Whitbourne",
+      "role": "Trustee",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 4,
+      "board_attendance_pct": 66.7,
+      "all_meetings_eligible": 10,
+      "all_meetings_attended": 7,
+      "overall_attendance_pct": 70.0
+    },
+    {
+      "director_id": "D10",
+      "director_name": "Saoirse Delahunty",
+      "role": "Trustee",
+      "board_meetings_eligible": 6,
+      "board_meetings_attended": 6,
+      "board_attendance_pct": 100.0,
+      "all_meetings_eligible": 14,
+      "all_meetings_attended": 13,
+      "overall_attendance_pct": 92.9
+    }
+  ]
+}
