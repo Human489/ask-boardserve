@@ -31,8 +31,22 @@ function sourceFiles(dir: string): string[] {
   return out
 }
 
+// The markdown is scanned too. Writing the sentence "a template literal eats a
+// backslash escape" into CLAUDE.md put two literal backspaces into that very
+// sentence, and nothing here was looking at .md — so the file describing the
+// failure demonstrated it instead, and would have been read by the next person
+// as the correct spelling.
+const DOCS = ['CLAUDE.md', 'README.md']
+
 test('no source file contains a stray control character', () => {
   const offenders: string[] = []
+  for (const doc of DOCS) {
+    readFileSync(doc, 'utf8')
+      .split('\n')
+      .forEach((line, i) => {
+        if (CONTROL.test(line)) offenders.push(`${doc}:${i + 1}`)
+      })
+  }
   for (const root of ROOTS) {
     for (const file of sourceFiles(root)) {
       readFileSync(file, 'utf8')

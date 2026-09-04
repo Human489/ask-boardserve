@@ -431,7 +431,7 @@ with `--no-ff`.
 The failures worth carrying forward, because each is a CLASS rather than a
 one-off:
 
-- **A template literal eats a backslash escape.** `` new RegExp(`${w}`) ``
+- **A template literal eats a backslash escape.** `` new RegExp(`\b${w}\b`) ``
   builds a pattern containing BACKSPACE, which compiles, runs, and matches
   nothing for ever. `tests/sources.test.ts` cannot see it — the source holds a
   valid two-character escape — so it has a separate guard, proven by planting a
