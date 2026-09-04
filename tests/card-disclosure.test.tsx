@@ -98,13 +98,40 @@ test('the qualifier count reads as English, not as a bare number', () => {
   assert.doesNotMatch(bare, /0 assumption/, 'never "0 assumptions"')
 })
 
-test('the full card keeps its caveats visible, outside any disclosure', () => {
-  // The chat is one answer read carefully. Caveats change how the figure
-  // reads, so they are not behind a control there.
+// THIS TEST ASSERTED THE OPPOSITE, and the reversal was asked for directly.
+//
+// It used to require caveats on the FACE of the chat card, on PRODUCT.md's
+// second principle: the chat is one answer read carefully, and a caveat
+// changes how the figure reads. Assumptions, caveats and the audit trail are
+// now one disclosure, collapsed by default, in both modes.
+//
+// What keeps that safe is the summary LABEL, so that is what is pinned here
+// rather than the folding: a reader who never opens the disclosure must still
+// be told that qualification exists, because they are the one about to repeat
+// the figure to a board. A bare "Details" toggle would be the failure the
+// principle was written against.
+test('the full card folds its qualification away but SAYS it is there', () => {
   const html = render(false)
   const beforeDetails = html.split('<details')[0]
-  assert.match(beforeDetails, /Committee membership is inferred/, 'caveats visible')
-  assert.match(beforeDetails, /80% is the default threshold/, 'assumptions visible')
+
+  assert.ok(
+    !beforeDetails.includes('Committee membership is inferred'),
+    'caveats belong inside the disclosure now',
+  )
+  assert.ok(
+    !beforeDetails.includes('80% is the default threshold'),
+    'assumptions belong inside the disclosure now',
+  )
+
+  // The load-bearing half: the count is on the face of the card.
+  assert.match(
+    html,
+    /1 assumption and 2 things worth knowing/,
+    'the summary must state how much qualification is folded away',
+  )
+  // And they really are still rendered, not dropped.
+  assert.match(html, /Committee membership is inferred/)
+  assert.match(html, /80% is the default threshold/)
 })
 
 test('the as-at date is outside the disclosure in both modes', () => {
@@ -113,20 +140,24 @@ test('the as-at date is outside the disclosure in both modes', () => {
   // part of its audit trail.
   for (const compact of [true, false]) {
     const html = render(compact)
-    const provenanceDetails = html.indexOf('provenance-detail')
+    const details = html.indexOf('<details')
     const asAt = html.indexOf('2026-08-31')
     assert.ok(asAt > -1, `as-at must be rendered (compact=${String(compact)})`)
+    assert.ok(details > -1, `there is a disclosure to be outside of (compact=${String(compact)})`)
+    // Now that everything else folds away, this is the one line that cannot:
+    // it precedes the disclosure in BOTH modes, where it used to be inside the
+    // compact one.
     assert.ok(
-      asAt < provenanceDetails,
-      `as-at must precede the provenance disclosure (compact=${String(compact)})`,
+      asAt < details,
+      `as-at must precede the disclosure (compact=${String(compact)})`,
     )
   }
 })
 
 test('the audit trail is behind the disclosure, not on the face of the card', () => {
   const html = render(false)
-  const summary = html.indexOf('Where this came from')
-  assert.ok(summary > -1, 'the provenance disclosure must be labelled')
+  const summary = html.indexOf('Show the working')
+  assert.ok(summary > -1, 'the disclosure must be labelled')
   assert.ok(html.indexOf('Present rate per director') > summary, 'derivation is inside')
   assert.ok(html.indexOf('135 considered') > summary, 'row count is inside')
 })

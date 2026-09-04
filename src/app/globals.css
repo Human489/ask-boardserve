@@ -383,6 +383,32 @@ textarea {
   min-height: 100dvh;
 }
 
+/* THE AUTHENTICATED SHELL IS FIXED TO THE VIEWPORT, so the masthead, the
+   conversation rail and the composer stay put and the answer region is the
+   only thing that moves. With min-height alone the shell grew past the
+   viewport and the whole PAGE scrolled, taking the masthead with it — so a
+   long transcript meant scrolling back to the top to reach the dashboard or
+   another conversation. Every view inside already declares its own
+   `overflow-y: auto` and `.views` already carries the `min-height: 0` that
+   lets a flex child scroll instead of stretching; both were inert while the
+   shell itself was free to grow.
+
+   NOT on `.shell`, because the gate uses that too and its card must be free to
+   push the page taller than the screen.
+
+   Guarded on viewport HEIGHT, which is what makes it safe under magnification:
+   a browser at 200% halves the CSS viewport, so a short or zoomed viewport
+   drops back to ordinary page scrolling rather than clipping the masthead and
+   composer against a squeezed transcript. That is WCAG 1.4.10 reflow, and it
+   is why this is a media query rather than two properties. */
+@media (min-height: 480px) {
+  .shell-app {
+    height: 100dvh;
+    max-height: 100dvh;
+    overflow: hidden;
+  }
+}
+
 /* The masthead is short, but without a skip link the only route past it is
    through it, and there was no landmark to skip to either. */
 .skip-link {
@@ -772,10 +798,29 @@ table.answer-table {
   margin-top: 3px;
 }
 
-.provenance {
-  margin-top: 20px;
+/* The card's one always-visible metadata line: the as-at date, plus a pinned
+   card's own timestamp. One row rather than stacked lines — they are all
+   one-line facts about the same figure, and stacked they rebuilt the tall
+   provenance block that was compacted away in the first place. Wraps rather
+   than truncating on a narrow card. */
+.card-meta {
+  margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid var(--hairline);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 4px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+/* The audit trail, inside the working disclosure. No border of its own: the
+   disclosure it sits in already has one. */
+.provenance {
+  margin-top: 14px;
   font-size: 11.5px;
   line-height: 1.6;
   color: var(--ink-muted);
@@ -1472,7 +1517,7 @@ table.answer-table {
 }
 
 .provenance-pinned {
-  margin: 0 0 6px;
+  margin: 0;
   font-weight: 600;
   color: var(--ink-2);
 }
@@ -1729,7 +1774,9 @@ table.answer-table {
   text-transform: uppercase;
 }
 
-.provenance-detail summary,
+/* `.provenance-detail` used to be a second disclosure of its own, holding the
+   audit trail under the as-at line. There is one disclosure now and this is
+   what remains of its styling. */
 .working > summary {
   cursor: pointer;
   /* The marker is the affordance, so it keeps a real focus ring rather than
@@ -1738,40 +1785,18 @@ table.answer-table {
   color: var(--ink-2);
 }
 
-.provenance-detail summary:focus-visible,
 .working > summary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 
-.provenance-detail {
-  margin-top: 6px;
-}
-
-.provenance-detail summary {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.provenance-detail summary:hover {
-  color: var(--ink);
-}
-
-.provenance-detail[open] summary {
-  margin-bottom: 8px;
-  color: var(--ink);
-}
-
 /* The dashboard card's one control. Its label states how much is inside, so a
    reader who never opens it still knows the figure carries qualification —
    which is the part that matters to someone repeating it to a board. */
+/* Sits directly under the meta line, which already draws the hairline, so a
+   border here would double it. */
 .working {
-  margin-top: 18px;
-  border-top: 1px solid var(--hairline);
-  padding-top: 14px;
+  margin-top: 8px;
 }
 
 .working > summary {

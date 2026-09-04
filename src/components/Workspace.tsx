@@ -70,7 +70,7 @@ export default function Workspace() {
   }
 
   return (
-    <div className="shell">
+    <div className="shell shell-app">
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>

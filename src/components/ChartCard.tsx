@@ -38,46 +38,39 @@ function qualifierSummary(assumptions: number, caveats: number): string | null {
 }
 
 /**
- * Provenance as "a small note", which is the brief's wording for it.
+ * The as-at date, always visible, outside every disclosure.
  *
- * It used to be a 131px block under every answer. On a dashboard of pinned
- * cards that made three answers 3,534px tall, and the note it was supposed to
- * be had become the largest thing on the card after the chart.
- *
- * The as-at date stays OUTSIDE the disclosure. Every figure in this product is
- * measured from it — "overdue" means overdue as at that date and nothing else —
- * so it is part of what the figure means rather than part of its audit trail.
- * The sources, row count and derivation are the audit trail, and an audit trail
- * is consulted when checking rather than read when reading.
- *
- * A native <details> rather than a scripted toggle: it is keyboard operable and
- * announced as expandable with no JavaScript, and it still works if hydration
- * never happens.
+ * Every figure in this product is measured from it — "overdue" means overdue
+ * as at that date and nothing else — so it is part of what the figure MEANS
+ * rather than part of its audit trail. It is the one line that never folds.
  */
-function Provenance({
-  provenance,
-  note,
-}: {
-  provenance: ProvenanceSpec
-  note?: ReactNode
-}) {
+function AsAt({ provenance, note }: { provenance: ProvenanceSpec; note?: ReactNode }) {
   return (
-    <div className="provenance">
+    <div className="card-meta">
       <p className="provenance-asat">
         <span className="provenance-asat-label">As at</span> {provenance.asAt}
       </p>
       {note}
-      <details className="provenance-detail">
-        <summary>Where this came from</summary>
-        <dl>
-          <dt>Sources</dt>
-          <dd>{provenance.sources.join(', ')}</dd>
-          <dt>Rows</dt>
-          <dd>{provenance.rowsConsidered.toLocaleString('en-GB')} considered</dd>
-          <dt>Derivation</dt>
-          <dd>{provenance.derivation}</dd>
-        </dl>
-      </details>
+    </div>
+  )
+}
+
+/**
+ * The audit trail: sources, rows considered, derivation. Always inside the
+ * working disclosure — an audit trail is consulted when checking rather than
+ * read when reading, which is what earns it the brief's "a small note".
+ */
+function AuditTrail({ provenance }: { provenance: ProvenanceSpec }) {
+  return (
+    <div className="provenance">
+      <dl>
+        <dt>Sources</dt>
+        <dd>{provenance.sources.join(', ')}</dd>
+        <dt>Rows</dt>
+        <dd>{provenance.rowsConsidered.toLocaleString('en-GB')} considered</dd>
+        <dt>Derivation</dt>
+        <dd>{provenance.derivation}</dd>
+      </dl>
     </div>
   )
 }
@@ -236,6 +229,19 @@ export default function ChartCard({
         table && table.rows.length > 0 && <AnswerTable spec={table} />
       )}
 
+    </>
+  )
+
+  /**
+   * What was assumed, what is worth knowing, and how the route was chosen.
+   *
+   * Kept apart from the evidence above because THE TABLE IS NOT A CAVEAT — it
+   * is the answer, and for a question that produces no chart it is the whole
+   * answer. Folding it away with the notes left a card showing one sentence
+   * and nothing else.
+   */
+  const qualification = (
+    <>
       {(assumptions.length > 0 || caveats.length > 0) && (
         <div className="notes">
           <NoteList label="Assumed:" items={assumptions} />
@@ -270,23 +276,37 @@ export default function ChartCard({
 
       {hasChart && chart && <BoardChart spec={chart} />}
 
-      {compact ? (
-        <details className="working">
-          <summary>
-            Show the working
-            {qualifiers ? <span className="working-count">{qualifiers}</span> : null}
-          </summary>
-          <div className="working-body">
-            {evidence}
-            <Provenance provenance={provenance} note={note} />
-          </div>
-        </details>
-      ) : (
-        <>
-          {evidence}
-          <Provenance provenance={provenance} note={note} />
-        </>
-      )}
+      {/* ONE DISCLOSURE FOR THE WHOLE QUALIFICATION, in both modes, collapsed
+          by default. Asked for directly, and it reverses PRODUCT.md's second
+          principle, which kept caveats on the face of the card in the chat
+          because they change how the figure reads.
+
+          What makes the reversal safe is the SUMMARY LABEL: it counts what is
+          inside — "2 assumptions and 1 thing worth knowing" — so a reader who
+          never opens it still knows the figure carries qualification, which is
+          the part that matters to someone about to repeat it to a board. A
+          bare "Details" toggle here would be the failure that principle was
+          written against; a label stating the count is not.
+
+          The FIGURES do not fold in the chat: the table is the answer, not a
+          caveat. On the dashboard it folds with everything else, because that
+          surface is several answers compared at a glance and a full table made
+          three cards 3,534px tall. */}
+      {!compact && evidence}
+
+      <AsAt provenance={provenance} note={note} />
+
+      <details className="working">
+        <summary>
+          Show the working
+          {qualifiers ? <span className="working-count">{qualifiers}</span> : null}
+        </summary>
+        <div className="working-body">
+          {compact && evidence}
+          {qualification}
+          <AuditTrail provenance={provenance} />
+        </div>
+      </details>
 
       {(actions || hasChart) && (
         <div className="card-actions">
