@@ -323,6 +323,23 @@ its list — and generous between them, with more space above a heading than
 below it. At the 640px breakpoint the card padding drops to 18px 16px and the
 finding steps from 23px to 20px; nothing else moves.
 
+### The App Shell
+
+**Fixed to the viewport, so only the answer region scrolls.** The masthead, the
+conversation rail and the composer stay put; a long transcript no longer means
+scrolling back to the top to reach the dashboard or another conversation.
+
+Two details that are load-bearing rather than incidental:
+
+- **It is scoped to the authenticated shell, not to `.shell` itself.** The gate
+  shares that class and its card must be free to push the page taller than the
+  screen.
+- **It is guarded on viewport HEIGHT.** A browser at 200% halves the CSS
+  viewport, so a short or magnified viewport drops back to ordinary page
+  scrolling rather than clipping the masthead and composer against a squeezed
+  transcript. That is WCAG 1.4.10 reflow, and it is why the rule is a media
+  query rather than two properties.
+
 ## Elevation & Depth
 
 Flat, with one exception. Depth comes from tonal layering — page ground, card
@@ -495,12 +512,40 @@ looks for.
   the viewport; the component records that value after mount purely so
   `aria-expanded` is true rather than a guess.
 
+### The Answer Card's Footer
+
+**One always-visible line, then one disclosure.**
+
+- **The as-at date never folds.** Every figure in this product is measured from
+  it — "overdue" means overdue as at that date and nothing else — so it is part
+  of what the figure MEANS rather than part of its audit trail. It shares its
+  row with a pinned card's own timestamp; stacked as separate lines they
+  rebuilt the tall provenance block that was compacted away in the first place.
+- **Everything else is one `<details>`, collapsed**, in both the chat and the
+  dashboard: assumptions, things worth knowing, sources, rows considered,
+  derivation.
+- **Its label counts what is inside** — "Show the working · 2 assumptions and 1
+  thing worth knowing". That label is what makes the folding safe, and it is
+  not optional: a reader who never opens the disclosure must still know the
+  figure carries qualification, because they are the one about to repeat it to
+  a board. A bare "Details" toggle here would be a genuine failure.
+- **The FIGURES do not fold in the chat.** A table is the answer, not a caveat,
+  and for a question that produces no chart it is the whole answer — folding it
+  away left a card showing one sentence and nothing else. On the dashboard it
+  folds with the rest, because that surface is several answers compared at a
+  glance.
+
 ### Provenance Block
 
-Under every answer, without a disclosure: as-at date, sources, rows considered,
-derivation. Mono uppercase field names in a two-column grid, Stone ink at
-11.5px. It is small but never hidden — the product's second principle is that
-the reader is accountable for what they repeat.
+The audit trail itself — sources, rows considered, derivation — set as mono
+uppercase field names in a two-column grid, Stone ink at 11.5px, inside the
+disclosure described above.
+
+It used to sit under every answer with no disclosure at all, on the reading
+that the product's second principle demanded it. It did not: the principle is
+that the reader is accountable for what they repeat, and what that requires is
+knowing the figure is qualified — which the disclosure's own label states —
+not reading the derivation every time.
 
 ## Do's and Don'ts
 

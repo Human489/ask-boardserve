@@ -70,12 +70,13 @@ Answers are read on screen, and figures are copied into board papers by hand.
 - Fifteen tools: twelve deterministic ones over the structured records, one that
   retrieves from the board papers, two hybrid ones that read a fact from a paper
   and compute the consequences.
-- Every answer carries its assumptions, its caveats, and its provenance.
-  Assumptions and caveats are shown without a disclosure, because they change
-  how the figure reads. Provenance is "a small note" reachable in one click,
-  which is the brief's own wording for it — an audit trail is consulted when
-  checking, not when reading. An answer with no qualification visible at all is
-  not an honest answer.
+- Every answer carries its assumptions, its caveats, and its provenance. The
+  as-at date is always on the face of the card, because every figure is
+  measured from it. The rest — assumptions, caveats, sources, rows considered,
+  derivation — sits behind one disclosure whose LABEL COUNTS WHAT IS INSIDE
+  ("2 assumptions and 1 thing worth knowing"), so a reader who never opens it
+  still knows the figure is qualified. An answer that hid qualification
+  entirely, or behind an unlabelled "Details", would not be an honest answer.
 - Refusal is a first-class outcome, including when two sources disagree: both
   figures are reported with their origins rather than one silently winning.
 - Bar and line charts only.
@@ -84,8 +85,11 @@ Answers are read on screen, and figures are copied into board papers by hand.
   own calendar cannot be answered and says so.
 - Nothing organisation-specific is hard-coded; a second organisation's data must
   load without a code change.
-- Access is by a single shared passcode with no persisted session: a refresh
-  returns to the passcode screen.
+- Access is by a single shared passcode. It IS persisted, in a signed cookie
+  lasting a week, so a refresh does not send the reader back to the gate —
+  which is why conversations are worth saving at all. The passcode is a fence
+  against a shared link being used by a stranger, not an access control: there
+  is no per-person identity and so no record of who read what.
 - Undecided: no attendance threshold is defined anywhere in the data. 80% is used
   and always stated in the answer.
 
@@ -119,18 +123,22 @@ so is the correct behaviour.
 
 1. **A wrong answer is worse than no answer.** Refusing is a correct outcome, and
    a refusal must say precisely what is missing rather than shrug.
-2. **Show the working.** Assumptions, caveats and provenance travel with every
-   figure, because the reader is accountable for what they repeat. What must be
-   *visible* is the qualification — the caveat that changes the reading, and the
-   as-at date every figure is measured from. The rest of the provenance is one
-   click away, not hidden.
+2. **Show the working, and say how much of it there is.** Assumptions, caveats
+   and provenance travel with every figure, because the reader is accountable
+   for what they repeat. What must be *visible* is the as-at date, since every
+   figure is measured from it, and the COUNT of the qualification: the
+   disclosure is labelled "2 assumptions and 1 thing worth knowing" rather than
+   "Details", so nobody can repeat a figure without knowing it is qualified.
 
-   This principle used to say "always visible", which was stricter than the
-   brief and was defended once as if the client had asked for it. The brief asks
-   for "a small note showing which rows or passages produced it"; a 131px block
-   under every answer is not a small note, and on a dashboard of pinned cards it
-   made three answers 3,534px tall. The distinction that survives review is
-   between a qualification and an audit trail, not between shown and hidden.
+   This has now been narrowed twice, and both narrowings are worth keeping in
+   view. It first said the qualification itself was "always visible", which was
+   stricter than the brief and was once defended as if the client had asked for
+   it — a 131px block under every answer is not the "small note" the brief
+   asks for, and on a dashboard it made three cards 3,534px tall. It then said
+   caveats stay on the face of the card in the chat, which was overruled
+   deliberately in favour of one collapsed disclosure. What survives is the
+   distinction between SIGNALLING qualification and DISPLAYING it. The figures
+   themselves never fold: a table is the answer, not a caveat.
 3. **Say the notable thing.** One sentence that states the finding, never a
    description of the axes.
 4. **Trust nothing that cannot be checked** — including the model. Where a rule

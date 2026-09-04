@@ -8,13 +8,20 @@ point is to answer the questions the fixed dashboard cannot.
 
 ## Status
 
-Core and Complete are done: chat, twelve deterministic tools, bar and line
-charts inline, one-sentence findings, passcode gate, Vercel deployment, rate
-limiting, hybrid routing, retrieval over the board papers, refusals, multi-turn
-refinement, and pinning to a dashboard.
+Core, Complete, and four of the five Excellence items are done: chat over
+fifteen tools with bar and line charts inline, one-sentence findings, refusals,
+multi-turn refinement, retrieval over the board papers, a conversation rail,
+pin-to-dashboard, shareable read-only links, PNG export, an eval harness whose
+results are written into this file, provenance on every chart, a passcode gate,
+rate limiting, and a Vercel deployment that works from a clean clone.
 
-`CLAUDE.md` holds the working record and the measured limitations. `PRODUCT.md`
-holds the product truth. `DESIGN.md` holds the visual system.
+Outstanding: the second-dataset test, and a handover document.
+
+**`CLAUDE.md` is the single source of truth** — what is built, what is
+deliberately not, every measured limitation, and the mistakes worth not
+repeating. Read it before changing anything. `PRODUCT.md` holds the product
+truth (users, purpose, principles); `DESIGN.md` holds the visual system;
+`docs/audit-prompt.md` is the brief for an external review.
 
 ## Eval results
 

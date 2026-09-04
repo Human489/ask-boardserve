@@ -10,8 +10,37 @@ to BoardServe's existing analytics, not a replacement: the point is answering th
 questions a fixed dashboard cannot.
 
 A work-experience project on a fixed schedule (Core → Complete → Excellence).
-`PRODUCT.md` holds the product record — users, purpose, constraints, and what is
-deliberately absent from the data. Read it before designing anything.
+
+**THIS FILE IS THE SINGLE SOURCE OF TRUTH.** It records what is built, what is
+deliberately NOT built, every limitation that has been measured, and the
+mistakes that are worth not repeating. The other documents are narrower on
+purpose: `PRODUCT.md` holds the product record (users, purpose, principles, and
+what is deliberately absent from the data), `DESIGN.md` holds the visual system,
+`README.md` is the public front door and carries the eval results, and
+`docs/audit-prompt.md` is the brief handed to an external reviewer. Read
+`PRODUCT.md` before designing anything and this file before changing anything.
+
+### Where this stands
+
+**Verified at the last merge: 410 unit tests, smoke 62/62 with `AI_CACHE=off`,
+the unseen-question probe at 24/25, typecheck, lint and production build clean,
+the hard-coding detector at 0 findings.** Branches: `main` only, everything
+merged with `--no-ff`. KV is empty — it was wiped deliberately for a clean
+slate, which the committed dataset makes safe.
+
+The eval figure quoted further down (130/130 over 5 runs) is the one number NOT
+re-measured since; it predates the recharts upgrade and the tool changes, and
+neither touched routing. **Re-run it before quoting it.**
+
+**Outstanding work, in the order it matters:**
+
+1. **The second dataset**, in progress — the last Excellence item. The rules
+   under "The dataset" are not decoration.
+2. **A handover doc**, the last brief deliverable, not started.
+3. **Live routing for the date window** — `from_date`/`to_date` are on the
+   attendance tools and unit-tested, but whether the MODEL passes them for a
+   question like "just Q4" has not been measured against a live server.
+4. Everything under "Known, and not easily fixable", each already judged.
 
 ## Working practice
 
@@ -87,9 +116,9 @@ files.
 
 **Wiping KV is now safe in a way it was not before the dataset was committed.**
 With `datasets:v1:active` gone the loader falls through to `./dataset`, so the
-app still answers. Verified after a full wipe: `attendance_below_threshold`
-answered from the committed dataset, as-at 2026-08-31, with pins, conversations
-and shares all empty.
+app still answers. Verified after a full wipe: `attendance_vs_threshold` (then
+named `attendance_below_threshold`) answered from the committed dataset, as-at
+2026-08-31, with pins, conversations and shares all empty.
 
 **The paper index holds MANY organisations, not one.** `ingest-papers.mjs`
 upserts under ids namespaced `<organisation>::<chunk>`, so ingesting a second
@@ -311,6 +340,32 @@ matcher lists what to SKIP, so a new route is protected by default. Failed
 credentials charge an `auth:<ip>` budget so the gate is not a passcode oracle
 (measured: 40 attempts answered 200, then 429; now 20 then 429).
 
+### The interface, and three decisions inside it
+
+`DESIGN.md` holds the visual system. Three structural choices live here because
+they are as much behaviour as appearance, and each reverses something this
+project previously argued for:
+
+- **A persistent left rail for conversations**, not the disclosure bar it was.
+  Both the component comment and `DESIGN.md` argued a list of past questions
+  beside every answer would compete with the answer; that was overruled on the
+  grounds that comparing this run of a question with the last one needs both on
+  screen, and that a rail is where every product a secretary already uses keeps
+  its history. Below 1024px it becomes a panel above the answer, deliberately
+  NOT an overlay drawer — a scrim, a focus trap and an escape key are a lot of
+  machinery for a list.
+- **One collapsed disclosure for the whole qualification**, with the as-at date
+  always visible above it. This reverses PRODUCT.md's second principle. What
+  makes it safe is the LABEL, which counts what is inside ("2 assumptions and 1
+  thing worth knowing") — a bare "Details" toggle would be the failure that
+  principle was written against. The FIGURES never fold in the chat: a table is
+  the answer, not a caveat, and folding it left a card showing one sentence and
+  nothing else.
+- **The app shell is fixed to the viewport**, so only the answer region
+  scrolls. Guarded on viewport HEIGHT, not width: a browser at 200% halves the
+  CSS viewport, so a magnified viewport falls back to page scrolling rather
+  than clipping the masthead and composer against a squeezed transcript.
+
 ### The rule the product rests on
 
 **Tools compute, the model narrates.** No number reaching the screen is produced by
@@ -320,11 +375,11 @@ the tool and its arguments; for document questions it also summarises retrieved
 prose, and is forbidden from doing arithmetic on it.
 
 A headline says the **notable thing**, not the axes. `ToolResult` also carries
-`assumptions`, `caveats` and `provenance`. Assumptions and caveats are shown
-without a disclosure, because they change how the figure reads. Provenance is
-"a small note" one click away — the brief's own wording — because an audit
-trail is consulted when checking, not when reading. The as-at date stays inline
-wherever a figure appears, since every figure is measured from it.
+`assumptions`, `caveats` and `provenance`. All three sit behind ONE disclosure,
+collapsed by default, whose label counts what is inside — the brief's "a small
+note", and what keeps the folding honest. The as-at date stays outside it
+wherever a figure appears, since every figure is measured from it. See "The
+interface, and three decisions inside it" above for why that changed.
 
 ### A prompt is a request; a check is a check
 
@@ -440,8 +495,11 @@ The brief's list verbatim, since paraphrasing it is what introduced a fifth:
    revocation, `noindex` and `no-store`, and no personal data in the path. It
    is a snapshot rather than a live view, and every failure returns the same
    page so a guessed token cannot be confirmed.
-4. **A second dataset loads with no code changes** — not run. Worth running
-   exactly once, blind. See the `dataset-b` rules above.
+4. **A second dataset loads with no code changes** — **in progress.** Worth
+   running exactly once, blind; see the `dataset-b` rules above. Two bugs that
+   sat directly in its path were found and fixed first, both of which would
+   have been discovered DURING the one run worth having: `tenure.ts` ignoring
+   `datasetMismatch`, and retrieval not filtering passages by organisation.
 5. **Image export for individual charts** — ours, approved by Hamada for
    Excellence. **Done**: `src/lib/chartimage.ts` and the "Save chart" button on
    every answer and pinned card. Three decisions in it, each with a wrong
@@ -496,7 +554,7 @@ custom chat instead. The outcome the brief asks for is met — questions in plai
 English, charts as tool output — but the named library was not used, and that
 is a choice to be able to defend rather than discover.
 
-## The audit, and the state it left things in
+## Audit one: three internal rounds
 
 Three rounds of audit ran over everything built, at the instruction "test that
 every feature works, test potential edge cases, and then we test questions and
@@ -552,19 +610,18 @@ one-off:
   pane collapsed to a zero-width viewport, proven by walking the ancestor chain
   to a 0-wide `<body>`.
 
-### What is left
+### Judged, and deliberately not done
 
-1. **The second dataset, blind.** The last Excellence item and the last piece of
-   work. The rules under "The dataset" above are not decoration: nothing in this
-   tree may carry `dataset-b`'s figures, and reading it early spends the only
-   run of the test that is worth anything. **The user runs this one.**
-2. **The handover doc**, the one outstanding brief deliverable.
-3. Optional, judged and not done: 6 of the 12 structured smoke questions are
-   paraphrases rather than the spec's wording, which is the exact habit
-   `tests/routing-spec.test.ts` exists to prevent. The measured ~20-33% routing
-   flake lives in a smoke paraphrase, not in the spec wording.
+6 of the 12 structured smoke questions are paraphrases rather than the spec's
+wording, which is the exact habit `tests/routing-spec.test.ts` exists to
+prevent. They stay: the measured ~20-33% routing flake lives in one of those
+paraphrases, which makes them a useful second, harder set. What was wrong was
+the COMMENT above them claiming they were verbatim, and that is fixed.
 
-## The external audit
+The outstanding work is listed once, under "Where this stands" at the top of
+this file.
+
+## Audit two: an independent external review
 
 An independent audit ran against `docs/audit-prompt.md`. It confirmed the
 invariants by recomputing every governance figure from the committed dataset
@@ -650,7 +707,7 @@ clone of their own.
   were "exactly as the specification writes them". The comment was the lie, and
   it has been corrected rather than the questions.
 
-## Every numeric parameter was one-sided
+## Tool generality, and the axes that were missing
 
 Found by being asked whether the tools are generic. They are parameterised —
 14 of 15 take arguments and the model sets them correctly — but **every numeric
@@ -1008,6 +1065,72 @@ before believing a rendering bug in that pane.**
 
 **Still not asserted anywhere: rendered SVG.** The new dashboard test pins the
 latch, not recharts. A future upgrade needs the same live before-and-after.
+
+## Worth doing next, if this continues
+
+Gathered in one place because they are otherwise scattered through the
+reasoning above. Each is a real idea with a stated reason it is not built,
+not a wish list.
+
+**Product, in the order a user would feel it:**
+
+- **Push, not just pull.** The tool only helps if you ask. Nothing watches the
+  data and tells you what is wrong — the check that found 9 overdue against 7
+  recorded is a few lines of ordinary code and nothing stops it running on
+  load. This is the single most useful thing left, and it is not built because
+  the harder question was whether plain-English questions could be answered
+  safely at all.
+- **Superlatives answer with a group, not one thing.** "Which director has the
+  best attendance" returns everyone above the threshold. Naming one requires a
+  tie-break, and this product refuses to break ties silently — three directors
+  genuinely tie on 3 missed meetings. A top-N mode would need a tie disclosure.
+- **A date window on the ACTIONS tools.** Attendance has `from_date`/`to_date`;
+  actions do not, because overdue is measured from the as-at date and a window
+  over it is a different question. "What slipped in Q4" is still unanswerable.
+- **Their own logo on an exported chart.** Better than a text stamp and not
+  built: it needs somewhere to upload one, which is a feature rather than a
+  detail. Propose it rather than assume it.
+- **Refreshing a pinned card.** Removed deliberately — a dataset here is a
+  dated snapshot, so re-running a pin can only produce the same figures. The
+  pin already stores its `tool` and `args`, so re-adding it is a route and a
+  button. Keep the removed version's property: it re-ran the recorded tool and
+  never re-routed the question.
+
+**Correctness, where the honest answer is "measure it first":**
+
+- **Claim-plus-quote at GENERATION time**, so a fabrication has nowhere to
+  live. Checking afterwards was built, measured, and rejected — it withheld one
+  good answer in three. Constraining the format is the untried route.
+- **Numbers written as words** bypass `verify.ts` entirely. Tractable, but
+  widening a check that already withholds answers has to be measured in both
+  directions, and nobody has the corpus to measure it on.
+- **`pinKey` does not normalise defaulted arguments**, so one chart can be
+  pinned twice. Fixing it means reading defaults out of the tool definitions.
+- **Deterministic refusal wording.** Model-authored refusal reasons are shown
+  verbatim and the copy guard cannot see them. Mapping them needs the real
+  refusals collected first, or the replacement wording is guesswork.
+- **Rendered SVG is asserted nowhere.** The recharts 3 upgrade proved a whole
+  view can go blank with every test green. A future upgrade needs the same
+  live before-and-after.
+
+**Before real board data — none of this is optional then:**
+
+- **Per-person identity**, so there is a record of who read what and a way to
+  revoke one person. Today one shared passcode means revoking anyone revokes
+  everyone.
+- **Named recipients on a share link** rather than a bearer token anyone can
+  forward, with a per-link audit of who opened it.
+- **A retention period.** Datasets, pins and transcripts are written with no
+  TTL, deliberately, because a pin that expired on its own would be a silent
+  loss. That is right for a demo and wrong for real data.
+- **An erasure and rectification path.** A director cannot be removed or
+  corrected except by re-uploading the whole dataset.
+- **Residency and processors.** KV replicates globally; a UK charity may
+  require UK or EU residency, and Cloudflare and Vercel would need a DPA.
+- **Prompt-injection mitigation on the corpus.** Retrieved passages are put in
+  front of the model as trusted text. Mitigable by delimiting them and
+  instructing the model to treat them as data — but that is a mitigation, not a
+  fix, and must not be described as one.
 
 ## Deployment
 
