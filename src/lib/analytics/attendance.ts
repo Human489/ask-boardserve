@@ -22,10 +22,83 @@ function isPresent(r: AttendanceRecord): boolean {
   return r.status === 'present'
 }
 
-/** Records for one body, or all records when no body is given. */
-function scope(dataset: Dataset, body?: string): AttendanceRecord[] {
+/**
+ * An optional date window over the attendance record.
+ *
+ * NO TOOL COULD EXPRESS A PERIOD. The only temporal arguments anywhere were
+ * `within_months` and `within_days`, both forward-looking horizons, so
+ * "attendance for just Q4" returned the whole year — the reader refined their
+ * question and the chart did not change.
+ *
+ * The MODEL supplies explicit ISO dates rather than a named period, because
+ * "Q4" is ambiguous over a record running September to August and the window
+ * actually used has to be stated. Naming quarters in code would pick one
+ * financial year silently; naming dates makes the choice visible in the
+ * assumption, where a reader can disagree with it.
+ */
+interface DateWindow {
+  from: string | null
+  to: string | null
+  /** The window in the words every sentence uses. */
+  label: string
+}
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+function readWindow(args: Record<string, unknown>): DateWindow {
+  const clean = (raw: unknown): string | null => {
+    const value = strOrUndefined(raw)
+    // Anything that is not a plain ISO date is treated as ABSENT rather than
+    // coerced. A half-parsed date would silently shift the window and the
+    // assumption would then describe a period the reader never asked for.
+    return value && ISO_DATE.test(value.trim()) ? value.trim() : null
+  }
+  let from = clean(args.from_date)
+  let to = clean(args.to_date)
+  // Reversed bounds are an ordering slip, and an empty window would read as
+  // "no meetings happened" — a finding rather than a mistake. ISO dates
+  // compare correctly as strings, which is why this needs no Date parsing.
+  if (from && to && from > to) [from, to] = [to, from]
+
+  const label =
+    from && to
+      ? `between ${from} and ${to}`
+      : from
+        ? `from ${from} onwards`
+        : to
+          ? `up to ${to}`
+          : 'across the whole record'
+  return { from, to, label }
+}
+
+function inWindow(r: AttendanceRecord, w: DateWindow): boolean {
+  if (w.from && r.date < w.from) return false
+  if (w.to && r.date > w.to) return false
+  return true
+}
+
+/** The date-window parameters, identical on every tool that takes them. */
+const WINDOW_PARAMS = {
+  from_date: {
+    type: 'string' as const,
+    description:
+      'Optional: earliest meeting date to include, as YYYY-MM-DD. Use it for "just ' +
+      'Q4", "since April", "the last six months" — work out the dates yourself and ' +
+      'pass them; the answer states the window it used.',
+  },
+  to_date: {
+    type: 'string' as const,
+    description: 'Optional: latest meeting date to include, as YYYY-MM-DD.',
+  },
+}
+
+/** Records for one body and one date window, or everything when neither is given. */
+function scope(dataset: Dataset, body?: string, window?: DateWindow): AttendanceRecord[] {
   const rows = dataset.attendance.records
-  return body ? rows.filter((r) => r.body === body) : rows
+  const byBody = body ? rows.filter((r) => r.body === body) : rows
+  return window && (window.from || window.to)
+    ? byBody.filter((r) => inWindow(r, window))
+    : byBody
 }
 
 /** Resolves a caller-supplied body name against the bodies actually in the data. */
@@ -115,9 +188,11 @@ export const attendanceBelowThreshold: ToolDefinition = {
       type: 'string',
       description: 'Optional: restrict to one board or committee.',
     },
+    ...WINDOW_PARAMS,
   },
   required: [],
   run(dataset, args): ToolResult {
+    const window = readWindow(args)
     const threshold = num(args.threshold, 80)
     // A band when an upper bound is given, otherwise one-sided. Absent rather
     // than defaulted, because "no upper bound" is a different thing from any
@@ -148,7 +223,7 @@ export const attendanceBelowThreshold: ToolDefinition = {
           : `below ${threshold}%`
 
     const body = resolveBody(dataset, args.body)
-    const rows = scope(dataset, body)
+    const rows = scope(dataset, body, window)
     const rates = ratesByDirector(rows)
 
     // No threshold is defined anywhere in the dataset, so a threshold that
@@ -313,7 +388,7 @@ export const attendanceBelowThreshold: ToolDefinition = {
         // States the comparison actually applied, not the phrase the reader
         // used: it is the line that tells them whether "above" or a band was
         // honoured.
-        `Directors were selected as ${compareLabel}. No attendance threshold is stated anywhere in the dataset${
+        `Directors were selected as ${compareLabel}, ${window.label}. No attendance threshold is stated anywhere in the dataset${
           upper === null ? `; ${threshold}% was used` : ''
         }.`,
         'Apologies count as non-attendance: only a status of "present" counts towards the rate.',
@@ -347,21 +422,36 @@ export const attendanceByMeeting: ToolDefinition = {
   description:
     'Attendance rate for each meeting in date order, for spotting a period that ' +
     'sat materially below the year\'s norm. Use for "how has attendance moved over ' +
-    'the year" or "were there meetings where attendance dropped".',
+    'the year" or "were there meetings where attendance dropped". Set from_date ' +
+    'and to_date to narrow it to one period, which is how a follow-up like "just ' +
+    'Q4" or "only the last three months" is answered.',
   parameters: {
     body: { type: 'string', description: 'Optional: restrict to one board or committee.' },
+    ...WINDOW_PARAMS,
   },
   required: [],
   run(dataset, args): ToolResult {
+    const window = readWindow(args)
     const body = resolveBody(dataset, args.body)
-    const rows = scope(dataset, body)
+    const rows = scope(dataset, body, window)
 
     const meetings = dataset.attendance.meetings
       .filter((m) => (body ? m.body === body : true))
+      // The meeting LIST is narrowed by the same window as the rows. Filtering
+      // only the rows would leave every meeting on the axis with an empty rate,
+      // so a narrowed question would still draw all 18 points with most of them
+      // at zero — worse than not narrowing at all.
+      .filter((m) => !window.from || m.date >= window.from)
+      .filter((m) => !window.to || m.date <= window.to)
       .slice()
       .sort((a, b) => a.date.localeCompare(b.date) || a.meeting_id.localeCompare(b.meeting_id))
 
     const overallRate = pct(rows.filter(isPresent).length, rows.length)
+    // "Year" is only true with no window. The figure was always computed from
+    // the rows in scope, so what would have been wrong is the WORD — calling a
+    // quarter's mean a year's, in the headline and on the chart's own
+    // reference line, which is where a reader takes the figure from.
+    const periodWord = window.from || window.to ? 'period' : 'year'
 
     const series = meetings.map((m) => {
       const own = rows.filter((r) => r.meeting_id === m.meeting_id)
@@ -430,10 +520,10 @@ export const attendanceByMeeting: ToolDefinition = {
 
     const dipClause =
       dips.length === 0
-        ? 'and no single meeting sits materially below the year average'
+        ? `and no single meeting sits materially below the ${periodWord} average`
         : `but ${dips.length} meeting${dips.length === 1 ? '' : 's'} sit${
             dips.length === 1 ? 's' : ''
-          } materially below the ${overallRate}% year average, the lowest ${list(
+          } materially below the ${overallRate}% ${periodWord} average, the lowest ${list(
             dips.slice(0, 3).map((d) => `${d.meeting.body} on ${d.meeting.date} at ${d.rate}%`),
           )}`
 
@@ -451,9 +541,17 @@ export const attendanceByMeeting: ToolDefinition = {
       const unknownBody = body !== undefined && !known.some((b) => b === body)
       return {
         tool: 'attendance_by_meeting',
+        // "Nothing in this WINDOW" and "nothing in the record at all" are
+        // different findings, and saying the second for the first would tell a
+        // reader their board never met — the same fault this branch already
+        // fixes for an unknown body name.
         headline: unknownBody
           ? `No body called "${body}" appears in the attendance records, so there is nothing to plot. The bodies present are ${list(known)}.`
-          : `No meetings${body ? ` of ${body}` : ''} appear in the attendance records, so there is no attendance to plot. The bodies present are ${list(known)}.`,
+          : window.from || window.to
+            ? `No meetings${body ? ` of ${body}` : ''} fall ${window.label}, so there is no attendance to plot for that period. The record runs from ${
+                [...dataset.attendance.meetings].sort((a, b) => a.date.localeCompare(b.date))[0]?.date ?? 'an unknown date'
+              } to ${dataset.asAt}.`
+            : `No meetings${body ? ` of ${body}` : ''} appear in the attendance records, so there is no attendance to plot. The bodies present are ${list(known)}.`,
         // No chart rather than an empty one: a line chart with no points and a
         // reference line at zero reads as a real measurement of zero.
         chart: null,
@@ -497,7 +595,10 @@ export const attendanceByMeeting: ToolDefinition = {
         unit: 'percent',
         points,
         seriesLabel: 'Present rate',
-        reference: { value: overallRate, label: `Year average ${overallRate}%` },
+        reference: {
+          value: overallRate,
+          label: `${periodWord === 'year' ? 'Year' : 'Period'} average ${overallRate}%`,
+        },
       },
       table: {
         columns: ['Meeting', 'Body', 'Date', 'Present', 'Eligible', 'Present rate %'],
@@ -511,10 +612,20 @@ export const attendanceByMeeting: ToolDefinition = {
         ]),
       },
       assumptions: [
+        // An ASSUMPTION, not a caveat: it describes what the code did rather
+        // than how to read the figure. Without it a narrowed answer and a
+        // whole-record answer read identically, which is what made a refined
+        // question look ignored even when it had been honoured.
+        `Meetings included: ${window.label}.`,
         'The halves compared are the first and second halves of the meeting sequence in date order; the dataset defines no reporting periods.',
+        // "Year average" is only true with no window. The FIGURE was always
+        // computed from the rows in scope; it was the word that would have
+        // been wrong, calling a quarter's mean a year's.
         `"Materially below" means more than one meeting's noise (${noise} points at the average attendance size of ${
           Math.round(meanSize * 10) / 10
-        } seats) below the ${overallRate}% year average.`,
+        } seats) below the ${overallRate}% average ${
+          window.from || window.to ? 'for that period' : 'for the year'
+        }.`,
         'Apologies count as non-attendance.',
       ],
       caveats: [
@@ -549,7 +660,7 @@ export const attendanceByMeeting: ToolDefinition = {
         rowsConsidered: rows.length,
         derivation:
           'For each meeting, present rate = rows with status "present" for that meeting_id ' +
-          'divided by all eligibility rows for that meeting_id, plotted in date order.',
+          `divided by all eligibility rows for that meeting_id, plotted in date order, ${window.label}.`,
       },
     }
   },
@@ -574,10 +685,12 @@ export const attendanceByCommittee: ToolDefinition = {
       default: 'attendance',
     },
   },
+    ...WINDOW_PARAMS,
   required: [],
   run(dataset, args): ToolResult {
+    const window = readWindow(args)
     const rankBy = choice(args.rank_by, ['attendance', 'meetings'] as const, 'attendance')
-    const rows = dataset.attendance.records
+    const rows = scope(dataset, undefined, window)
     const bodies = allBodies(dataset)
 
     // Bodies come from the meeting list, rates from the eligibility rows, and
@@ -763,9 +876,11 @@ export const meetingsMissed: ToolDefinition = {
       description:
         'Restrict to one director, for questions about a named person. Omit to rank everyone.',
     },
+    ...WINDOW_PARAMS,
   },
   required: [],
   run(dataset, args): ToolResult {
+    const window = readWindow(args)
     // Without this, a question naming one director was answered with a
     // full-year trend across every meeting: a real chart, correct figures, and
     // not the question that was asked.
@@ -797,8 +912,8 @@ export const meetingsMissed: ToolDefinition = {
     }
 
     const rows = matchedDirector
-      ? dataset.attendance.records.filter((r) => r.director_name === matchedDirector)
-      : dataset.attendance.records
+      ? scope(dataset, undefined, window).filter((r) => r.director_name === matchedDirector)
+      : scope(dataset, undefined, window)
 
     const acc = new Map<
       string,

@@ -36,7 +36,7 @@ npm run dev          # dev server on :3000
 npm run build        # production build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint src tests scripts
-npm test             # 403 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
+npm test             # 408 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
 npm run smoke        # end-to-end checks against a RUNNING server
 npm run eval         # the eval harness, against a RUNNING server
 npm run predeploy    # typecheck + lint + tests + eval, and writes the README
@@ -678,6 +678,37 @@ checks it is a string, and a pinned card renders its frozen `result`, so a
 rename orphans no saved card — only `pinKey`'s duplicate detection sees the
 name. I claimed the opposite earlier and was wrong; it is written down here
 because the wrong version is the intuitive one.
+
+### No tool could express a PERIOD
+
+Reported as "refinement questions don't modify the graph": ask for attendance,
+then ask for just Q4, and you get all of it. The cause was the same missing
+axis — the only temporal arguments anywhere were `within_months` and
+`within_days`, both forward-looking horizons, so a period could not be asked
+for at all.
+
+`from_date` and `to_date` are now on all four attendance tools, shared as
+`WINDOW_PARAMS`. **The model supplies explicit ISO dates rather than a named
+period**, because "Q4" is ambiguous over a record running September to August:
+naming quarters in code would silently pick one financial year, while naming
+dates puts the choice in the assumption where a reader can disagree with it.
+
+Four things that had to move with it, each of which would have been a
+plausible wrong answer on its own:
+
+- **The meeting LIST is narrowed, not just the rows.** Filtering rows alone
+  left every meeting on the axis with an empty rate — the same 18-point chart
+  with most of it at zero, which is worse than not narrowing.
+- **"Year average" became "period average"** in the headline AND on the
+  chart's reference line. The figure was always computed from the rows in
+  scope; it was the WORD that would have been wrong, calling a quarter's mean a
+  year's, on the line a reader takes the figure from.
+- **An empty window is not an empty record.** "No meetings fall in that period"
+  versus "no meetings appear in the attendance records" — the second would tell
+  a reader their board never met.
+- **A reversed window is swapped, and a malformed date is ignored** rather than
+  half-parsed. A shifted window would have been described in the assumption as
+  though the reader had asked for it.
 
 **Still one-sided, and judged acceptable:** `limit`, `top_n_gaps`,
 `within_months` and `within_days` are horizons and top-N counts, where an upper

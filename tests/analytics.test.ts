@@ -106,6 +106,81 @@ test('exactly 3 records dataset-wide have status absent', () => {
 // — the tool only knew "below" — so the model routed it to `meetings_missed`,
 // which answered confidently about the WORST attenders. Not a masked error: the
 // opposite question, answered as a finding.
+// A DATE WINDOW, because no tool could express a period. The only temporal
+// arguments anywhere were `within_months` and `within_days`, both
+// forward-looking horizons — so "attendance for just Q4" returned the whole
+// year. The reader refined their question and the chart did not change, which
+// reads as the refinement being ignored.
+test('a window narrows the meeting series, and says which window', () => {
+  const all = run('attendance_by_meeting')
+  const q4 = run('attendance_by_meeting', { from_date: '2026-04-01', to_date: '2026-06-30' })
+
+  assert.ok(all.chart!.points.length > q4.chart!.points.length, 'the window must narrow it')
+  assert.ok(q4.chart!.points.length > 0, 'and must not empty it')
+  // The whole complaint was that the graph did not change.
+  assert.notDeepEqual(
+    q4.chart!.points.map((p) => p.label),
+    all.chart!.points.map((p) => p.label),
+  )
+  assert.ok(
+    q4.assumptions.some((a) => /between 2026-04-01 and 2026-06-30/.test(a)),
+    'the assumption must state the window applied',
+  )
+  assert.ok(
+    all.assumptions.some((a) => /across the whole record/.test(a)),
+    'and must say so when there is no window',
+  )
+})
+
+test('an empty window is not reported as an empty record', () => {
+  // "Nothing in this period" and "your board never met" are different
+  // findings, and the second would be alarming and false.
+  const r = run('attendance_by_meeting', { from_date: '2020-01-01', to_date: '2020-12-31' })
+  assert.match(r.headline, /that period/)
+  assert.ok(!/never/.test(r.headline))
+  assert.equal(r.chart, null, 'no chart rather than a line at zero')
+})
+
+test('a reversed window is swapped rather than returning nothing', () => {
+  const forward = run('attendance_by_meeting', { from_date: '2026-04-01', to_date: '2026-06-30' })
+  const reversed = run('attendance_by_meeting', { from_date: '2026-06-30', to_date: '2026-04-01' })
+  assert.deepEqual(
+    reversed.chart!.points.map((p) => p.label),
+    forward.chart!.points.map((p) => p.label),
+    'an ordering slip must not read as "no meetings happened"',
+  )
+})
+
+test('a malformed date is ignored rather than shifting the window', () => {
+  // A half-parsed date would narrow the answer to a period nobody asked for,
+  // and the assumption would then describe that period as if it were theirs.
+  const r = run('attendance_by_meeting', { from_date: 'last April' })
+  assert.ok(
+    r.assumptions.some((a) => /across the whole record/.test(a)),
+    'an unparseable bound is treated as absent',
+  )
+})
+
+test('the window reaches the director-level tools too', () => {
+  // Otherwise "just Q4" narrows the trend and silently does not narrow
+  // "who is below the threshold", and the two answers disagree on screen.
+  const all = run('attendance_vs_threshold', { threshold: 80 })
+  const window = run('attendance_vs_threshold', {
+    threshold: 80,
+    from_date: '2026-04-01',
+    to_date: '2026-06-30',
+  })
+  assert.ok(
+    window.assumptions.some((a) => /between 2026-04-01 and 2026-06-30/.test(a)),
+    'attendance_vs_threshold must state its window',
+  )
+  assert.notEqual(
+    window.provenance.rowsConsidered,
+    all.provenance.rowsConsidered,
+    'and must actually consider fewer rows',
+  )
+})
+
 test('the same threshold reads both ways', () => {
   const below = run('attendance_vs_threshold', { threshold: 80, direction: 'below' })
   const above = run('attendance_vs_threshold', { threshold: 80, direction: 'above' })

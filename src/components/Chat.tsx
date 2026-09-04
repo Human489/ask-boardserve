@@ -758,9 +758,19 @@ export default function Chat({
             className="composer-input"
             value={draft}
             rows={1}
-            // readOnly, not disabled: the composer holds focus when Enter is
-            // pressed, and disabling it there drops focus to <body>.
-            readOnly={inFlight}
+            // NEITHER readOnly NOR disabled while a question is in flight.
+            //
+            // It was readOnly, on the reasoning that disabling the field drops
+            // focus to <body> when Enter is pressed — true, and readOnly does
+            // avoid that. But readOnly also stops you TYPING, so the whole
+            // time an answer is computing the composer silently rejects
+            // keystrokes: you cannot draft the next question, and nothing on
+            // screen says why.
+            //
+            // Nothing needed it. Submission is guarded where submission
+            // happens — `ask` refuses while a question is in flight, and the
+            // send button carries aria-disabled — so the field being editable
+            // cannot produce a second request.
             placeholder="Ask a question…"
             aria-label="Your question"
             onChange={(event) => {
