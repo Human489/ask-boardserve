@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import ChartCard from '@/components/ChartCard'
-import { pinTitle } from '@/components/PinnedDashboard'
+import { pinTitle } from '@/lib/pins'
 import { readShare } from '@/lib/shares'
 
 // The one page in this app with no passcode in front of it.

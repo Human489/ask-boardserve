@@ -8,24 +8,9 @@ import ChartCard from './ChartCard'
 import ShareLinks from './ShareLinks'
 import { RemoveMark } from './marks'
 import type { PinsState } from './usePins'
-import type { Pin } from '@/lib/pins'
-import { isRefusal } from '@/lib/types'
+import { pinTitle, type Pin } from '@/lib/pins'
 
-// The dashboard the secretary builds themselves, out of answers they already
-// trusted enough to keep.
-//
-// Each card is the same ChartCard the transcript uses, deliberately: a pinned
-// chart that looked different from the answer it came from would invite the
-// question of whether it is still the same figure.
-
-export function pinTitle(pin: Pin): string {
-  if (pin.result.chart?.title) return pin.result.chart.title
-  if (isRefusal(pin.result)) return pin.result.headline
-  if (pin.result.tool) {
-    return pin.result.tool.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
-  }
-  return 'Analysis'
-}
+export { pinTitle }
 
 function formatPinned(pin: Pin): string {
   const when = new Date(pin.pinnedAt)

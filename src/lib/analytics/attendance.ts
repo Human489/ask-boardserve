@@ -279,9 +279,6 @@ export const attendanceBelowThreshold: ToolDefinition = {
       detail: `${d.attended} of ${d.eligible} meetings attended`,
     }))
 
-    // Per-body split for the flagged directors: the sharper story is usually
-    // that a low overall rate is concentrated in one body.
-    const splitRows: (string | number | null)[][] = []
     let sharpest: { name: string; low: string; lowRate: number; high: string; highRate: number } | null =
       null
     for (const d of flagged) {
@@ -295,12 +292,6 @@ export const attendanceBelowThreshold: ToolDefinition = {
           rate: pct(own.filter(isPresent).length, own.length),
         }
       })
-      if (perBody.length > 1) {
-        splitRows.push([d.name, 'All bodies (overall)', d.attended, d.eligible, d.rate])
-      }
-      for (const pb of perBody) {
-        splitRows.push([d.name, pb.body, pb.attended, pb.eligible, pb.rate])
-      }
       if (perBody.length > 1) {
         const sorted = [...perBody].sort((a, b) => a.rate - b.rate)
         const spread = sorted[sorted.length - 1].rate - sorted[0].rate
@@ -385,8 +376,14 @@ export const attendanceBelowThreshold: ToolDefinition = {
         },
       },
       table: {
-        columns: ['Director', 'Body', 'Present', 'Eligible', 'Present rate %'],
-        rows: splitRows,
+        columns: body
+          ? ['Director', 'Body', 'Present', 'Eligible', 'Present rate %']
+          : ['Director', 'Present', 'Eligible', 'Present rate %'],
+        rows: flagged.map((d) =>
+          body
+            ? [d.name, body, d.attended, d.eligible, d.rate]
+            : [d.name, d.attended, d.eligible, d.rate],
+        ),
       },
       assumptions: [
         // States the comparison actually applied, not the phrase the reader

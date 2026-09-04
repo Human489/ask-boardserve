@@ -242,22 +242,19 @@ test('attendance_vs_threshold flags the three directors below 80%', () => {
   assert.ok(r.assumptions.some((a) => a.includes('80')))
 })
 
-test('Oduya is 50% at Board and 100% at Finance and Audit', () => {
+test('attendance_vs_threshold table is separated per person matching the chart', () => {
   const r = run('attendance_vs_threshold', { threshold: 80 })
-  const board = tableRow(r, (row) => row[0] === 'Terence Oduya' && row[1] === 'Board')
-  assert.equal(board.length, 1)
-  assert.equal(board[0][4], 50)
-  const fa = tableRow(r, (row) => row[0] === 'Terence Oduya' && row[1] === 'Finance and Audit Committee')
-  assert.equal(fa.length, 1)
-  assert.equal(fa[0][4], 100)
+  const oduya = tableRow(r, (row) => row[0] === 'Terence Oduya')
+  assert.equal(oduya.length, 1)
+  const oduyaPoint = r.chart!.points.find((p) => p.label === 'Terence Oduya')!
+  assert.equal(oduya[0][3], oduyaPoint.value)
 })
 
-test('attendance_vs_threshold table includes an overall summary row matching the chart', () => {
-  const r = run('attendance_vs_threshold', { threshold: 80 })
-  const oduyaOverall = tableRow(r, (row) => row[0] === 'Terence Oduya' && row[1] === 'All bodies (overall)')
-  assert.equal(oduyaOverall.length, 1)
-  const oduyaPoint = r.chart!.points.find((p) => p.label === 'Terence Oduya')!
-  assert.equal(oduyaOverall[0][4], oduyaPoint.value)
+test('attendance_vs_threshold table includes body when body is specified', () => {
+  const r = run('attendance_vs_threshold', { threshold: 80, body: 'Board' })
+  const oduya = tableRow(r, (row) => row[0] === 'Terence Oduya' && row[1] === 'Board')
+  assert.equal(oduya.length, 1)
+  assert.equal(oduya[0][4], 50)
 })
 
 test('a per-body scope uses that body only', () => {
