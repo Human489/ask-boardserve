@@ -256,3 +256,42 @@ test('a bare number may lose its unit but never gain one', () => {
   const bare = [passage('There were 96 apologies')]
   assert.equal(verifyAgainstPassages('Attendance was 96%', bare, bare).ok, false)
 })
+
+test('a hyphen between digits is a range, not a minus sign', () => {
+  // A false withhold, which is the exact over-strictness that killed the
+  // previous version of this check. The opener group matched the hyphen inside
+  // a range, so "82-96%" registered a NEGATIVE 96 that matched nothing: a
+  // correctly-sourced answer was suppressed and its citation flagged
+  // unsupported.
+  const ranged = [passage('Attendance ranged from 82% to 96% across the year.')]
+  const result = verifyAgainstPassages('Attendance ranged 82-96%.', ranged, ranged)
+  assert.equal(result.ok, true, `withheld a sourced answer: ${result.unsupported.join(', ')}`)
+  assert.deepEqual(result.unsupportedCitations, [])
+})
+
+test('both ends of a range are checked, not just the one carrying the unit', () => {
+  // The mirror of the bug above, and the more dangerous half. In "82-96%" the
+  // 82 parsed as a bare integer, and a bare small integer is deliberately not
+  // treated as a claim — "the 3 papers" is not a finding — so an answer could
+  // widen a range downwards and only its upper bound was ever verified.
+  const upperOnly = [passage('Attendance was 96% in the second half.')]
+  const result = verifyAgainstPassages('Attendance ranged 82-96%.', upperOnly, upperOnly)
+  assert.equal(result.ok, false, 'an invented lower bound must be caught')
+})
+
+test('a range in the passage supports a point inside it', () => {
+  // "£3-4m" is three to four MILLION pounds. Reading the 3 as three pounds, or
+  // the 4 as a unitless four million, would fail a correct answer.
+  const band = [passage('The range was £3-4m last year.')]
+  assert.equal(verifyAgainstPassages('Costs were £4m.', band, band).ok, true)
+  assert.equal(verifyAgainstPassages('Costs were £3m.', band, band).ok, true)
+  assert.equal(verifyAgainstPassages('Costs were £9m.', band, band).ok, false)
+})
+
+test('a real negative is still a negative', () => {
+  // The fix must not swallow the sign it was written around.
+  const rose = [passage('Income rose to £4.61m.')]
+  assert.equal(verifyAgainstPassages('Income fell by -£4.61m.', rose, rose).ok, false)
+  const bracketed = [passage('The deficit was (4.61) million.')]
+  assert.equal(verifyAgainstPassages('The deficit was 4.61 million.', bracketed, bracketed).ok, false)
+})

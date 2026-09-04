@@ -68,7 +68,8 @@ export const upcomingUnprepared: ToolDefinition = {
       paperTitle: c.paperTitle,
       section: c.section,
     }))
-    const commitments = findCommitments(asPassages)
+    const search = findCommitments(asPassages, 6, asAt)
+    const commitments = search.commitments
 
     const describe = (a: BoardAction) => `${a.action_id} (${a.owner}, due ${a.due_date})`
 
@@ -76,7 +77,9 @@ export const upcomingUnprepared: ToolDefinition = {
       due.length === 0
         ? `Nothing in the action log falls due in the ${within} days after ${asAt}.` +
           (commitments.length > 0
-            ? ` The papers separately state ${commitments.length} thing${
+            ? ` The papers separately state ${search.capped ? 'at least ' : ''}${
+                commitments.length
+              } thing${
                 commitments.length === 1 ? '' : 's'
               } as coming, which is worth checking against the log by hand.`
             : '')
@@ -90,7 +93,9 @@ export const upcomingUnprepared: ToolDefinition = {
                 } not been started — ${list(notStarted.map(describe))}`
           }.` +
           (commitments.length > 0
-            ? ` Separately, the papers state ${commitments.length} thing${
+            ? ` Separately, the papers state ${search.capped ? 'at least ' : ''}${
+                commitments.length
+              } thing${
                 commitments.length === 1 ? '' : 's'
               } as coming, listed below and NOT matched against the log.`
             : '')
@@ -153,9 +158,15 @@ export const upcomingUnprepared: ToolDefinition = {
         `"Coming" means falling due within ${within} days of ${asAt}, the as-at date of the data.`,
         '"Not started" is the status recorded in the log, which is hand-typed and may lag the real position.',
         'Commitments are sentences in the papers promising something later, quoted as written rather than summarised.',
+        'A commitment naming only a month earlier in the year than the as-at date is treated as already past and left out. The papers state months without years, so that is a reading of the prose rather than a date comparison.',
       ],
       caveats: [
         'There is no forward work plan in this data. This is assembled from action due dates and promises made in the papers, so anything agreed verbally and never written down is invisible to it.',
+        ...(search.capped
+          ? [
+              `The scan stops after ${commitments.length} commitments, so this is a sample of what the papers state rather than a complete count.`,
+            ]
+          : []),
         ...(commitments.length > 0
           ? [
               // This caveat used to assert the opposite of the truth: that no

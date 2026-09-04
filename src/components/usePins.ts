@@ -90,9 +90,17 @@ export function usePins(onRejected: () => void): PinsState {
           setError(null)
           return true
         }
+        // Stale failures are dropped too.
+        //
+        // Only the SUCCESS path was ticket-guarded, so an older request that
+        // failed could set an error after a newer one had already succeeded —
+        // painting "could not be reached" over freshly loaded pins.
+        // useConversations guards both paths; this did not.
+        if (ticket < applied.current) return false
         setError((parsed && !parsed.ok && parsed.error) || GENERIC)
         return false
       } catch {
+        if (ticket < applied.current) return false
         setError(GENERIC)
         return false
       }

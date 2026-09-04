@@ -103,8 +103,12 @@ test('revoking deletes the record before it updates the index', () => {
   // record missing from the index is a link nobody can find to revoke.
   const source = readFileSync('src/lib/shares.ts', 'utf8')
   const revoke = source.slice(source.indexOf('export async function revokeShare'))
+  // Matched on the two calls separately, not on one exact string: the earlier
+  // version required `kvPut(INDEX(datasetId)` to sit on one line, so wrapping
+  // the arguments failed a test whose property still held. A brittle matcher
+  // reporting a real ordering as broken teaches people to ignore it.
   const deleteAt = revoke.indexOf('kvDelete(KEY(token))')
-  const indexAt = revoke.indexOf('kvPut(INDEX(datasetId)')
+  const indexAt = revoke.indexOf('INDEX(datasetId)')
   assert.ok(deleteAt > -1 && indexAt > -1, 'both writes happen')
   assert.ok(deleteAt < indexAt, 'the record is deleted first')
 })

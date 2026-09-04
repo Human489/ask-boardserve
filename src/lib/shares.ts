@@ -149,10 +149,21 @@ export async function createShare(
     pinCount: pins.length,
   }
   const index = [summary, ...existing].slice(0, MAX_SHARES)
+  // The index carries a TTL of its own, set to outlive the longest link in it
+  // by a day. It was written with no expiry at all, so revoked and expired
+  // tokens accumulated in KV for ever — the records expired correctly, the
+  // list of them did not. `listShares` already hides expired entries from the
+  // view; this stops them being STORED for ever, which is the retention point
+  // rather than the display one.
   // The index is best-effort: if it fails the link still works, and the worst
   // case is a live link the owner cannot see in order to revoke. Reported as a
   // write failure for that reason rather than swallowed.
-  if (!(await kvPut(INDEX(datasetId), JSON.stringify(index), null))) {
+  const longest = index.reduce(
+    (a, e) => Math.max(a, Date.parse(e.expiresAt) || 0),
+    at.getTime(),
+  )
+  const indexTtl = Math.ceil((longest - at.getTime()) / 1000) + 24 * 60 * 60
+  if (!(await kvPut(INDEX(datasetId), JSON.stringify(index), indexTtl))) {
     return { ok: false, reason: 'write-failed' }
   }
 
@@ -242,6 +253,15 @@ export async function revokeShare(
   if (!kvAvailable()) return { ok: false, reason: 'needs-kv' }
   if (isWellFormedToken(token)) await kvDelete(KEY(token))
   const remaining = (await listShares(datasetId, now)).filter((s) => s.token !== token)
-  await kvPut(INDEX(datasetId), JSON.stringify(remaining), null)
+  const now_ = now().getTime()
+  const longestLeft = remaining.reduce(
+    (a, e) => Math.max(a, Date.parse(e.expiresAt) || 0),
+    now_,
+  )
+  await kvPut(
+    INDEX(datasetId),
+    JSON.stringify(remaining),
+    Math.ceil((longestLeft - now_) / 1000) + 24 * 60 * 60,
+  )
   return { ok: true, shares: remaining }
 }

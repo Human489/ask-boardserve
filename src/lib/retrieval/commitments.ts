@@ -54,7 +54,69 @@ function sentences(text: string): string[] {
     .filter((s) => s.length > 25)
 }
 
-export function findCommitments(passages: Passage[], limit = 6): Commitment[] {
+/**
+ * What was found, and whether the search stopped early.
+ *
+ * The caller states the count as a fact — "the papers state N things as
+ * coming" — and a bare capped array made that a lie on any corpus with more
+ * than the cap. This one yields 4, so it was latent; a corpus with 9 would
+ * have reported 6 as a count rather than as a sample.
+ */
+export interface CommitmentSearch {
+  commitments: Commitment[]
+  /** True when the cap was reached and there may be more. */
+  capped: boolean
+}
+
+/**
+ * English month names. Generic language, not organisation vocabulary, so this
+ * travels to another corpus exactly as the commitment shapes above do.
+ */
+const MONTHS = [
+  'january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december',
+]
+
+/**
+ * Whether a sentence promises something that has ALREADY HAPPENED.
+ *
+ * A paper written in March saying "a succession plan will come to the May
+ * meeting" is not a thing still to come when read in September, but nothing
+ * filtered on date and it was counted into "what is coming in the next 90
+ * days". The commitment scan is a pattern match over prose with no year
+ * attached, so this is a heuristic and is declared as one in the tool's
+ * assumptions: a named month EARLIER in the calendar year than the as-at month
+ * is treated as past, and a sentence naming no month is kept, because there is
+ * nothing to judge it on.
+ */
+export function namesAPastMonth(sentence: string, asAt: string): boolean {
+  const asAtMonth = Number(asAt.slice(5, 7)) - 1
+  if (!Number.isInteger(asAtMonth) || asAtMonth < 0) return false
+
+  // Split into words once, rather than building a regex per month.
+  //
+  // The first version built one with a template literal, where `\b` is the
+  // BACKSPACE character rather than a word boundary — so the pattern was
+  // literally <backspace>may<backspace> and matched nothing. The
+  // control-character scan in tests/sources.test.ts cannot catch that: the
+  // source holds a legitimate two-character escape, and it only becomes a
+  // backspace when the template is evaluated.
+  //
+  // Comparing whole words needs no escape at all, which is the better fix.
+  const words = new Set(sentence.toLowerCase().split(/[^a-z]+/).filter(Boolean))
+  const named = MONTHS.map((m, i) => (words.has(m) ? i : -1)).filter((i) => i >= 0)
+  if (named.length === 0) return false
+  // Kept if ANY named month is still ahead: "reported in March and comes to
+  // the Board in September" is a live commitment that happens to mention a
+  // past month.
+  return named.every((i) => i < asAtMonth)
+}
+
+export function findCommitments(
+  passages: Passage[],
+  limit = 6,
+  asAt?: string,
+): CommitmentSearch {
   const found: Commitment[] = []
   const seen = new Set<string>()
 
@@ -62,11 +124,19 @@ export function findCommitments(passages: Passage[], limit = 6): Commitment[] {
     for (const sentence of sentences(passage.text)) {
       if (!COMMITMENT.test(sentence)) continue
       if (ALREADY_DONE.test(sentence)) continue
+      if (asAt && namesAPastMonth(sentence, asAt)) continue
 
       // Windows overlap, so the same sentence arrives more than once.
       const key = sentence.toLowerCase().slice(0, 60)
       if (seen.has(key)) continue
       seen.add(key)
+
+      // A sentence that begins lower-case, or with a verb hanging off the end
+      // of a previous clause, is a chunk-boundary fragment rather than a
+      // promise. One was being quoted verbatim as a board commitment:
+      // "asked to do Agree the two recruitment priorities, ... note that a
+      // succession plan will come to the May meeting."
+      if (!/^["'‘“(]?[A-Z0-9]/.test(sentence.trim())) continue
 
       found.push({
         sentence,
@@ -74,8 +144,8 @@ export function findCommitments(passages: Passage[], limit = 6): Commitment[] {
         paperTitle: passage.paperTitle,
         section: passage.section,
       })
-      if (found.length >= limit) return found
+      if (found.length >= limit) return { commitments: found, capped: true }
     }
   }
-  return found
+  return { commitments: found, capped: false }
 }

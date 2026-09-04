@@ -26,6 +26,8 @@ export default function DatasetsView({
   announce: (text: string) => void
 }) {
   const input = useRef<HTMLInputElement>(null)
+  /** Focus lands here when a dataset row is removed under it. */
+  const heading = useRef<HTMLHeadingElement>(null)
   const {
     datasets: items,
     activeId,
@@ -63,7 +65,9 @@ export default function DatasetsView({
     <div className="dashboard" hidden={hidden}>
       <div className="dashboard-inner">
         <div className="dashboard-head">
-          <h2 className="dashboard-title">Data</h2>
+          <h2 className="dashboard-title" tabIndex={-1} ref={heading}>
+            Data
+          </h2>
           <p className="dashboard-sub">
             Answers are computed from the dataset selected here. Upload another
             organisation&rsquo;s data and every question is answered from it instead —
@@ -186,9 +190,18 @@ export default function DatasetsView({
                   type="button"
                   className="card-action"
                   aria-disabled={busy}
-                  onClick={() => {
+                  onClick={(event) => {
                     if (busy) return
-                    void activate(dataset.id)
+                    // Activating unmounts THIS button — it only renders while
+                    // the dataset is inactive — so focus is moved to the
+                    // Remove button in the same row first. Without it a
+                    // keyboard reader is dropped onto <body> at the moment
+                    // they switch organisation.
+                    const row = event.currentTarget.parentElement
+                    void activate(dataset.id).then(() => {
+                      const fallback = row?.querySelector('.card-action:last-of-type')
+                      if (fallback instanceof HTMLElement) fallback.focus()
+                    })
                   }}
                 >
                   Use this
@@ -200,7 +213,10 @@ export default function DatasetsView({
                 aria-disabled={busy}
                 onClick={() => {
                   if (busy) return
-                  void remove(dataset.id)
+                  // The whole row goes, taking this button with it. The
+                  // heading is the nearest stable place to land, which is the
+                  // pattern PinnedDashboard already uses.
+                  void remove(dataset.id).then(() => heading.current?.focus())
                 }}
               >
                 <RemoveMark />

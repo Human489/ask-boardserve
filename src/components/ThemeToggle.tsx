@@ -89,7 +89,7 @@ export default function ThemeToggle({
 
   return (
     <div className="theme-toggle" role="radiogroup" aria-label="Colour theme">
-      {THEME_CHOICES.map((option) => (
+      {THEME_CHOICES.map((option, index) => (
         <button
           key={option}
           type="button"
@@ -98,6 +98,34 @@ export default function ThemeToggle({
           // Before the stored choice is read, nothing is marked selected
           // rather than 'System' being marked wrongly for a frame.
           aria-checked={ready && choice === option}
+          // A ROVING TAB STOP, which is what role="radio" promises.
+          //
+          // All three were in the tab order with no key handling, so a screen
+          // reader announced "radio, 1 of 3", switched to forms mode where
+          // arrow keys are the expected and only interaction — and nothing
+          // happened. Operable by Tab and Space, so not a hard 2.1.1 failure,
+          // but broken against what the role tells every AT user to expect.
+          tabIndex={ready && choice === option ? 0 : index === 0 && !ready ? 0 : -1}
+          onKeyDown={(event) => {
+            const step =
+              event.key === 'ArrowRight' || event.key === 'ArrowDown'
+                ? 1
+                : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+                  ? -1
+                  : 0
+            if (step === 0) return
+            event.preventDefault()
+            const next =
+              THEME_CHOICES[(index + step + THEME_CHOICES.length) % THEME_CHOICES.length]
+            pick(next)
+            // Selection follows focus, as it does in a native radio group, so
+            // the button that is now checked is the one that holds focus.
+            const group = event.currentTarget.parentElement
+            const moved = group?.querySelectorAll('[role="radio"]')[
+              (index + step + THEME_CHOICES.length) % THEME_CHOICES.length
+            ]
+            if (moved instanceof HTMLElement) moved.focus()
+          }}
           onClick={() => pick(option)}
         >
           {THEME_LABELS[option]}

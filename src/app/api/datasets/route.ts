@@ -202,6 +202,23 @@ export async function DELETE(req: Request) {
   const { id } = (body ?? {}) as { id?: unknown }
   if (typeof id !== 'string' || id === '') return fail(400, 'Which dataset should be removed?')
 
+  // The id has to be one we know about.
+  //
+  // It was accepted as any non-empty string and passed straight to
+  // deleteDataset and deletePinsFor, so a caller could delete
+  // `pins:v1:<anything>` by naming it — including a dataset not in the index —
+  // and the route reported success. PATCH already validates membership this
+  // way; DELETE did not. There is only one shared passcode, so no privilege
+  // boundary is crossed, but an authorised caller destroying a dashboard by
+  // guessing its id is not something a route should offer.
+  const known = await listDatasets()
+  if (!known.ok) {
+    return fail(502, 'The dataset list could not be read, so nothing was removed. Try again.')
+  }
+  if (!known.value.some((d) => d.id === id)) {
+    return fail(404, 'That dataset is no longer available.')
+  }
+
   const removed = await deleteDataset(id)
   if (!removed.ok) {
     return fail(502, 'The dataset could not be removed. Nothing was changed — try again.')

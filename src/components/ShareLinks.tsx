@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { RemoveMark } from './marks'
 import type { ShareSummary } from '@/lib/shares'
 
@@ -45,6 +45,8 @@ export default function ShareLinks({
   })
   const [justMade, setJustMade] = useState<string | null>(null)
   const busy = state.busy !== null
+  /** Focus lands here when a revoked row is removed under it. */
+  const heading = useRef<HTMLHeadingElement>(null)
 
   const request = useCallback(
     async (method: 'GET' | 'POST' | 'DELETE', body?: unknown) => {
@@ -129,7 +131,9 @@ export default function ShareLinks({
 
   return (
     <section className="shares">
-      <h3 className="shares-title">Share read-only</h3>
+      <h3 className="shares-title" tabIndex={-1} ref={heading}>
+        Share read-only
+      </h3>
       <p className="shares-lede">
         A link anyone can open without the passcode. It shows these charts as they are
         now — it does not update — and it stops working on its own. You can withdraw it
@@ -182,7 +186,8 @@ export default function ShareLinks({
               <button
                 type="button"
                 className="shares-revoke"
-                onClick={() => void revoke(share.token)}
+                // The row is about to be removed with this button in it.
+                onClick={() => void revoke(share.token).then(() => heading.current?.focus())}
                 aria-disabled={state.busy !== null}
               >
                 <RemoveMark />

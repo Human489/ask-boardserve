@@ -408,6 +408,15 @@ export const committeeSkillsGaps: ToolDefinition = {
       (a, b) => a.overall - b.overall || a.body.localeCompare(b.body),
     )
     const worst = ranked[0]
+    // Bodies level with the worst, and how close the runner-up is.
+    //
+    // Both sibling tools disclose their tiebreak; this one asserted "widest"
+    // flatly. And it did so on a margin of 0.05 while its own caveat says one
+    // director moves a small committee's mean by 0.25 — attendance_by_committee
+    // computes exactly this robustness point and states it.
+    const tiedWorst = ranked.filter((b) => b.overall === worst?.overall)
+    const runnerUp = ranked.find((b) => b.overall !== worst?.overall)
+    const margin = runnerUp && worst ? runnerUp.overall - worst.overall : null
 
     // A body argument that matches nothing leaves ranked empty, and every line
     // below reads ranked[0]. Sibling attendance tools fall back to the raw
@@ -455,8 +464,12 @@ export const committeeSkillsGaps: ToolDefinition = {
     // scope there is no ranking, and the superlative asserted a comparison the
     // answer never made.
     const headline =
-      `${worst.body} ${
-        ranked.length > 1 ? 'carries the widest skills gap, averaging' : 'averages'
+      `${tiedWorst.length > 1 ? list(tiedWorst.map((b) => b.body)) : worst.body} ${
+        ranked.length > 1
+          ? tiedWorst.length > 1
+            ? 'are level on the widest skills gap, averaging'
+            : 'carries the widest skills gap, averaging'
+          : 'averages'
       } ${worst.overall.toFixed(
         2,
       )} across every skill: ${list(
@@ -487,6 +500,22 @@ export const committeeSkillsGaps: ToolDefinition = {
           ]
         : []),
     ]
+    // Is "widest" robust, or inside the wobble this tool already computes?
+    //
+    // The ranking was asserted flatly on a margin of 0.05 while the caveat
+    // below says one director moves a small committee's mean by 0.25.
+    // attendance_by_committee makes exactly this comparison and states it;
+    // this tool did not.
+    if (margin !== null && worst) {
+      const swing = round2(1 / Math.max(worst.members.length, 1))
+      if (margin < swing) {
+        caveats.push(
+          `The ranking is not robust: ${worst.body} sits only ${round2(margin)} below the next ` +
+            `body, and one director moves its mean by ${swing}. Read the order as indicative.`,
+        )
+      }
+    }
+
     for (const b of ranked) {
       if (b.partial.length > 0) {
         caveats.push(

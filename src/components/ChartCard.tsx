@@ -213,7 +213,10 @@ export default function ChartCard({
   // a two-column dataset with nothing in it; rendered as a list they read as
   // "where this came from", which is what a secretary needs in order to go and
   // check the paper.
-  const isCitation = result.tool === 'search_board_papers' && table !== null
+  // rows.length too, like the branch beside it. A paper answer with no
+  // citations rendered a "Drawn from" heading over an empty list.
+  const isCitation =
+    result.tool === 'search_board_papers' && table !== null && table.rows.length > 0
 
   const evidence = (
     <>

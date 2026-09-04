@@ -102,3 +102,37 @@ test('no user-facing refusal copy blames the data', () => {
       found.join('\n'),
   )
 })
+
+// A regex built from an ordinary template literal cannot carry a `\b`.
+//
+// Inside `` `...` `` the sequence is the BACKSPACE character, not a word
+// boundary — so `new RegExp(`\b${word}\b`)` compiles, runs, and matches
+// nothing, for ever. That is the same silent-dead-pattern failure the
+// control-character test above exists for, but the scan cannot see it: the
+// source holds a legitimate two-character escape and only becomes a backspace
+// when the template is evaluated.
+//
+// It shipped here once, in the month filter for commitments, and the fix was
+// to compare whole words instead of building a pattern at all.
+test('no regex is built from a template literal carrying a backslash escape', () => {
+  const found: string[] = []
+  for (const root of REFUSAL_COPY_ROOTS) {
+    for (const file of sourceFiles(root)) {
+      const src = readFileSync(file, 'utf8')
+      const rel = file.slice(process.cwd().length + 1).split(sep).join('/')
+      for (const line of src.split('\n')) {
+        // A RegExp constructed from a backtick string, where that string
+        // contains a backslash escape and is not String.raw.
+        if (!/new RegExp\(\s*`/.test(line)) continue
+        if (/String\.raw/.test(line)) continue
+        if (/\\[bdswWDSB]/.test(line)) found.push(`${rel}: ${line.trim().slice(0, 92)}`)
+      }
+    }
+  }
+  assert.deepEqual(
+    found,
+    [],
+    'use String.raw, a literal regex, or compare words — a template literal eats the escape:\n' +
+      found.join('\n'),
+  )
+})

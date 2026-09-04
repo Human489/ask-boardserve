@@ -60,6 +60,14 @@ interface Figure {
   negative: boolean
   /** True when the number reads as a reference — "section 4.2" — not a figure. */
   reference: boolean
+  /** Where it sat in the text, so a range can be spotted afterwards. */
+  at: number
+  /** Where it ended, likewise. */
+  end: number
+  /** Its own opener was a dash following a digit: it is a range's upper end. */
+  rangeEnd: boolean
+  /** The multiplier already applied, so a range can share it. */
+  scale: number
 }
 
 /** Words and letters that scale a number, mapped to their multiplier. */
@@ -101,15 +109,67 @@ function parseFigures(text: string): Figure[] {
     if (!Number.isFinite(amount)) continue
 
     const before = text.slice(0, match.index)
+    // Whatever sits immediately before the matched figure, ignoring the
+    // whitespace the pattern allows between the opener and the digits.
+    const precededByDigit = /\d\s*$/.test(before)
     out.push({
       raw: raw.trim(),
       amount,
       unit: currency ? 'money' : isPercent ? 'percent' : 'plain',
-      // A bracketed number is the accountant's negative; so is a leading minus.
-      negative: Boolean(opener),
+      // A bracketed number is the accountant's negative; so is a leading minus
+      // — UNLESS the minus is a range separator.
+      //
+      // "82-96%" and "£3-4m" and "2024-25" all put a hyphen between two
+      // figures, and reading it as a sign produced a negative 96 that matched
+      // nothing, so a correctly-sourced answer was withheld and its citation
+      // flagged unsupported. Measured: a passage reading "Attendance ranged
+      // from 82% to 96%" against an answer reading "ranged 82-96%" came back
+      // ok:false, unsupported "-96%". That is a FALSE WITHHOLD, which is the
+      // exact over-strictness that killed the previous version of this check.
+      //
+      // The mirror case matters more: a passage containing "82-96%" registered
+      // a negative 96 and would have supported a fabricated "down 96 per
+      // cent".
+      //
+      // A hyphen is a sign only when what precedes it is not a digit.
+      negative: Boolean(opener) && !(opener === '-' && precededByDigit),
       reference: REFERENCE_BEFORE.test(before),
+      at: match.index,
+      end: match.index + raw.length,
+      rangeEnd: opener === '-' && precededByDigit,
+      scale,
     })
   }
+  // In a range, the first number wears the second's unit.
+  //
+  // "82-96%" parsed as a bare 82 and a 96 per cent, and a bare small integer
+  // is deliberately not treated as a claim — "the 3 papers" is not a finding.
+  // So the 82 went unchecked entirely: an answer could widen a range downwards
+  // and only its upper bound would be verified.
+  //
+  // The dash is not BETWEEN the two matches — the second match swallows it as
+  // its own opener — so a range is spotted by the upper end carrying a dash
+  // that followed a digit, not by the gap between them.
+  for (let i = 0; i < out.length - 1; i++) {
+    const lower = out[i]
+    const upper = out[i + 1]
+    if (!upper.rangeEnd) continue
+
+    // "82-96%": the lower end wears the upper's unit, and is then a claim.
+    // "£3-4m": the upper end wears the lower's currency, and the lower wears
+    // the upper's scale — £3-4m is three to four MILLION pounds, and reading
+    // the 3 as three pounds would fail a correct answer.
+    const unit = lower.unit !== 'plain' ? lower.unit : upper.unit
+    const scale = Math.max(lower.scale, upper.scale)
+    out[i] = {
+      ...lower,
+      unit,
+      amount: lower.scale === scale ? lower.amount : (lower.amount / lower.scale) * scale,
+      scale,
+    }
+    out[i + 1] = { ...upper, unit }
+  }
+
   return out
 }
 

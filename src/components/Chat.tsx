@@ -168,6 +168,8 @@ export default function Chat({
   // twice the rate-limit budget spent.
   const turnsRef = useRef<Turn[]>([])
   const textarea = useRef<HTMLTextAreaElement>(null)
+  /** Focus lands here when a conversation row is removed under it. */
+  const newConversationButton = useRef<HTMLButtonElement>(null)
 
   // Scroll to the *top* of the newest turn, not the foot of the transcript. An
   // answer card is taller than the viewport, and the headline is the sentence
@@ -317,7 +319,12 @@ export default function Chat({
   const forgetConversation = useCallback(
     async (id: string, title: string) => {
       if (inFlight) return
+      // The row and its button are about to be removed. PinnedDashboard
+      // handles the identical case by returning focus to its heading; this
+      // did not, so a keyboard reader was dropped onto <body>.
+      const returnTo = newConversationButton.current
       await conversations.forget(id)
+      returnTo?.focus()
       announce(`Forgot ${title}.`)
       if (id !== activeId) return
       const fresh = newConversationId()
@@ -516,6 +523,7 @@ export default function Chat({
       <button
         type="button"
         className="history-new"
+        ref={newConversationButton}
         onClick={startNewConversation}
         aria-disabled={inFlight || turns.length === 0}
       >
@@ -620,7 +628,17 @@ export default function Chat({
                   // reader's place instead of disappearing from the tab order
                   // the instant they press it.
                   aria-disabled={inFlight}
-                  onClick={() => ask(example)}
+                  onClick={() => {
+                    // Focus moves to the composer BEFORE asking. Asking
+                    // replaces the whole empty state, so this button is
+                    // unmounted with focus on it and a keyboard reader lands
+                    // on <body> — on the very first interaction anyone has
+                    // with the app. The comment above was right that
+                    // aria-disabled keeps it focusable; it does not survive
+                    // being removed from the tree.
+                    textarea.current?.focus()
+                    ask(example)
+                  }}
                 >
                   {example}
                 </button>
