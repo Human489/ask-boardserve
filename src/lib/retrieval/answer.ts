@@ -162,11 +162,21 @@ async function judgeUncached(
       return null
     }
 
-    const body = (await res.json()) as { result?: { response?: unknown } }
+    const body = (await res.json()) as {
+      result?: {
+        response?: unknown
+        choices?: { message?: { content?: unknown } }[]
+      }
+    }
     const usage = usageFromResponse(body)
     if (usage) recordCall(usage)
 
-    const response: unknown = body.result?.response
+    // Two shapes: the flat one under result.response, and the OpenAI-style one
+    // under result.choices[0].message.content. The router already handles both;
+    // this did not, so every grounding call returned null and the answer was
+    // withheld as unreadable.
+    const response: unknown =
+      body.result?.choices?.[0]?.message?.content ?? body.result?.response
     let parsed: ModelJudgement
     if (response && typeof response === 'object') {
       parsed = response

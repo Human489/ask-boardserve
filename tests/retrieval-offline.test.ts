@@ -49,7 +49,12 @@ interface Stub {
 /** Records what the stub was asked for, so a test can assert a call happened. */
 const calls: string[] = []
 
-function installFetch(stub: Stub): void {
+/** Which Workers AI response shape the stub should send. */
+type JudgeShape = 'openai' | 'flat'
+let judgeShape: JudgeShape = 'openai'
+
+function installFetch(stub: Stub, shape: JudgeShape = 'openai'): void {
+  judgeShape = shape
   globalThis.fetch = (async (input: RequestInfo | URL) => {
     const url = String(input)
     calls.push(url)
@@ -65,7 +70,17 @@ function installFetch(stub: Stub): void {
     if (url.includes('/vectorize/')) return ok({ matches: (stub.matches ?? (() => []))() })
     if (url.includes('/ai/run/')) {
       assert.ok(stub.judge, `the grounding judge was called unexpectedly: ${url}`)
-      return ok({ response: stub.judge!() })
+      // WORKERS AI RETURNS TWO SHAPES and answer.ts has to read both, so the
+      // stub can produce either. It defaults to the OpenAI-style one, which is
+      // what the live endpoint actually sends and which answer.ts did NOT read
+      // — every grounding call returned null and the answer was withheld as
+      // unreadable. Stubbing only the shape that was broken would leave the
+      // other one untested, which is how this went unnoticed the first time.
+      return ok(
+        judgeShape === 'flat'
+          ? { response: stub.judge!() }
+          : { choices: [{ message: { content: stub.judge!() } }] },
+      )
     }
     throw new Error(`unexpected request in a test: ${url}`)
   }) as typeof fetch
@@ -74,6 +89,7 @@ function installFetch(stub: Stub): void {
 function restoreFetch(): void {
   globalThis.fetch = realFetch
   calls.length = 0
+  judgeShape = 'openai'
 }
 
 /** A Vectorize match carrying a passage, in the shape search.ts reads. */
@@ -495,3 +511,51 @@ test('a vector with no organisation on it is treated as foreign', async () => {
     restoreFetch()
   }
 })
+
+// BOTH WORKERS AI RESPONSE SHAPES, because answer.ts reads both and only one
+// of them was ever exercised.
+//
+// The live endpoint returns the OpenAI-style `result.choices[0].message.content`.
+// answer.ts read only the flat `result.response`, so every grounding call
+// resolved to null and every paper answer was withheld as unreadable — on the
+// deployed app, while every test passed, because the test stub sent the flat
+// shape the code happened to handle. router.ts had already met this and
+// documents both shapes; answer.ts had not been brought into line.
+//
+// This runs the same question through both shapes and requires the same
+// outcome, so neither can rot again.
+for (const shape of ['openai', 'flat'] as const) {
+  test(`the grounding judge is read from the ${shape} response shape`, async () => {
+    const real = loadDataset()
+    const { chunkPapers } = await import('../src/lib/retrieval/chunk')
+    const chunks = chunkPapers(real.papers).slice(0, 4)
+    installFetch(
+      {
+        matches: () =>
+          chunks.map((c, i) =>
+            match(real.organisation, 0.8 - i * 0.01, c.text, c.paperId, c.paperTitle, c.section),
+          ),
+        judge: () => ({
+          answered: true,
+          text: 'The papers set out the position and the recommendation the board was asked to approve.',
+          cite: [1],
+        }),
+      },
+      shape,
+    )
+    try {
+      const { getTool } = await import('../src/lib/analytics/registry')
+      const result = await getTool('search_board_papers')!.run(real, {
+        question: 'What were the board papers recommending?',
+      })
+      assert.ok(
+        !isRefusal(result),
+        `the ${shape} shape was not read, so the answer was withheld: ${
+          isRefusal(result) ? result.reason : ''
+        }`,
+      )
+    } finally {
+      restoreFetch()
+    }
+  })
+}
