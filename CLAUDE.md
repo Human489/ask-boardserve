@@ -70,7 +70,26 @@ node scripts/calibrate-retrieval.mjs # measure the retrieval threshold
 npx tsx scripts/probe-unseen.ts      # routing on 25 questions never used to tune it
 npx tsx scripts/check-dataset.ts     # parse a dataset and print what it holds
 npx tsx scripts/dump-chunks.ts       # what the chunker actually produced
+npx tsx scripts/wipe-kv.ts           # LIST what is in KV. Never deletes.
+npx tsx scripts/wipe-kv.ts --delete-all       # actually deletes
 ```
+
+`wipe-kv.ts` resets the demo to a clean slate. **Listing is the default and
+deleting needs the flag**, because most of what is in there is not
+reproducible: a pinned dashboard and a saved conversation were made by hand,
+and a live `share:v1:<token>` is a URL somebody may already hold. Only
+`aicache:` and `rl:` cost nothing to lose. It prints names, never values — a
+conversation holds headlines about named directors.
+
+Two prefixes differ by one letter and it matters: `datasets:v1:` is the
+registry of which dataset is active, `dataset:v1:` holds an uploaded dataset's
+files.
+
+**Wiping KV is now safe in a way it was not before the dataset was committed.**
+With `datasets:v1:active` gone the loader falls through to `./dataset`, so the
+app still answers. Verified after a full wipe: `attendance_below_threshold`
+answered from the committed dataset, as-at 2026-08-31, with pins, conversations
+and shares all empty.
 
 `probe-unseen.ts` is the one worth re-running after any router change. The eval
 harness runs the customer's own questions, which the router was built against,
