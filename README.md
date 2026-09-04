@@ -74,10 +74,17 @@ _Last run 2026-09-03 20:51 UTC, 5 runs per question against a live server._
 
 ## Data
 
-**The dataset is deliberately not in this repository.** It contains board
-attendance, action logs, skills audits and board papers, and is `.gitignore`d.
+**One dataset is committed, at `dataset/`, and the app works from a clean clone
+with no configuration.** It holds board attendance, an action log, a skills
+audit and three board papers for a fictional organisation — which is the only
+reason it can be committed at all. Real board data would not be: attendance
+names identifiable people and records whether each one turned up.
 
-To run locally, place the dataset folder at `dataset/`:
+A second dataset is loaded by uploading a `.zip` in the Data view, which stores
+it in KV and takes precedence over the committed one. `DATASET_PATH` points the
+loader somewhere else if you want a third.
+
+The committed dataset contains:
 
 ```
 dataset/

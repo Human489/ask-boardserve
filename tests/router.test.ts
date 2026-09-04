@@ -211,3 +211,49 @@ test('a refusal written by a check is not attributed to the model or the classif
   )
   if (guarded.kind === 'refusal') assert.equal(guarded.routedBy, 'guard')
 })
+
+// The unmeasured guard is only reachable from the MODEL path, and the unit
+// tests have no credentials — so every question they ask takes the offline
+// fallback, which happens to carry its own keyword check. The guard was
+// therefore covered by nothing at all.
+//
+// Proven by external audit: `guardUnmeasured` was short-circuited to return
+// its input untouched and all 392 tests still passed. That is the same shape
+// as the guard once applied to a test-only export and not to the two real
+// exits — a rule that appears tested and is not.
+//
+// These drive it directly with the argument only the model can produce: a
+// confident tool route for a question the data does not measure.
+test('the unmeasured guard refuses a MODEL route, not just a fallback one', () => {
+  for (const question of [
+    'How diverse is the board?',
+    'What is the gender split of the board?',
+    'How much are we paying our directors?',
+  ]) {
+    const routed = guardPapersRouteForTest(
+      // Exactly what the model returned for the first of these before the
+      // guard existed: a plausible tool, confidently chosen.
+      { kind: 'tool', name: 'skills_gaps', args: {}, routedBy: 'model' },
+      question,
+      TOOLS,
+      dataset,
+    )
+    assert.equal(
+      routed.kind,
+      'refusal',
+      `a model route answered an unmeasured question: ${question}`,
+    )
+  }
+})
+
+test('and it lets a measured question through on the same path', () => {
+  // The other direction, because a guard that refuses everything would pass
+  // the test above and break the product.
+  const routed = guardPapersRouteForTest(
+    { kind: 'tool', name: 'skills_gaps', args: {}, routedBy: 'model' },
+    'Where are our biggest skill gaps?',
+    TOOLS,
+    dataset,
+  )
+  assert.equal(routed.kind, 'tool', 'wrongly refused a question the skills audit answers')
+})

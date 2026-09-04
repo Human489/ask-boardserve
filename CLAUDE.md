@@ -36,7 +36,7 @@ npm run dev          # dev server on :3000
 npm run build        # production build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint src tests scripts
-npm test             # 392 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
+npm test             # 394 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
 npm run smoke        # end-to-end checks against a RUNNING server
 npm run eval         # the eval harness, against a RUNNING server
 npm run predeploy    # typecheck + lint + tests + eval, and writes the README
@@ -528,6 +528,92 @@ one-off:
    paraphrases rather than the spec's wording, which is the exact habit
    `tests/routing-spec.test.ts` exists to prevent. The measured ~20-33% routing
    flake lives in a smoke paraphrase, not in the spec wording.
+
+## The external audit
+
+An independent audit ran against `docs/audit-prompt.md`. It confirmed the
+invariants by recomputing every governance figure from the committed dataset
+and getting 100% agreement, and found **four real defects, all now fixed**, plus
+two documentation drifts. Two further findings were judged already-documented
+and NOT acted on; both are named below so the next reader does not re-open them.
+
+**One process note, because it cost an hour.** The audit ran in this working
+tree while a dev server was running, and `npm run build` corrupted `.next` for
+both — the failure this file already warns about three times. An auditor gets a
+clone of their own.
+
+### What it found, and what it was right about
+
+- **`tenure.ts` ignored `datasetMismatch`.** The worst finding, and the one this
+  file should have predicted. `search.ts` computes the mismatch and its own
+  comment calls answering from another organisation's papers "the worst
+  possible failure for board data"; `retrieval/tool.ts` refuses on it. The
+  hybrid tenure tool read the passages anyway — so with dataset-B active and
+  the index still holding dataset-A's papers, it would take THAT board's term
+  limit, apply it to THIS board's tenures, and produce a plausible retirement
+  schedule belonging to someone else. **Directly in the path of the
+  second-dataset test**, which is when it would first have been seen. Same
+  shape as the guard once applied to a test-only export and not to the two real
+  exits: a rule enforced at one of the places that needed it.
+
+- **`guardUnmeasured` was covered by nothing.** Short-circuiting it to return
+  its input left all 392 tests passing. Every question a unit test asks takes
+  the offline fallback, which carries its own keyword check, so the guard —
+  which exists precisely for the MODEL path — was never executed. It now has a
+  test that drives it with the argument only a model produces, and that test
+  was proven by bypassing the guard again.
+
+  **Writing it found two holes the audit did not.** "How much are we paying our
+  directors?" matched nothing: the clause needed "paid" or "earn", and "paying"
+  is neither. "What is the average age of our board?" matched nothing either,
+  because the pattern allowed only "the" between "of" and "board", not "our".
+  Both were refused in practice ONLY because the offline classifier catches
+  them by another route; on the model path they would have been answered.
+  Widened and measured in both directions — nine unmeasured questions refuse,
+  fourteen answerable ones still pass, including "How much did we pay for the
+  new system?", which is a legitimate question for a finance paper and must not
+  be caught.
+
+- **Director names were written to the server log.** `scope.matched` is built
+  from the dataset's own vocabulary and includes every director name, and two
+  `console.warn` calls joined it into a line — on Vercel, into a third-party
+  log drain with no retention control. The data-protection section below
+  already said "worth checking none carries a director's name". Nobody checked.
+  Now logs the count, which is what the line was for. The refusal REASON still
+  names the matched terms, and that is correct: it is shown to an authorised
+  reader about their own question.
+
+- **`tests/sources.test.ts` had two blind spots**, both in the file whose whole
+  job is catching silently-dead guards. It scanned single-quoted strings only,
+  so banned refusal copy in a double-quoted string or a template literal was
+  invisible — and refusal copy here is routinely a template literal, because it
+  interpolates the organisation name. And the template-literal escape scan ran
+  over `src` only, while the file's own header says a mangled escape hiding in
+  a TEST is the worst case because the test still reports success. Both fixed
+  and both proven by planting a violation.
+
+### What was rejected, and why
+
+- **Small integers and word-numbers bypass `verify.ts`.** True, documented, and
+  the tradeoff was measured in both directions: demanding that "the 3 papers"
+  appear verbatim rejects sound answers, and the previous over-strict version
+  of this check is what withheld a correctly-sourced answer. The audit's
+  sharpening is worth keeping though — in governance a small integer is often a
+  vote count or a number of directors, so "14 grievances across 3 meetings"
+  passes unchecked. Recorded as a risk, not fixed, for the same reason as
+  before: widening a check that already withholds answers has to be measured,
+  and nobody has the corpus to measure this one on.
+
+- **The share link is a bearer credential over named attendance.** The audit
+  confirmed every condition set for it is met and called it defensible for a
+  fictional dataset and not for real governance data. That is exactly what this
+  file already says. No change.
+
+- **Smoke's six paraphrases** were reported as spec drift. The paraphrases stay
+  — the measured routing flake lives in one of them, which makes them a useful
+  second set. What was actually wrong was the COMMENT above them claiming they
+  were "exactly as the specification writes them". The comment was the lie, and
+  it has been corrected rather than the questions.
 
 ## Limitations, and why they are limitations
 

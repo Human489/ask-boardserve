@@ -76,6 +76,33 @@ export const tenureAndSkillsImpact: ToolDefinition = {
     let limit: ReturnType<typeof findTermLimit> = null
     try {
       const search = await searchPapers(dataset, 'trustee term limit maximum years served tenure')
+
+      // THE INDEX IS PER-ORGANISATION, AND THIS TOOL WAS THE ONE THAT DID NOT
+      // CHECK. `search.ts` calls answering from another organisation's papers
+      // "the worst possible failure for board data" and surfaces it on
+      // `datasetMismatch`; `retrieval/tool.ts` refuses on it. This read the
+      // passages anyway — so with a second dataset active and the index still
+      // holding the first one's papers, it would take THAT board's term limit,
+      // apply it to THIS board's tenures, and produce a retirement schedule
+      // that is entirely plausible and belongs to someone else.
+      //
+      // Found by external audit. It is the same shape as the guard that was
+      // once applied to a test-only export and not to the two real exits: a
+      // rule enforced at one of the places that needs it.
+      if (search.datasetMismatch) {
+        return {
+          tool: 'refusal',
+          headline: 'The board papers available do not belong to this organisation.',
+          reason:
+            `The term limit is stated only in the papers, and the paper index holds papers ` +
+            `for ${search.datasetMismatch} rather than for ${dataset.organisation}. Applying ` +
+            `another organisation's limit to these directors would produce a retirement ` +
+            `schedule that looks right and is not.`,
+          alternative:
+            'The skills audit still records how long each director has served, which is the half held in the data.',
+        }
+      }
+
       limit = findTermLimit(search.passages)
     } catch (e) {
       console.error(`[tenure] could not search the papers: ${(e as Error).message}`)

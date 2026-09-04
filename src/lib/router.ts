@@ -210,8 +210,19 @@ const QUALIFICATION_PATTERNS =
 // is computable from due dates and completion dates. These patterns are about
 // attributes of PEOPLE that the dataset does not record, so the person is now
 // part of the pattern rather than assumed.
+// Director PAY is scoped to directors on purpose, and the two clauses run in
+// both word orders. "How much are we paying our directors?" matched none of
+// this: the old clause required "paid" or "earn", and "paying" is neither — so
+// the guard let it through and the question was refused only because the
+// OFFLINE classifier happens to catch it. On the model path it would have been
+// answered. Found by writing the test the external audit asked for.
+//
+// Not a bare /\bpay\b/: "How much did we pay for the new system?" is a
+// legitimate question for a finance paper, and refusing it would be the
+// over-refusal this project has already been bitten by once. Widened in both
+// directions and measured in both.
 const UNMEASURED_PATTERNS =
-  /\biq\b|\bintelligence\b|\bpersonality\b|\bsalary\b|\bhow much .*(paid|earn)\b|\b(age|ages|birthday|date of birth)\s+of\s+(the\s+)?(director|trustee|member|chair|board)|\bdiversity\b|\bdiverse\b|\bethnic|\bgender\b|\bdisabilit|\bprotected characteristic|\bnationalit/
+  /\biq\b|\bintelligence\b|\bpersonality\b|\bsalar\w*\b|\bremunerat\w*|\bhow much .*(paid|earn)\b|\b(?:pay|paying|paid|earn\w*)\b[^.?]{0,40}\b(?:director|trustee|chair|board member)s?\b|\b(?:director|trustee|chair|board member)s?\b[^.?]{0,40}\b(?:pay|paying|paid|earn\w*)\b|\b(?:age|ages|aged|birthday|date of birth|how old)\b[^.?]{0,30}\b(?:director|trustee|member|chair|board)s?\b|\b(?:director|trustee|member|chair|board)s?\b[^.?]{0,30}\b(?:how old|date of birth)\b|\bdiversity\b|\bdiverse\b|\bethnic|\bgender\b|\bdisabilit|\bprotected characteristic|\bnationalit/
 
 /**
  * Tenure and term-limit questions. These read as structured questions but are
@@ -918,9 +929,17 @@ function guardPapersRoute(
   // structured, the rewrite is the problem: put the question back rather than
   // refusing a legitimate documents question over a word the model chose.
   if (!userScope.belongsToStructuredData && askedScope.belongsToStructuredData) {
+    // COUNT, NOT CONTENT. `scope.matched` is built from the dataset's own
+    // vocabulary and includes every DIRECTOR NAME, so joining it into a log
+    // line put identifiable people into the server's logs — on Vercel, into a
+    // third-party log drain with no retention control and no audit trail.
+    // CLAUDE.md's data-protection section already said "errors are logged
+    // server-side — worth checking none carries a director's name"; nobody
+    // checked, and an external audit found this. The count is what the line was
+    // actually for: knowing the branch was taken.
     console.warn(
       `[router] the model rewrote a papers question into structured wording ` +
-        `(${askedScope.matched.join(', ')}); asking the papers what the reader asked`,
+        `(${askedScope.matched.length} dataset terms matched); asking the papers what the reader asked`,
     )
     return { ...route, args: { ...route.args, question } }
   }
@@ -929,7 +948,7 @@ function guardPapersRoute(
   if (!scope.belongsToStructuredData) return route
 
   console.warn(
-    `[router] question names structured data (${scope.matched.join(', ')}); ` +
+    `[router] question names structured data (${scope.matched.length} dataset terms matched); ` +
       'not routing it to the board papers',
   )
 

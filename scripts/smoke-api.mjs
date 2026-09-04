@@ -92,7 +92,15 @@ async function post(path, body, token) {
   return send(path, body, token)
 }
 
-// The twelve structured questions, exactly as the specification writes them.
+// Twelve structured questions. SIX ARE PARAPHRASES, NOT THE SPEC'S WORDING —
+// this comment claimed they were verbatim and they are not, which is the exact
+// habit tests/spec-questions.ts was created to end.
+//
+// Kept as paraphrases deliberately: real readers paraphrase too, and the
+// ~20-33% routing flake this project has measured lives in one of these
+// shortened forms rather than in the customer's own longer sentence. They are
+// a second, harder set. tests/routing-spec.test.ts holds the verbatim twelve.
+// What was wrong was the claim, not the questions.
 const STRUCTURED = [
   ['Who is below our attendance threshold, and on which committee?', 'attendance_below_threshold'],
   ['Which meetings had unusually low attendance, and when?', 'attendance_by_meeting'],

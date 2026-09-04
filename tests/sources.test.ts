@@ -74,6 +74,19 @@ test('no source file contains a stray control character', () => {
 // which is how the wording survived review: it read as a house style.
 const REFUSAL_COPY_ROOTS = ['src/lib', 'src/app', 'src/components']
 
+// Built from character codes rather than typed. This file has had an escape
+// mangled into a control character three times, and these are exactly the
+// patterns that would go silently dead if it happened a fourth.
+const NEWLINE = String.fromCharCode(10)
+const SQ = String.fromCharCode(39)
+const DQ = String.fromCharCode(34)
+const BT = String.fromCharCode(96)
+const STRING_PATTERNS = [
+  SQ + '([^' + SQ + ']{12,})' + SQ,
+  DQ + '([^' + DQ + ']{12,})' + DQ,
+  BT + '([^' + BT + ']{12,})' + BT,
+]
+
 /** Phrasings that attribute the limit to the data rather than to the tools. */
 const BLAMES_THE_DATA = [
   /cannot be answered from the data/i,
@@ -100,10 +113,18 @@ test('no user-facing refusal copy blames the data', () => {
       // editing step turned it into a literal newline, and the regex no longer
       // parsed — which is the exact failure the control-character test above
       // exists to catch, arrived at from a different direction.
-      for (const line of src.split('\n')) {
-        for (const quoted of line.matchAll(/'([^']{12,})'/g)) {
-          for (const pattern of BLAMES_THE_DATA) {
-            if (pattern.test(quoted[1])) found.push(`${rel}: ${quoted[1].slice(0, 80)}`)
+      // ALL THREE DELIMITERS. This scanned single quotes only, so the same
+      // banned wording written in a double-quoted string, a template literal,
+      // or JSX text was invisible — and refusal copy here is routinely a
+      // template literal, because it interpolates the organisation name. A
+      // guard that reads a third of the strings it claims to check is worse
+      // than none: it is believed. Found by external audit.
+      for (const line of src.split(NEWLINE)) {
+        for (const spelling of STRING_PATTERNS) {
+          for (const quoted of line.matchAll(new RegExp(spelling, 'g'))) {
+            for (const pattern of BLAMES_THE_DATA) {
+              if (pattern.test(quoted[1])) found.push(`${rel}: ${quoted[1].slice(0, 80)}`)
+            }
           }
         }
       }
@@ -130,13 +151,24 @@ test('no user-facing refusal copy blames the data', () => {
 // to compare whole words instead of building a pattern at all.
 test('no regex is built from a template literal carrying a backslash escape', () => {
   const found: string[] = []
-  for (const root of REFUSAL_COPY_ROOTS) {
+  // ROOTS, not REFUSAL_COPY_ROOTS: this scanned src only, while this file's own
+  // header says a mangled escape hiding in a TEST is the worst case, because
+  // the test still reports success. The scan that exists for exactly that was
+  // not looking at tests or scripts. Found by external audit.
+  for (const root of ROOTS) {
     for (const file of sourceFiles(root)) {
       const src = readFileSync(file, 'utf8')
       const rel = file.slice(process.cwd().length + 1).split(sep).join('/')
       for (const line of src.split('\n')) {
         // A RegExp constructed from a backtick string, where that string
         // contains a backslash escape and is not String.raw.
+        // A comment may legitimately show the broken form: this suite has to
+        // name what it forbids, and the comment above does. Only code counts —
+        // the same rule the refusal-copy scan applies by reading quoted
+        // strings alone. Without this, widening the scan to `tests` made the
+        // guard fail on its own documentation.
+        const code = line.trim()
+        if (code.startsWith('//') || code.startsWith('*') || code.startsWith('/*')) continue
         if (!/new RegExp\(\s*`/.test(line)) continue
         if (/String\.raw/.test(line)) continue
         if (/\\[bdswWDSB]/.test(line)) found.push(`${rel}: ${line.trim().slice(0, 92)}`)
