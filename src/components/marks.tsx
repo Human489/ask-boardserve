@@ -85,6 +85,35 @@ export function RefreshMark() {
   )
 }
 
+/**
+ * The disclosure affordance on the conversation list.
+ *
+ * Drawn rather than left to the browser: `<summary>` loses its native marker
+ * the moment its `display` is anything but `list-item`, and this one is a flex
+ * row. The result was a control that opened a panel with nothing at all to say
+ * it could be opened — it read as a label sitting beside a link.
+ *
+ * Points right when closed and is rotated by CSS when open, so the direction
+ * is a single transform rather than two icons that could drift apart.
+ */
+export function ChevronMark() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 3.5 10.5 8 6 12.5" />
+    </svg>
+  )
+}
+
 export function RemoveMark() {
   return (
     <svg

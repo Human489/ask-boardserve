@@ -959,6 +959,10 @@ table.answer-table {
   .card:not(.card-skeleton) {
     animation: none;
   }
+
+  .history-list > summary svg {
+    transition: none;
+  }
 }
 
 .sr-only {
@@ -1833,6 +1837,15 @@ table.answer-table {
 .history {
   border-bottom: 1px solid var(--hairline);
   padding: 10px 24px;
+}
+
+/* Centred on the transcript's own measure. The bar's contents were flush to
+   the page gutter while the answers below were centred in 780px, so at 1280px
+   the list of past questions began 226px to the left of the column it belongs
+   to and read as chrome from a different screen. */
+.history-inner {
+  max-width: var(--measure);
+  margin: 0 auto;
   display: flex;
   align-items: baseline;
   gap: 14px;
@@ -1869,11 +1882,38 @@ table.answer-table {
 .history-list > summary {
   cursor: pointer;
   display: flex;
-  align-items: baseline;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
   font-size: 13px;
   color: var(--ink-2);
   border-radius: var(--radius-mark);
+  /* The native marker is gone the moment display is not list-item, so this
+     only makes explicit what the flex row already did — and the drawn chevron
+     below is what actually restores the affordance. Both spellings, because
+     the older WebKit pseudo-element still ships. */
+  list-style: none;
+}
+
+.history-list > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Points right when closed, down when open. WITHOUT THIS THE CONTROL HAD NO
+   AFFORDANCE AT ALL: "Earlier conversations" sat beside "New conversation"
+   looking like a label next to a link, and nothing said one of them opened a
+   panel. */
+.history-list > summary svg {
+  flex: none;
+  color: var(--ink-muted);
+  transition: transform 140ms ease-out;
+}
+
+.history-list[open] > summary svg {
+  transform: rotate(90deg);
+}
+
+.history-list > summary:hover svg {
+  color: var(--ink-2);
 }
 
 .history-list > summary:hover {
@@ -1898,7 +1938,15 @@ table.answer-table {
 .history-list ul {
   list-style: none;
   margin: 10px 0 2px;
-  padding: 0;
+  /* A ground of its own, so the open list reads as one object rather than as
+     rows floating on the page. Tonal layering rather than a shadow, which is
+     how every other container here is separated — and it is why a row's hover
+     lifts to --surface instead of sinking, the two being the wrong way round
+     once the list itself is the sunken surface. */
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 4px;
   display: grid;
   gap: 2px;
   /* Capped to the transcript's own measure. Left to fill the page the rows
@@ -1928,12 +1976,18 @@ table.answer-table {
   border-radius: var(--radius-sm);
   padding: 7px 9px;
   cursor: pointer;
+  /* Two columns: the question on the left, when it was last added to on the
+     right. The timestamps line up into a column the eye can run down, which is
+     what makes a list of near-identical titles navigable at all. */
   display: grid;
-  gap: 1px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 14px;
+  row-gap: 1px;
+  align-items: baseline;
 }
 
 .history-open:hover {
-  background: var(--surface-sunken);
+  background: var(--surface);
 }
 
 /* The showing conversation is marked with aria-current, so the state is in the
@@ -1945,6 +1999,7 @@ table.answer-table {
 }
 
 .history-title {
+  grid-column: 1;
   font-size: 13px;
   color: var(--ink);
   /* One line: a title is already trimmed to 60 characters server-side, and a
@@ -1955,9 +2010,25 @@ table.answer-table {
 }
 
 .history-meta {
+  grid-column: 1;
   font-size: 11.5px;
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* The caption step, exactly as the provenance VALUES use it — mono in this
+   system names a field, it does not set the value beside it. Taking mono here
+   would also have meant a 10.5px that is in no documented ramp, and the ramp
+   is the permitted set. Right-aligned so the column has a straight edge
+   whatever the month is called. */
+.history-when {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  font-size: 11.5px;
+  color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .history-forget {
@@ -1965,7 +2036,9 @@ table.answer-table {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
+  /* 36 rather than 30: this is the destructive control in the row, it is
+     reached by thumb on a phone, and it was the narrowest target in the app. */
+  width: 36px;
   background: none;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -2005,7 +2078,17 @@ table.answer-table {
 @media (max-width: 640px) {
   .history {
     padding: 9px 16px;
+  }
+
+  .history-inner {
     gap: 10px;
+  }
+
+  /* Taller viewport, shorter list: at 812px the open panel filled the screen
+     and pushed the composer and the answer it belongs to out of sight
+     entirely. */
+  .history-list ul {
+    max-height: 33vh;
   }
 }
 

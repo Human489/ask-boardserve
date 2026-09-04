@@ -456,6 +456,40 @@ because the wordmark beside it already says the product's name.
 - **Placement:** in the masthead, outside the view switch, so it is reachable
   from the passcode screen too.
 
+### Conversation History
+
+A thin bar above the transcript, not a sidebar: this is an Operate surface
+where the answer is the point, and a permanent list of past questions beside
+every answer would compete with it. The bar's contents are centred on the
+transcript's own measure, so the list and the answers it produced read as one
+column rather than two unrelated screens.
+
+- **Closed:** one line — a "New conversation" text button in the accent, then a
+  native `<details>` summary carrying a drawn chevron, the label, and a mono
+  count.
+- **The chevron is not optional.** `<summary>` loses its native marker the
+  moment its `display` is anything but `list-item`, and this one is a flex row.
+  Without a drawn one the control had no affordance at all: it read as a label
+  sitting beside a link.
+- **Open:** the rows sit on a sunken ground inside a hairline and an 8px
+  radius, so the list is one object rather than rows floating on the page.
+  Because the container is the sunken tone, a row's hover LIFTS to card white;
+  the usual direction is inverted here and deliberately so.
+- **Every row carries a timestamp**, right-aligned in its own column at the
+  caption step. Titles are derived from the first question, so asking the same
+  question twice produces two rows reading identically — seven saved
+  conversations showed five identical titles and nothing else to separate them.
+  It is a real wall clock, unlike every figure in this product, because it
+  records when the READER saved something rather than anything measured from
+  the dataset's as-at date. Absolute, not relative: "2 hours ago" changes while
+  the panel sits open.
+- **The showing conversation** takes the accent tint and an accent border, and
+  says "· showing" in its meta line, so the state is in the text and not only
+  in the fill.
+- **The list scrolls inside itself** — 40vh, and 33vh under 640px where the
+  open panel otherwise filled a phone screen and pushed the composer out of
+  sight.
+
 ### Provenance Block
 
 Under every answer, without a disclosure: as-at date, sources, rows considered,

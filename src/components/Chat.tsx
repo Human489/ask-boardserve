@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Message from './Message'
 import type { Turn } from './Message'
-import { PinMark, RemoveMark } from './marks'
+import { ChevronMark, PinMark, RemoveMark } from './marks'
 import type { ConversationsState } from './useConversations'
 import type { StoredTurn } from '@/lib/conversations'
 import { pinKey, type PinsState } from './usePins'
@@ -87,6 +87,32 @@ export function swapTranscript(
   )
   transcripts.set(fromKey, outgoing)
   return transcripts.get(toKey) ?? []
+}
+
+/**
+ * When a saved conversation was last added to.
+ *
+ * THE LIST WAS UNUSABLE WITHOUT THIS. Titles are derived from the first
+ * question — deliberately, because a model-written one would cost a round trip
+ * and could come back different each time — so asking the same question twice
+ * produces two rows reading exactly the same. Seven saved conversations showed
+ * five identical titles and nothing else to tell them apart, and the one
+ * distinguishing value was already on the summary and simply never displayed.
+ *
+ * A real clock is correct here, unlike everywhere else in this product: this
+ * is when the READER saved something, not a figure measured from the dataset's
+ * as-at date. The pinned card's own stamp does the same.
+ *
+ * Absolute rather than relative. "2 hours ago" changes while the panel sits
+ * open, and a secretary comparing two runs of the same question wants the time
+ * it happened, not a countdown.
+ */
+function formatWhen(iso: string): string {
+  const when = new Date(iso)
+  if (Number.isNaN(when.getTime())) return ''
+  const date = when.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+  const time = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+  return `${date} ${time}`
 }
 
 /** Ids are opaque and client-made, so a conversation can be saved before it
@@ -520,6 +546,11 @@ export default function Chat({
 
   const historyPanel = (
     <div className="history">
+      {/* The bar's own content is centred on the transcript's measure. Left
+          flush to the page it started 226px to the left of the column it
+          belongs to, so the list of past questions and the answers they
+          produced read as two unrelated things. */}
+      <div className="history-inner">
       <button
         type="button"
         className="history-new"
@@ -537,6 +568,7 @@ export default function Chat({
         // is keyboard operable and announced as expandable with no script.
         <details className="history-list">
           <summary>
+            <ChevronMark />
             Earlier conversations
             <span className="history-count">
               {conversations.list.length} saved
@@ -555,6 +587,10 @@ export default function Chat({
                     aria-current={current ? 'true' : undefined}
                   >
                     <span className="history-title">{saved.title}</span>
+                    {/* Its own column rather than another clause in the meta
+                        line, so the timestamps stack into something the eye can
+                        run down — which is the whole point of showing them. */}
+                    <span className="history-when">{formatWhen(saved.updatedAt)}</span>
                     <span className="history-meta">
                       {saved.turnCount} {saved.turnCount === 1 ? 'question' : 'questions'}
                       {current ? ' · showing' : ''}
@@ -590,6 +626,7 @@ export default function Chat({
           {conversations.error}
         </p>
       )}
+      </div>
     </div>
   )
 
