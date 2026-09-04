@@ -35,7 +35,8 @@ were only found by using the thing.
 npm run dev          # dev server on :3000
 npm run build        # production build
 npm run typecheck    # tsc --noEmit
-npm test             # 147 unit tests (tsx --test tests/*.test.ts)
+npm run lint         # eslint src tests scripts
+npm test             # 389 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
 npm run smoke        # end-to-end checks against a RUNNING server
 npm run eval         # the eval harness, against a RUNNING server
 npm run predeploy    # typecheck + lint + tests + eval, and writes the README
@@ -66,7 +67,17 @@ node scripts/probe-router.mjs        # model routing accuracy, per question
 node scripts/ingest-papers.mjs       # embed the board papers into Vectorize
 node scripts/ingest-papers.mjs --dry-run
 node scripts/calibrate-retrieval.mjs # measure the retrieval threshold
+npx tsx scripts/probe-unseen.ts      # routing on 25 questions never used to tune it
+npx tsx scripts/check-dataset.ts     # parse a dataset and print what it holds
+npx tsx scripts/dump-chunks.ts       # what the chunker actually produced
 ```
+
+`probe-unseen.ts` is the one worth re-running after any router change. The eval
+harness runs the customer's own questions, which the router was built against,
+so a good score there proves it does not regress — not that it generalises.
+Last run: **24/25**, the miss being "How diverse is the board?" routing to
+`skills_gaps`. That miss is now guarded in code (`guardUnmeasured`), not in the
+prompt.
 
 **Stop the dev server before `npm run build`.** They share `.next`, and running
 both corrupts it: the browser 404s on chunks and the page silently stops
@@ -190,6 +201,33 @@ no model access. Result carries `routedBy: 'model' | 'fallback'`.
 
 **`src/app/api/ask/route.ts`** — auth → rate limit → validate → load → route → run
 → respond.
+
+**The state layer**, all KV-backed and all keyed per dataset, because a value
+that outlived a dataset swap would show one organisation's figures under
+another's question:
+
+| Module | Key | Holds |
+| --- | --- | --- |
+| `datasets.ts` | `datasets:v1:active` | which uploaded dataset is live |
+| `pins.ts` | `pins:v1:<datasetId>` | the pinned dashboard |
+| `conversations.ts` | `conversations:v1:<datasetId>` | saved chats, 20 max, 40 turns each |
+| `shares.ts` | `share:v1:<token>` + `shares:v1:<datasetId>` | read-only links and the owner's index |
+| `aicache.ts` | `aicache:v2:*` | routing, embedding and judge results |
+| `ratelimit.ts` | `rl:*` | approximate per-IP buckets |
+
+`conversations.ts` titles a chat with `titleFrom()` — deterministic, no model
+call, because a title is not worth a neuron and a flaky one makes a list of
+chats unrecognisable between visits.
+
+**`src/lib/chartimage.ts`** — SVG → PNG for a single chart. Always exports the
+LIGHT palette whatever is on screen, and always stamps
+`<organisation> · Data as at <date>`. Font stacks inside it use single quotes:
+a double quote malforms the XML attribute and the whole serialisation fails.
+
+**`src/middleware.ts` + `session.ts` + `auth.ts`** — the passcode gate. The
+matcher lists what to SKIP, so a new route is protected by default. Failed
+credentials charge an `auth:<ip>` budget so the gate is not a passcode oracle
+(measured: 40 attempts answered 200, then 429; now 20 then 429).
 
 ### The rule the product rests on
 
@@ -360,14 +398,14 @@ The brief's list verbatim, since paraphrasing it is what introduced a fifth:
   arguments and never re-routed the question, because a refresh that changes
   which tool answered is not a refresh — keep that property.
 
-### Deliverables — two not started
+### Deliverables — one not started
 
 The brief's Friday list is "your deployed link, repo, README, and handover
-doc".
+doc". Deployed link and repo are live; the README carries eval results between
+`<!-- eval:start -->` / `<!-- eval:end -->`, written by the harness rather than
+by hand so they cannot drift from the last run.
 
-- **A handover doc does not exist.**
-- **The README does not carry eval results**, which the eval harness item
-  explicitly requires.
+- **A handover doc does not exist.** This is the only outstanding deliverable.
 
 ### A deviation from the brief, recorded on purpose
 
@@ -375,6 +413,71 @@ The brief says "Chat interface (**AI Elements**, like Tuesday)". This is a
 custom chat instead. The outcome the brief asks for is met — questions in plain
 English, charts as tool output — but the named library was not used, and that
 is a choice to be able to defend rather than discover.
+
+## The audit, and the state it left things in
+
+Three rounds of audit ran over everything built, at the instruction "test that
+every feature works, test potential edge cases, and then we test questions and
+their accuracy, even outside our current set of questions". Every finding is
+fixed and merged. **The bug backlog is empty**, and the only known problems are
+the ones under "Known, and not easily fixable" below, each of which has been
+looked at properly and left alone for a stated reason.
+
+Verified state at the last merge: **389 tests, smoke 62/62, eval 130/130 over 5
+runs with nothing unstable, typecheck, lint and production build clean, the
+hard-coding detector at 0 findings.** Branches: `main` only, everything merged
+with `--no-ff`.
+
+The failures worth carrying forward, because each is a CLASS rather than a
+one-off:
+
+- **A template literal eats a backslash escape.** `` new RegExp(`${w}`) ``
+  builds a pattern containing BACKSPACE, which compiles, runs, and matches
+  nothing for ever. `tests/sources.test.ts` cannot see it — the source holds a
+  valid two-character escape — so it has a separate guard, proven by planting a
+  violation. Use `String.raw`, a literal regex, or compare words.
+- **A check that is too strict is a bug, not caution.** `verify.ts` read the
+  hyphen in "82-96%" as a minus sign and withheld a correctly-sourced answer.
+  Widening a check that already withholds answers has to be measured in BOTH
+  directions.
+- **Writing the test found the worse half.** In that same range the lower bound
+  parsed as a bare integer, which is deliberately not treated as a claim — so an
+  answer could widen a range downwards and only its upper bound was ever
+  verified. Nobody had listed that; the test for the visible bug exposed it.
+- **A test that asserts the bug passes.** Found three times. One asserted a
+  token signed under one passcode DID validate under another, and passed only
+  because the test above it restored an env var with `= undefined`, storing the
+  string `"undefined"`.
+- **Patching a test-only seam.** A router guard was applied to
+  `guardPapersRouteForTest` and not to the two real exits. Every unit test
+  passed, because with no credentials they take the fallback path where the
+  guard already worked. **Only the live check caught it.**
+- **`aria-disabled` keeps a control focusable; it does not survive removal from
+  the tree.** Five places dropped focus to `<body>` when the focused element was
+  unmounted by its own action — including the first example question anyone
+  clicks, under a comment claiming the reader "keeps their place".
+- **The AI cache freezes routing flakes rather than hiding them.** A cached
+  refusal is served for ever. Refusals are no longer written to it
+  (`worthKeeping`), and the key namespace was bumped to `aicache:v2` to drop
+  what was already stored.
+- **Real identifiers in comments, four times.** The hard-coding grep scans
+  comments for exactly this reason and has now caught it six times in total.
+- **Not every red result is a bug.** Three smoke failures were my own leftover
+  pins colliding with the duplicate check; two "layout bugs" were the browser
+  pane collapsed to a zero-width viewport, proven by walking the ancestor chain
+  to a 0-wide `<body>`.
+
+### What is left
+
+1. **The second dataset, blind.** The last Excellence item and the last piece of
+   work. The rules under "The dataset" above are not decoration: nothing in this
+   tree may carry `dataset-b`'s figures, and reading it early spends the only
+   run of the test that is worth anything. **The user runs this one.**
+2. **The handover doc**, the one outstanding brief deliverable.
+3. Optional, judged and not done: 6 of the 12 structured smoke questions are
+   paraphrases rather than the spec's wording, which is the exact habit
+   `tests/routing-spec.test.ts` exists to prevent. The measured ~20-33% routing
+   flake lives in a smoke paraphrase, not in the spec wording.
 
 ## Limitations, and why they are limitations
 
