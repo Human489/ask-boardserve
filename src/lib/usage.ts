@@ -142,8 +142,3 @@ export function snapshot(): UsageSnapshot {
     averageNeurons: s.calls === 0 ? 0 : Math.round((s.neurons / s.calls) * 100) / 100,
   }
 }
-
-export function resetUsage(): void {
-  const holder = globalThis as unknown as Record<symbol, UsageStore | undefined>
-  holder[GLOBAL_KEY] = undefined
-}

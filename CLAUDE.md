@@ -32,15 +32,18 @@ The eval figure quoted further down (130/130 over 5 runs) is the one number NOT
 re-measured since; it predates the recharts upgrade and the tool changes, and
 neither touched routing. **Re-run it before quoting it.**
 
-**Outstanding work, in the order it matters:**
+**Outstanding work:**
 
-1. **The second dataset**, in progress — the last Excellence item. The rules
-   under "The dataset" are not decoration.
-2. **A handover doc**, the last brief deliverable, not started.
-3. **Live routing for the date window** — `from_date`/`to_date` are on the
-   attendance tools and unit-tested, but whether the MODEL passes them for a
-   question like "just Q4" has not been measured against a live server.
-4. Everything under "Known, and not easily fixable", each already judged.
+1. **A handover doc**, the last brief deliverable, not started. Everything
+   else the brief asks for is done.
+2. Everything under "Known, and not easily fixable", each already judged, and
+   "Worth doing next, if this continues" for the ideas that were judged and
+   left.
+
+**All five Excellence items are done.** The second dataset passed — see "The
+second dataset, and what it proved". The date window's live routing was
+confirmed too: a follow-up narrows the series and the reference line relabels
+itself from "Year average" to "Period average".
 
 ## Working practice
 
@@ -324,7 +327,7 @@ another's question:
 | `conversations.ts` | `conversations:v1:<datasetId>` | saved chats, 20 max, 40 turns each |
 | `shares.ts` | `share:v1:<token>` + `shares:v1:<datasetId>` | read-only links and the owner's index |
 | `aicache.ts` | `aicache:v2:*` | routing, embedding and judge results |
-| `ratelimit.ts` | `rl:*` | approximate per-IP buckets |
+| `ratelimit.ts` | `ratelimit:*` | approximate per-IP buckets, including the gate's `auth:<ip>` budget |
 
 `conversations.ts` titles a chat with `titleFrom()` — deterministic, no model
 call, because a title is not worth a neuron and a flaky one makes a list of
@@ -495,11 +498,8 @@ The brief's list verbatim, since paraphrasing it is what introduced a fifth:
    revocation, `noindex` and `no-store`, and no personal data in the path. It
    is a snapshot rather than a live view, and every failure returns the same
    page so a guessed token cannot be confirmed.
-4. **A second dataset loads with no code changes** — **in progress.** Worth
-   running exactly once, blind; see the `dataset-b` rules above. Two bugs that
-   sat directly in its path were found and fixed first, both of which would
-   have been discovered DURING the one run worth having: `tenure.ts` ignoring
-   `datasetMismatch`, and retrieval not filtering passages by organisation.
+4. **A second dataset loads with no code changes** — **done, and it passed.**
+   See "The second dataset, and what it proved" below.
 5. **Image export for individual charts** — ours, approved by Hamada for
    Excellence. **Done**: `src/lib/chartimage.ts` and the "Save chart" button on
    every answer and pinned card. Three decisions in it, each with a wrong
@@ -706,6 +706,56 @@ clone of their own.
   second set. What was actually wrong was the COMMENT above them claiming they
   were "exactly as the specification writes them". The comment was the lie, and
   it has been corrected rather than the questions.
+
+## The second dataset, and what it proved
+
+`dataset-b` is **Volta Grid Networks plc**, a regulated electricity
+distribution network — a different sector, a different committee structure, a
+different action-id scheme. Uploaded as a `.zip` and made active in KV, with no
+code change of any kind.
+
+**Every check passed.** What was verified, and why each was worth checking
+rather than just asking a question and nodding:
+
+- **The skills CSV split.** `FIXED_SKILL_COLUMNS` keeps four columns and treats
+  EVERY other column as a skill, so an extra metadata column would have become
+  a plausible-looking competency. Ten series came back and all ten are real
+  ones.
+- **Its own bodies.** Board, Audit Committee, Remuneration Committee, Safety
+  and Sustainability Committee — none of which exists in dataset A, and A's
+  three committees appear nowhere.
+- **Its own small-n arithmetic.** 15 meetings against A's 18, one meeting's
+  noise at 15.6 points against A's 15.4, a 91.7% average against A's 88%,
+  "4 to 10 seats" and "25 percentage points" — every computed qualifier
+  different. Identical figures would have meant the tools were still reading A.
+- **The owner invariant, harder than on A.** All six action owners are job
+  titles and NONE resolves to a director, and the answer says so rather than
+  naming anyone.
+- **The overdue set difference ran BOTH ways** — 7 derived against 6 recorded,
+  two past due but logged "in progress" AND one recorded overdue that is not
+  derived. Dataset A only ever exercised one direction, so this is the first
+  time that sentence has been generated in full.
+- **Paper questions refused, correctly**, naming St Ambrose as the indexed
+  organisation, because Vectorize still held A's vectors. **That is a pass**:
+  it is the external audit's finding working in the exact scenario it was
+  written for. Without it, "is anyone about to hit their term limit" would have
+  applied A's nine-year limit to Volta Grid's directors and produced a
+  plausible retirement schedule.
+- **No hard-coding, from either direction.** Every distinctive entity in B's
+  answers — director names, all four bodies, the `VGN-` prefix, the officer
+  titles — greps to zero hits in `src/`, as does every equivalent from A.
+
+**Two bugs sat directly in this test's path and were fixed before it ran**,
+both of which would otherwise have been discovered DURING the single run worth
+having: `tenure.ts` ignoring `datasetMismatch`, and retrieval not filtering
+passages by organisation.
+
+**One gotcha for anyone ingesting a second organisation's papers.** The index
+holds every organisation, so `ingest-papers.mjs` finding more vectors than it
+just wrote is now the EXPECTED state. Its warning used to call that stale and
+advise deleting and recreating the index, which would have destroyed the other
+organisation's papers. It now only warns when the total is LOWER than the
+ingest produced, which is unambiguous.
 
 ## Tool generality, and the axes that were missing
 

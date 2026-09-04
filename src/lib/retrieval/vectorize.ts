@@ -135,28 +135,6 @@ export async function info(): Promise<{
 }
 
 /**
- * Vectorize is eventually consistent, and it does not become consistent all at
- * once. Between upserting and catching up there is a window where the index is
- * half-populated and will answer a question with the wrong document and a
- * confident-looking score — which looks exactly like a broken pipeline and is
- * not one. So poll processedUpToMutation rather than sleeping for a guess.
- */
-export async function waitForMutation(
-  mutationId: string,
-  opts: { timeoutMs?: number; onTick?: (seconds: number, vectorCount: number) => void } = {},
-): Promise<boolean> {
-  const timeoutMs = opts.timeoutMs ?? 180_000
-  const started = Date.now()
-  while (Date.now() - started < timeoutMs) {
-    const i = await info()
-    if (i.processedUpToMutation === mutationId) return true
-    opts.onTick?.(Math.round((Date.now() - started) / 1000), i.vectorCount)
-    await new Promise((r) => setTimeout(r, 5000))
-  }
-  return false
-}
-
-/**
  * Query the index. returnMetadata must be the string "all" — omit it and the
  * matches come back with ids and scores but no text, which is the one thing
  * the caller actually needs.

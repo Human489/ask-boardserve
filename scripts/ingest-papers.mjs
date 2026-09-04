@@ -181,12 +181,28 @@ async function main() {
       // Chunk ids are positional, so a re-ingest producing FEWER chunks for a
       // paper leaves the surplus behind: still searchable, now stale. The count
       // is the cheap way to notice.
-      if (i.vectorCount !== chunks.length) {
+      //
+      // BUT THE INDEX HOLDS EVERY ORGANISATION, not just this one — vectors are
+      // upserted under ids namespaced `<organisation>::<chunk>`. So a surplus
+      // is the EXPECTED state as soon as a second dataset is ingested, and the
+      // old wording called that stale and advised deleting the index, which
+      // would have destroyed the other organisation's papers. Vectorize's info
+      // endpoint reports one total, so the count cannot be split per
+      // organisation from here; what it can still catch is a total that is
+      // LOWER than this ingest alone produced, which is unambiguous.
+      if (i.vectorCount < chunks.length) {
         console.warn(
           `
 WARNING: the index holds ${i.vectorCount} vectors but this ingest produced ` +
-            `${chunks.length}. The surplus is stale chunks from an earlier run and will ` +
-            `still be returned by searches. Delete and recreate the index.`,
+            `${chunks.length}. Fewer vectors than were just written means the index is ` +
+            `incomplete. Re-run this ingest.`,
+        )
+      } else if (i.vectorCount > chunks.length) {
+        console.log(
+          `note: the index holds ${i.vectorCount} vectors and this ingest produced ${chunks.length}. ` +
+            `The surplus belongs to other organisations, or to stale chunks from an earlier ` +
+            `run of THIS one — searches filter by organisation, so another organisation's ` +
+            `vectors are harmless. Only recreate the index if you mean to lose them all.`,
         )
       }
       break

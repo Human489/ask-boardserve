@@ -274,11 +274,6 @@ export function loadDataset(): Dataset {
   return cached
 }
 
-/** Test seam: drop the cache so a test can point DATASET_PATH somewhere else. */
-export function resetDatasetCache(): void {
-  cached = null
-}
-
 // ------------------------------------------------------------ shared helpers
 // Used by more than one analytics module, so they live with the loader.
 

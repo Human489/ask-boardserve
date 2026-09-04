@@ -89,7 +89,7 @@ const MONTHS = [
  * is treated as past, and a sentence naming no month is kept, because there is
  * nothing to judge it on.
  */
-export function namesAPastMonth(sentence: string, asAt: string): boolean {
+function namesAPastMonth(sentence: string, asAt: string): boolean {
   const asAtMonth = Number(asAt.slice(5, 7)) - 1
   if (!Number.isInteger(asAtMonth) || asAtMonth < 0) return false
 

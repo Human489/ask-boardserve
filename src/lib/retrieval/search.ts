@@ -108,7 +108,7 @@ function withBreadth<T extends { score: number; paperId: string }>(
 const CORPUS_WIDE =
   /\brecur|\bthemes?\b|\bin common\b|\bacross (the |all |recent )?(papers|documents|reports)\b|\boverall\b|\bpattern(s)?\b|\brunning through\b/
 
-export function isCorpusWide(question: string): boolean {
+function isCorpusWide(question: string): boolean {
   return CORPUS_WIDE.test(question.toLowerCase())
 }
 

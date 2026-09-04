@@ -49,8 +49,12 @@ const FAMILIES: { prefix: string; what: string; recoverable: boolean }[] = [
   { prefix: 'share:v1:', what: 'live share links (the token IS the credential)', recoverable: false },
   { prefix: 'shares:v1:', what: "the owner's index of share links", recoverable: false },
   { prefix: 'aicache:', what: 'cached routing, embeddings and judge results', recoverable: true },
-  { prefix: 'rl:', what: 'rate-limit buckets', recoverable: true },
-  { prefix: 'auth:', what: 'failed sign-in budgets', recoverable: true },
+  // `ratelimit:`, not `rl:`, and it covers the sign-in budget too: the key is
+  // `ratelimit:<bucket key>:<window>`, and the gate's budget passes
+  // `auth:<ip>` as that bucket key. Listed as `rl:` plus a separate `auth:`
+  // family, neither ever matched, and every rate-limit key was reported as an
+  // unrecognised prefix — which is exactly what the unrecognised bucket is for.
+  { prefix: 'ratelimit:', what: 'rate-limit and sign-in budgets', recoverable: true },
 ]
 
 interface KeyRow {

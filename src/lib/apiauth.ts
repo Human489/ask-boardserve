@@ -41,7 +41,7 @@ export function clientIp(req: Request): string {
  * to be first in the header. Browsers separate cookies with "; ", so that is
  * most of the time. Splitting has no escapes to lose.
  */
-export async function hasSessionCookie(req: Request): Promise<boolean> {
+async function hasSessionCookie(req: Request): Promise<boolean> {
   const header = req.headers.get('cookie')
   if (!header) return false
   for (const part of header.split(';')) {

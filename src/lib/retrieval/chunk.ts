@@ -79,7 +79,7 @@ function wordsWithSections(paper: BoardPaper): Word[] {
   return out
 }
 
-export function chunkPaper(paper: BoardPaper): Chunk[] {
+function chunkPaper(paper: BoardPaper): Chunk[] {
   const paperTitle = titleOf(paper)
   const stream = wordsWithSections(paper)
   const step = Math.max(1, WINDOW_WORDS - OVERLAP_WORDS)
