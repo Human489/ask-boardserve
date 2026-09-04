@@ -683,8 +683,9 @@ rediscovering why.
   `content-visibility` fix was written, could not be verified, and was reverted
   — and unexplained reverted code invites the next person to try it again. If
   it is ever wanted, it needs a browser pass, not more code.
-- **`recharts` is on a deprecated 2.x.** See below; the upgrade is a breaking
-  major over exactly the render props the flagged marker depends on.
+- ~~**`recharts` is on a deprecated 2.x.**~~ **Upgraded to 3.10.1.** The
+  predicted silent failure did happen, but in a different place than expected —
+  see "The recharts 3 upgrade" below.
 
 ### Recorded, not fixed
 
@@ -695,16 +696,64 @@ Found by audit, judged not worth fixing. None affects a user.
   production. Intended, not a defect: it is auth-checked, unlinked from the UI,
   and 404s so a deployment cannot confirm the endpoint exists.
 - `bearerCredential`'s regex accepts a broad token shape.
-- **`recharts` is on 2.15.4, which upstream has deprecated** — the 1.x and 2.x
-  branches get no further fixes. `npm ci` prints a deprecation notice; nothing
-  fails. Deliberately not upgraded: v3 is a breaking major, and the parts it
-  reworked are precisely the ones `BoardChart` leans on — the per-point `dot`
-  render prop that draws the flagged diamond, and the custom axis tick elements.
-  If a dot renderer stopped receiving `payload`, the flagged marker would simply
-  stop being drawn, with every unit test still passing, because nothing here
-  asserts on rendered SVG. Migrate on its own branch with a visual pass over one
-  bar chart and one line chart, both with a flagged point. Not as a way to
-  silence an install warning before a deploy.
+- **`recharts` was on 2.15.4 and is now on 3.10.1.** Kept here because the
+  REASONING was right even though the conclusion changed: the danger was never
+  that the upgrade would fail loudly, it was that a dot renderer could stop
+  receiving `payload`, the flagged marker would stop being drawn, and every
+  test would still pass because nothing here asserts on rendered SVG. That is
+  exactly what happened, one level up — see below.
+
+### The recharts 3 upgrade, and what it cost
+
+Done on its own branch with a live before-and-after, because the suite cannot
+see a chart that stops being drawn.
+
+**The charts themselves came through unchanged.** A fingerprint taken under
+2.15.4 and again under 3.10.1 matched exactly: 15 circles plus 3 rects rotated
+45 degrees filled `#8f1d1d`, one curve path, 24 tick labels, the hatch pattern
+on every flagged bar, both dashed reference lines with their labels, tick
+geometry identical to the pixel. The PNG export was checked at pixel level too,
+since `chartimage.ts` serialises that same SVG.
+
+**What broke was a whole view, in silence.** Workspace keeps all three views
+mounted and hides the inactive ones so the transcript survives a switch, so the
+dashboard's cards mount inside a `display: none` subtree on every page load.
+recharts 3 measures its container on mount, gets zero there, and never draws;
+2.x recovered when the view was shown. **Every pinned chart rendered blank and
+all 389 tests passed.** A chart mounted while VISIBLE is fine, including across
+later hides, so the fix is a latch on the `hidden` prop `PinnedDashboard`
+already receives.
+
+**Do not replace that latch with an observer.** An IntersectionObserver version
+was written first and could not be verified: neither IntersectionObserver nor
+ResizeObserver delivers a single callback in the browser pane available here,
+which is very likely why v3 fails in it at all. A fix whose mechanism cannot be
+exercised, for a bug that IS that class of API, only works on the machine that
+wrote it.
+
+**recharts 3 renders nothing server-side.** `renderToStaticMarkup` returns an
+empty wrapper div, which killed two assertions in `tests/chart-hatch.test.tsx`
+— and one of them asserted a pattern was ABSENT, which an empty string
+satisfies perfectly. The upgrade turned a real guard into a test that passed
+while measuring nothing. Charts are now rendered into a jsdom
+(`tests/jsdom-setup.ts`, imported FIRST because the globals must exist before
+recharts is evaluated).
+
+**One footgun is gone upstream:** v3 KEEPS a component-wrapped `defs`, which
+2.x dropped. That drop is what made the hatch ship invisible in the first
+place. The rule to keep those defs as raw elements stays as belt and braces.
+
+**Cost:** first-load JS on `/` went 224 kB to 237 kB.
+
+**Two false alarms, both indistinguishable from the real bug.** Everything
+appeared not to render — the pane had collapsed to zero width, `innerWidth: 0`,
+the same artefact that produced two phantom layout bugs here before. Then every
+dot and tick appeared to have vanished — that was v2-shaped selectors, since v3
+restructures the SVG into `recharts-zIndex-layer` groups. **Check `innerWidth`
+before believing a rendering bug in that pane.**
+
+**Still not asserted anywhere: rendered SVG.** The new dashboard test pins the
+latch, not recharts. A future upgrade needs the same live before-and-after.
 
 ## Deployment
 
