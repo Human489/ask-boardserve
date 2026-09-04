@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<title>Image export — four options</title>
+<style>
+  @font-face {
+    font-family: 'Instrument Serif';
+    src: url('../public/fonts/instrument-serif-400.woff2') format('woff2');
+    font-weight: 400; font-display: swap;
+  }
+  @font-face {
+    font-family: 'Geist Mono';
+    src: url('../public/fonts/geist-mono.woff2') format('woff2');
+    font-weight: 100 900; font-display: swap;
+  }
+  :root {
+    --plane: #faf8f6; --surface: #ffffff; --sunken: #f2f0ed;
+    --ink: #0f0905; --ink-2: #342c27; --muted: #6a615b;
+    --hairline: rgba(15,9,5,0.1); --grid: #e7e4e1; --axis: #8a827b;
+    --series-1: #256cc4; --highlight: #8f1d1d; --reference: #6a615b;
+    --accent: #006b58;
+    --serif: 'Instrument Serif', Georgia, serif;
+    --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'Geist Mono', ui-monospace, Menlo, monospace;
+  }
+  body { margin: 0; background: #e8e6e2; font-family: var(--sans); color: var(--ink); padding: 28px; }
+  h1 { font-family: var(--serif); font-weight: 400; font-size: 27px; margin: 0 0 4px; }
+  .lede { font-size: 14px; color: var(--ink-2); margin: 0 0 26px; max-width: 70ch; }
+  .opt { margin-bottom: 34px; }
+  .opt > header { margin-bottom: 8px; }
+  .opt h2 { font-family: var(--serif); font-weight: 400; font-size: 20px; margin: 0; }
+  .opt p { font-size: 13px; color: var(--ink-2); margin: 3px 0 0; max-width: 78ch; }
+  .opt .verdict { color: var(--muted); font-family: var(--mono); font-size: 10px;
+    letter-spacing: .1em; text-transform: uppercase; }
+  /* The exported PNG itself. A real export would be this, at 2x. */
+  .png { background: var(--surface); border: 1px solid var(--hairline);
+    box-shadow: 0 2px 8px rgba(23,20,18,.08); width: 760px; }
+  .pad { padding: 22px 26px; }
+  .finding { font-family: var(--serif); font-size: 21px; line-height: 1.3;
+    letter-spacing: -.011em; margin: 0 0 16px; max-width: 46ch; }
+  .label { font-family: var(--mono); font-size: 9.5px; font-weight: 500;
+    letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+  .notes { margin: 14px 0 0; padding-left: 16px; font-size: 11.5px; line-height: 1.5; color: var(--ink-2); }
+  .notes li { margin-bottom: 2px; }
+  .stamp { display: flex; justify-content: space-between; align-items: baseline;
+    gap: 16px; border-top: 1px solid var(--hairline); margin-top: 16px; padding-top: 10px;
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--muted); }
+  .qualifiers { font-size: 11px; color: var(--muted); margin: 12px 0 0;
+    font-family: var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+  .brandline { display: flex; align-items: center; gap: 7px; }
+  .brandline svg { height: 12px; width: auto; }
+  .wm { font-family: var(--serif); font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h1>Image export — four options</h1>
+<p class="lede">Same real answer in each: <em>attendance_below_threshold</em>, three flagged
+directors, as at 31&nbsp;August&nbsp;2026. The white panel is what the downloaded PNG would
+contain. Real tokens, real fonts, real figures.</p>
+
+<!-- ============================================= A -->
+<section class="opt">
+  <header>
+    <h2>A · Bare chart</h2>
+    <p>Just the plot. Smallest file, drops straight into a slide.
+      <span class="verdict">no as-at · no caveats</span></p>
+  </header>
+  <div class="png"><div class="pad">
+    <svg viewBox="0 0 708 190" width="708" height="190" role="img"
+         aria-label="Bar chart, attendance below 80 per cent, three flagged directors">
+      <defs>
+        <pattern id="hatchA" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+          <rect width="6" height="6" fill="#8f1d1d"/>
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#fff" stroke-width="2" opacity=".55"/>
+        </pattern>
+      </defs>
+      <g font-family="system-ui" font-size="11" fill="#6a615b">
+        <text x="0" y="30" text-anchor="start">Malcolm Whitbourne</text>
+        <text x="0" y="78" text-anchor="start">Terence Oduya</text>
+        <text x="0" y="126" text-anchor="start">Hilary Batchford</text>
+      </g>
+      <g transform="translate(132,0)">
+        <line x1="0" y1="0" x2="0" y2="150" stroke="#8a827b"/>
+        <rect x="1" y="14" width="403" height="20" fill="url(#hatchA)"/>
+        <rect x="1" y="62" width="403" height="20" fill="url(#hatchA)"/>
+        <rect x="1" y="110" width="452" height="20" fill="url(#hatchA)"/>
+        <line x1="460" y1="0" x2="460" y2="150" stroke="#6a615b" stroke-dasharray="3 3"/>
+        <text x="460" y="-2" font-family="system-ui" font-size="10" fill="#6a615b">80% threshold</text>
+        <g font-family="system-ui" font-size="10" fill="#6a615b">
+          <text x="0" y="166" text-anchor="middle">0%</text>
+          <text x="143" y="166" text-anchor="middle">25%</text>
+          <text x="287" y="166" text-anchor="middle">50%</text>
+          <text x="431" y="166" text-anchor="middle">75%</text>
+        </g>
+        <line x1="0" y1="150" x2="500" y2="150" stroke="#8a827b"/>
+      </g>
+    </svg>
+  </div></div>
+</section>
+
+<!-- ============================================= B -->
+<section class="opt">
+  <header>
+    <h2>B · Chart with an as-at stamp</h2>
+    <p>The chart plus the one fact every figure here depends on: the date it was measured from.
+      <span class="verdict">as-at · no caveats</span></p>
+  </header>
+  <div class="png"><div class="pad">
+    <p class="label">Attendance below 80%</p>
+    <svg viewBox="0 0 708 190" width="708" height="190" role="img" aria-label="Bar chart">
+      <defs>
+        <pattern id="hatchB" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+          <rect width="6" height="6" fill="#8f1d1d"/>
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#fff" stroke-width="2" opacity=".55"/>
+        </pattern>
+      </defs>
+      <g font-family="system-ui" font-size="11" fill="#6a615b">
+        <text x="0" y="30">Malcolm Whitbourne</text><text x="0" y="78">Terence Oduya</text>
+        <text x="0" y="126">Hilary Batchford</text>
+      </g>
+      <g transform="translate(132,0)">
+        <line x1="0" y1="0" x2="0" y2="150" stroke="#8a827b"/>
+        <rect x="1" y="14" width="403" height="20" fill="url(#hatchB)"/>
+        <rect x="1" y="62" width="403" height="20" fill="url(#hatchB)"/>
+        <rect x="1" y="110" width="452" height="20" fill="url(#hatchB)"/>
+        <line x1="460" y1="0" x2="460" y2="150" stroke="#6a615b" stroke-dasharray="3 3"/>
+        <text x="460" y="-2" font-family="system-ui" font-size="10" fill="#6a615b">80% threshold</text>
+        <line x1="0" y1="150" x2="500" y2="150" stroke="#8a827b"/>
+      </g>
+    </svg>
+    <div class="stamp">
+      <span>As at 2026-08-31 · attendance.json · 117 rows</span>
+      <span class="brandline">
+        <svg viewBox="0 0 375 472" aria-hidden="true"><path d="M100 40 L275 40 L275 120 L180 120 L180 200 L275 200 L275 432 L100 432 L100 352 L195 352 L195 272 L100 272 Z" fill="#006b58"/></svg>
+        <span class="wm">Ask BoardServe</span>
+      </span>
+    </div>
+  </div></div>
+</section>
+
+<!-- ============================================= C -->
+<section class="opt">
+  <header>
+    <h2>C · Finding, chart, as-at, and how many qualifications exist</h2>
+    <p>Adds the sentence the product computed, and says <em>that</em> qualifications exist without
+      printing them all. A reader who pastes this into a pack carries the claim and knows there is
+      more behind it. <span class="verdict">my recommendation</span></p>
+  </header>
+  <div class="png"><div class="pad">
+    <p class="finding">3 directors are below 80% — Malcolm Whitbourne 70%, Terence Oduya 70% and
+      Hilary Batchford 78.6%, and Terence Oduya's is concentrated at Board level — 50% there
+      against 100% at Finance and Audit Committee.</p>
+    <svg viewBox="0 0 708 190" width="708" height="190" role="img" aria-label="Bar chart">
+      <defs>
+        <pattern id="hatchC" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+          <rect width="6" height="6" fill="#8f1d1d"/>
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#fff" stroke-width="2" opacity=".55"/>
+        </pattern>
+      </defs>
+      <g font-family="system-ui" font-size="11" fill="#6a615b">
+        <text x="0" y="30">Malcolm Whitbourne</text><text x="0" y="78">Terence Oduya</text>
+        <text x="0" y="126">Hilary Batchford</text>
+      </g>
+      <g transform="translate(132,0)">
+        <line x1="0" y1="0" x2="0" y2="150" stroke="#8a827b"/>
+        <rect x="1" y="14" width="403" height="20" fill="url(#hatchC)"/>
+        <rect x="1" y="62" width="403" height="20" fill="url(#hatchC)"/>
+        <rect x="1" y="110" width="452" height="20" fill="url(#hatchC)"/>
+        <line x1="460" y1="0" x2="460" y2="150" stroke="#6a615b" stroke-dasharray="3 3"/>
+        <text x="460" y="-2" font-family="system-ui" font-size="10" fill="#6a615b">80% threshold</text>
+        <line x1="0" y1="150" x2="500" y2="150" stroke="#8a827b"/>
+      </g>
+    </svg>
+    <p class="qualifiers">Hatched = flagged · 2 assumptions and 1 thing worth knowing behind this figure</p>
+    <div class="stamp">
+      <span>As at 2026-08-31 · attendance.json · 117 rows</span>
+      <span class="brandline">
+        <svg viewBox="0 0 375 472" aria-hidden="true"><path d="M100 40 L275 40 L275 120 L180 120 L180 200 L275 200 L275 432 L100 432 L100 352 L195 352 L195 272 L100 272 Z" fill="#006b58"/></svg>
+        <span class="wm">Ask BoardServe</span>
+      </span>
+    </div>
+  </div></div>
+</section>
+
+<!-- ============================================= D -->
+<section class="opt">
+  <header>
+    <h2>D · Everything, printed</h2>
+    <p>The full answer as an image: finding, chart, every assumption and caveat spelled out, and
+      the derivation. Nothing can be repeated without its qualification.
+      <span class="verdict">tallest · reads as a document, not a chart</span></p>
+  </header>
+  <div class="png"><div class="pad">
+    <p class="finding">3 directors are below 80% — Malcolm Whitbourne 70%, Terence Oduya 70% and
+      Hilary Batchford 78.6%, and Terence Oduya's is concentrated at Board level — 50% there
+      against 100% at Finance and Audit Committee.</p>
+    <svg viewBox="0 0 708 190" width="708" height="190" role="img" aria-label="Bar chart">
+      <defs>
+        <pattern id="hatchD" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+          <rect width="6" height="6" fill="#8f1d1d"/>
+          <line x1="0" y1="0" x2="0" y2="6" stroke="#fff" stroke-width="2" opacity=".55"/>
+        </pattern>
+      </defs>
+      <g font-family="system-ui" font-size="11" fill="#6a615b">
+        <text x="0" y="30">Malcolm Whitbourne</text><text x="0" y="78">Terence Oduya</text>
+        <text x="0" y="126">Hilary Batchford</text>
+      </g>
+      <g transform="translate(132,0)">
+        <line x1="0" y1="0" x2="0" y2="150" stroke="#8a827b"/>
+        <rect x="1" y="14" width="403" height="20" fill="url(#hatchD)"/>
+        <rect x="1" y="62" width="403" height="20" fill="url(#hatchD)"/>
+        <rect x="1" y="110" width="452" height="20" fill="url(#hatchD)"/>
+        <line x1="460" y1="0" x2="460" y2="150" stroke="#6a615b" stroke-dasharray="3 3"/>
+        <text x="460" y="-2" font-family="system-ui" font-size="10" fill="#6a615b">80% threshold</text>
+        <line x1="0" y1="150" x2="500" y2="150" stroke="#8a827b"/>
+      </g>
+    </svg>
+    <p class="label" style="margin-top:16px">Assumed</p>
+    <ul class="notes" style="margin-top:0">
+      <li>No attendance threshold is stated anywhere in the dataset; 80% was used.</li>
+      <li>Apologies count as non-attendance: only a status of "present" counts towards the rate.</li>
+    </ul>
+    <p class="label" style="margin-top:12px">Worth knowing</p>
+    <ul class="notes" style="margin-top:0">
+      <li>Committee membership is inferred from eligibility rows, not from a membership roster field.</li>
+    </ul>
+    <div class="stamp">
+      <span>As at 2026-08-31 · attendance.json · 117 rows considered</span>
+      <span class="brandline">
+        <svg viewBox="0 0 375 472" aria-hidden="true"><path d="M100 40 L275 40 L275 120 L180 120 L180 200 L275 200 L275 432 L100 432 L100 352 L195 352 L195 272 L100 272 Z" fill="#006b58"/></svg>
+        <span class="wm">Ask BoardServe</span>
+      </span>
+    </div>
+  </div></div>
+</section>
+
+</body>
+</html>

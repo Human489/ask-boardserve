@@ -1,0 +1,374 @@
+<title>Ask BoardServe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground:      #F4F6F4;
+    --panel:       #FFFFFF;
+    --ink:         #14201C;
+    --ink-soft:    #4A5A54;
+    --ink-faint:   #7C8B85;
+    --rule:        #D6DDD9;
+    --rule-soft:   #E6EBE8;
+    --ledger:      #1F4A3D;
+    --ledger-soft: #E4EDE9;
+    --signal:      #9A5B12;
+    --signal-soft: #F5EADC;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #101613;
+      --panel:       #161E1A;
+      --ink:         #E7EDE9;
+      --ink-soft:    #A9B7B1;
+      --ink-faint:   #76857F;
+      --rule:        #2A3630;
+      --rule-soft:   #212B26;
+      --ledger:      #7FC4AB;
+      --ledger-soft: #1B2A24;
+      --signal:      #D9A25E;
+      --signal-soft: #2A2118;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #101613;
+    --panel:       #161E1A;
+    --ink:         #E7EDE9;
+    --ink-soft:    #A9B7B1;
+    --ink-faint:   #76857F;
+    --rule:        #2A3630;
+    --rule-soft:   #212B26;
+    --ledger:      #7FC4AB;
+    --ledger-soft: #1B2A24;
+    --signal:      #D9A25E;
+    --signal-soft: #2A2118;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 6rem;
+  }
+
+  /* --- the margin-rail layout: mono label hangs left of the block, like a minute-book annotation --- */
+  .block {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem 2.5rem;
+    padding: 2.75rem 0;
+    border-top: 1px solid var(--rule);
+  }
+  @media (min-width: 860px) {
+    .block { grid-template-columns: 148px minmax(0, 1fr); }
+  }
+
+  .rail {
+    font-family: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding-top: 0.55rem;
+    line-height: 1.5;
+  }
+
+  .body { max-width: 66ch; }
+  .body > * + * { margin-top: 1rem; }
+
+  h1, h2, h3 {
+    font-family: Newsreader, "Iowan Old Style", Georgia, serif;
+    font-weight: 500;
+    text-wrap: balance;
+    margin: 0;
+    line-height: 1.18;
+  }
+  h1 { font-size: clamp(2.6rem, 6vw, 3.9rem); letter-spacing: -0.015em; }
+  h2 { font-size: clamp(1.6rem, 3.2vw, 2.05rem); letter-spacing: -0.01em; }
+  h3 { font-size: 1.14rem; font-weight: 600; }
+
+  p { margin: 0; }
+  strong { font-weight: 600; }
+  em { font-style: italic; }
+
+  /* --- masthead --- */
+  header.masthead { padding-bottom: 2.5rem; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ledger);
+    margin-bottom: 1.4rem;
+  }
+  .standfirst {
+    font-family: Newsreader, Georgia, serif;
+    font-size: clamp(1.2rem, 2.4vw, 1.42rem);
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: 34ch;
+    margin-top: 1.5rem;
+  }
+  .rule-heavy { height: 3px; background: var(--ledger); width: 72px; margin-top: 2.2rem; }
+
+  /* --- screens: a real sequence, so it is numbered --- */
+  ol.screens { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--rule-soft); border: 1px solid var(--rule-soft); }
+  ol.screens > li {
+    background: var(--panel);
+    padding: 1.5rem 1.6rem;
+    display: grid;
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    gap: 0 1rem;
+    align-items: start;
+  }
+  .num {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--ledger);
+    padding-top: 0.28rem;
+    font-variant-numeric: tabular-nums;
+  }
+  ol.screens p { margin-top: 0.45rem; color: var(--ink-soft); font-size: 0.97rem; }
+
+  /* --- journey: dialogue transcript --- */
+  .journey { display: grid; gap: 0.1rem; }
+  .turn { display: grid; grid-template-columns: 4.6rem minmax(0, 1fr); gap: 0 1rem; padding: 0.85rem 0; border-bottom: 1px dotted var(--rule); align-items: baseline; }
+  .turn:last-child { border-bottom: 0; }
+  .who {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .who.her { color: var(--ledger); }
+  .said { font-family: Newsreader, Georgia, serif; font-size: 1.1rem; }
+  .turn.system .said { font-family: "Public Sans", sans-serif; font-size: 0.97rem; color: var(--ink-soft); }
+
+  /* --- pipeline steps --- */
+  ol.pipeline { list-style: none; margin: 0; padding: 0; counter-reset: step; display: grid; gap: 0; }
+  ol.pipeline > li {
+    counter-increment: step;
+    position: relative;
+    padding: 0.85rem 0 0.85rem 2.9rem;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+  ol.pipeline > li:last-child { border-bottom: 0; }
+  ol.pipeline > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.95rem;
+    width: 1.7rem; height: 1.7rem;
+    display: grid; place-items: center;
+    border: 1px solid var(--rule);
+    border-radius: 50%;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.72rem;
+    color: var(--ledger);
+    background: var(--panel);
+  }
+  ol.pipeline b { font-weight: 600; }
+  ol.pipeline span { color: var(--ink-soft); }
+
+  .aside {
+    border-left: 3px solid var(--ledger);
+    background: var(--ledger-soft);
+    padding: 1.1rem 1.3rem;
+    font-size: 0.97rem;
+  }
+  .aside.warn { border-left-color: var(--signal); background: var(--signal-soft); }
+
+  /* --- three days --- */
+  .days { display: grid; gap: 1px; background: var(--rule-soft); border: 1px solid var(--rule-soft); }
+  @media (min-width: 760px) { .days { grid-template-columns: repeat(3, 1fr); } }
+  .day { background: var(--panel); padding: 1.5rem 1.4rem; }
+  .day-tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--ledger); margin-bottom: 0.85rem;
+  }
+  .day h3 { margin-bottom: 0.7rem; }
+  .day ul { margin: 0; padding-left: 1.05rem; color: var(--ink-soft); font-size: 0.95rem; }
+  .day li + li { margin-top: 0.4rem; }
+  .day .state { margin-top: 1rem; padding-top: 0.9rem; border-top: 1px solid var(--rule-soft); font-size: 0.92rem; color: var(--ink); }
+
+  /* --- not building --- */
+  ul.cut { list-style: none; margin: 0; padding: 0; }
+  ul.cut li { padding: 0.7rem 0; border-bottom: 1px solid var(--rule-soft); display: grid; grid-template-columns: 1.6rem minmax(0, 1fr); gap: 0.8rem; align-items: baseline; }
+  ul.cut li:last-child { border-bottom: 0; }
+  ul.cut .mark { font-family: "IBM Plex Mono", monospace; color: var(--signal); font-size: 0.9rem; }
+  ul.cut .why { display: block; color: var(--ink-soft); font-size: 0.93rem; margin-top: 0.1rem; }
+
+  footer {
+    border-top: 3px solid var(--ledger);
+    margin-top: 3rem;
+    padding-top: 1.4rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 0.74rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    display: flex; flex-wrap: wrap; gap: 0.6rem 1.5rem; justify-content: space-between;
+  }
+</style>
+
+<div class="sheet">
+
+  <header class="masthead">
+    <div class="eyebrow">One page · Three days</div>
+    <h1>Ask BoardServe</h1>
+    <p class="standfirst">A chat box that answers questions about a board's own data with a chart and one honest sentence.</p>
+    <div class="rule-heavy"></div>
+  </header>
+
+  <section class="block">
+    <div class="rail">What it is</div>
+    <div class="body">
+      <p>Ask BoardServe lets a company secretary type a plain-English question about their board &mdash; attendance, outstanding actions, skills, what the papers said &mdash; and get back a chart with a single sentence explaining the notable thing in it.</p>
+      <p>It is for the person who prepares the board pack: someone who already has a fixed analytics dashboard and keeps having to answer the questions it does not cover.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail">The screens<br>in order</div>
+    <div class="body" style="max-width: none;">
+      <ol class="screens">
+        <li>
+          <span class="num">01</span>
+          <div>
+            <h3>Passcode</h3>
+            <p>One field and a button. Real board data sits behind it, so nothing loads until the code is right. Wrong code says so in plain words.</p>
+          </div>
+        </li>
+        <li>
+          <span class="num">02</span>
+          <div>
+            <h3>The chat</h3>
+            <p>The whole product. An empty page with a question box at the bottom and four or five example questions above it, so nobody has to guess what it can do. Answers stack up the page: chart, then one sentence, then a small note of where the number came from. Every answer carries a <em>Pin</em> button.</p>
+          </div>
+        </li>
+        <li>
+          <span class="num">03</span>
+          <div>
+            <h3>The pinned board</h3>
+            <p>Everything pinned, in a grid, in the order it was pinned. Each tile keeps its chart, its sentence and the question that produced it. You can remove a tile. That is all it does.</p>
+          </div>
+        </li>
+      </ol>
+      <p style="margin-top:1.5rem; color: var(--ink-soft); font-size: 0.97rem;">Three screens. There is no settings page, no history, no login, no account.</p>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail">One journey</div>
+    <div class="body">
+      <p style="color: var(--ink-soft); font-size:0.97rem;">A company secretary is drafting the governance section of the annual report. She has forty minutes.</p>
+      <div class="journey">
+        <div class="turn system"><span class="who">Arrives</span><span class="said">Types the passcode. Lands on an empty chat.</span></div>
+        <div class="turn"><span class="who her">She asks</span><span class="said">&ldquo;What actions are overdue, and who owns them?&rdquo;</span></div>
+        <div class="turn system"><span class="who">Gets back</span><span class="said">A bar chart of overdue actions by owner, and one sentence: <em>Nine actions are overdue when you work it out from the due dates, though only seven are recorded as overdue in the log; the Chair holds four of them.</em></span></div>
+        <div class="turn"><span class="who her">She notices</span><span class="said">the gap between nine and seven, and pins the chart.</span></div>
+        <div class="turn"><span class="who her">She asks</span><span class="said">&ldquo;Which of those have been sitting longest?&rdquo;</span></div>
+        <div class="turn system"><span class="who">Gets back</span><span class="said">The same nine, re-sorted by days past due, as a horizontal bar chart. She did not have to repeat the word &ldquo;overdue&rdquo; &mdash; it remembered.</span></div>
+        <div class="turn"><span class="who her">She asks</span><span class="said">&ldquo;How many of our directors are qualified accountants?&rdquo;</span></div>
+        <div class="turn system"><span class="who">Gets back</span><span class="said">A refusal, and the reason: the skills audit records how confident directors feel, not what qualifications they hold. No chart, no guess.</span></div>
+        <div class="turn"><span class="who her">She leaves</span><span class="said">with two pinned charts and a paragraph she can defend in a board meeting.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail">What happens<br>when she asks</div>
+    <div class="body">
+      <ol class="pipeline">
+        <li><b>The question goes to the model with a list of tools.</b> <span>Attendance, actions, skills, search the papers, and refuse. The model's only job here is to pick one and fill in its settings.</span></li>
+        <li><b>The chosen tool runs over the real files.</b> <span>Ordinary code. It reads the attendance records, the action log, the skills sheet. It does the arithmetic and returns numbers, plus a note of which rules it applied.</span></li>
+        <li><b>The numbers come back as a chart.</b> <span>The tool says which shape fits &mdash; bar for a ranking, line over time &mdash; and the screen draws it.</span></li>
+        <li><b>The model writes one sentence about those numbers.</b> <span>It is shown the result and asked for the notable finding. It is never shown the raw data, so it has nothing to do arithmetic on.</span></li>
+        <li><b>The question and answer are kept for the next turn</b> <span>so a follow-up can say &ldquo;those&rdquo; and mean something.</span></li>
+      </ol>
+      <div class="aside" style="margin-top:1.6rem;">
+        <strong>The one rule everything else follows:</strong> tools compute, the model narrates. No number on the screen is ever produced by the language model. If it cannot be traced to a tool that ran, it does not get shown.
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail">Three days</div>
+    <div class="body" style="max-width: none;">
+      <div class="days">
+        <div class="day">
+          <div class="day-tag">Day one</div>
+          <h3>Numbers you can trust</h3>
+          <ul>
+            <li>Prove the model picks the right tool, in a script, before any screen exists</li>
+            <li>Write the tools and check every figure against the totals in the data</li>
+            <li>Bare chat page, charts drawing on screen</li>
+          </ul>
+          <div class="state">By the end of it: an ugly page that answers eight real questions with correct charts.</div>
+        </div>
+        <div class="day">
+          <div class="day-tag">Day two</div>
+          <h3>Judgement</h3>
+          <ul>
+            <li>Board papers searchable, so document questions get answered from the text</li>
+            <li>Refusals working, and tested against questions designed to trip it</li>
+            <li>Follow-up questions keep their context</li>
+            <li>Pinning, and the pinned board</li>
+          </ul>
+          <div class="state">By the end of it: it knows what it cannot answer, and says so. This is the day the product becomes defensible.</div>
+        </div>
+        <div class="day">
+          <div class="day-tag">Day three</div>
+          <h3>Fit to show</h3>
+          <ul>
+            <li>A test file of fixed questions and expected answers, run in one command</li>
+            <li>Passcode, deployment, loading states, sensible errors</li>
+            <li>The design pass</li>
+            <li>The second organisation's data loaded, to prove nothing was hard-coded</li>
+          </ul>
+          <div class="state">By the end of it: a live link, a passcode, and evidence it is right rather than a claim that it is.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="rail">Not building</div>
+    <div class="body">
+      <ul class="cut">
+        <li><span class="mark">&times;</span><span><strong>Accounts, roles or user management.</strong><span class="why">One shared passcode. There is one user in this story and she is in the room.</span></span></li>
+        <li><span class="mark">&times;</span><span><strong>Shareable public dashboard links.</strong><span class="why">A URL that exposes board data with no passcode is a governance problem, not a feature. Cut, not deferred.</span></span></li>
+        <li><span class="mark">&times;</span><span><strong>Image export of charts.</strong><span class="why">Screenshots exist. Nobody is blocked without this.</span></span></li>
+        <li><span class="mark">&times;</span><span><strong>A vector database for three documents.</strong><span class="why">Three short papers fit in a single prompt. Building search infrastructure for them is building for a scale that does not exist.</span></span></li>
+        <li><span class="mark">&times;</span><span><strong>Caching and response storage.</strong><span class="why">Nothing is slow enough or expensive enough yet to be worth the bugs.</span></span></li>
+        <li><span class="mark">&times;</span><span><strong>Editing, renaming or rearranging pinned tiles.</strong><span class="why">Pin and unpin. Anything more is a document editor.</span></span></li>
+        <li><span class="mark">&times;</span><span><strong>Guessing.</strong><span class="why">Where the data does not answer the question, the answer is that it does not answer the question.</span></span></li>
+      </ul>
+      <div class="aside warn" style="margin-top:1.6rem;">
+        <strong>Where this could still go wrong.</strong> The whole product rests on the model choosing the right tool and refusing cleanly. That is worth proving in an hour with a script, before a single screen is built &mdash; because if it does not hold, everything built on top of it has to be rebuilt.
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Ask BoardServe &mdash; companion to the fixed dashboard, not a replacement</span>
+    <span>Data as at 31 August 2026</span>
+  </footer>
+
+</div>

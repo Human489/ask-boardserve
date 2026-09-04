@@ -535,6 +535,20 @@ bucket.
 costs ~330ms, so the write is not awaited. Two simultaneous requests can both see
 the older count. Approximate and shared beats exact and per-instance.
 
+**The gate is a bot fence, not an access control, and that is the intent.**
+The passcode exists so that a link handed round in a demo cannot be used by a
+stranger to burn Workers AI credits — not to establish who anybody is. Judged
+correct for this project and recorded so it is defended rather than discovered:
+a demo whose data is a fictional dataset does not need per-user identity, and
+building one would have cost an Excellence item. What follows is therefore a
+list of what the gate deliberately does NOT do, not a list of defects. Every
+line of it changes the moment real board data goes behind it.
+
+**Sessions do not expire on their own**, beyond the cookie's own week. There is
+no idle timeout and no server-side session store to revoke one from. Consistent
+with the above: an expiry protects a shared machine from the next person to sit
+at it, which is a real risk for a governance tool and not one a demo carries.
+
 **Revocation is all-or-nothing, and `SESSION_SECRET` is not optional to know
 about.** One shared passcode means revoking anyone revokes everyone. Rotating
 `APP_PASSCODE` invalidates live session cookies, and so does rotating
@@ -641,9 +655,15 @@ rediscovering why.
   them as data) but not solvable, and mitigation must not be described as a fix.
   The blast radius is bounded by the rule that no figure comes from a model, and
   by `verify.ts` — an injected instruction cannot invent a number that passes.
-- **Model refusal reasons are shown verbatim.** The one path where
-  model-authored prose reaches the screen. Mapping them to deterministic wording
-  needs the real refusals in front of you first, or the wording gets worse.
+- **Model refusal reasons are shown verbatim**, and the guard cannot see them.
+  `tests/sources.test.ts` enforces "say what no TOOL computes, not what the DATA
+  lacks" by grepping the strings in our source. A model-authored reason is not
+  in the source, so a refusal can tell the reader "there is no attendance data
+  for that" while the dataset holds every figure and only the particular cut is
+  uncomputed — asking for a median is exactly that case. Not observed in the
+  wild, and it is one sentence rather than a wrong number. Mapping them to
+  deterministic wording needs the real refusals collected first, or the
+  replacement wording is guesswork.
 - **The hard-coding scan cannot cover paper section headings.** They read
   "Income", "Risks", "Recommendation" — generic governance English that
   `src/lib` legitimately contains (`verify.ts` matches "income" to spot a money
@@ -655,9 +675,14 @@ rediscovering why.
   `{ threshold: 80 }` key differently when 80 is the default, so one chart can
   be pinned twice. Fixing it means reading defaults out of the tool
   definitions. The `undefined`/`null` half is fixed and tested.
-- **Scroll position is lost on view switch.** A `content-visibility` fix was
-  written, could not be verified, and was reverted — recorded in `globals.css`.
-  Needs a browser pass, not more code.
+- **Scroll position is lost on view switch — and this is NOT a defect.**
+  Switching Chat → Data → Chat lands at the top rather than where you were. It
+  was listed as an outstanding bug and it is a preference: nothing is wrong, no
+  state is lost, and the reader's place in a transcript they are about to add
+  to is not obviously worth preserving. It is recorded here only because a
+  `content-visibility` fix was written, could not be verified, and was reverted
+  — and unexplained reverted code invites the next person to try it again. If
+  it is ever wanted, it needs a browser pass, not more code.
 - **`recharts` is on a deprecated 2.x.** See below; the upgrade is a breaking
   major over exactly the render props the flagged marker depends on.
 
