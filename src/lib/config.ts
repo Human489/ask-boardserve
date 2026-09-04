@@ -37,6 +37,8 @@ export interface AppConfig {
   isProduction: boolean
   /** False means the router silently uses its deterministic fallback. */
   hasModelCredentials: boolean
+  /** When true, routing never falls back to the offline classifier and fails if model routing is unavailable. */
+  requireModel: boolean
 }
 
 function build(): AppConfig {
@@ -57,6 +59,7 @@ function build(): AppConfig {
     appPasscode: str('APP_PASSCODE'),
     isProduction: str('NODE_ENV') === 'production',
     hasModelCredentials: cloudflareAccountId !== '' && cloudflareApiToken !== '',
+    requireModel: str('REQUIRE_MODEL') === 'true',
   }
 }
 

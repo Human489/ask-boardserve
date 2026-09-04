@@ -105,6 +105,13 @@ export async function POST(req: Request) {
     )
   }
 
+  if (route.kind === 'error') {
+    return fail(503, route.error, {
+      routedBy: route.routedBy,
+      fallbackReason: route.fallbackReason,
+    })
+  }
+
   if (route.kind === 'refusal') {
     const result: AnswerResult = {
       tool: 'refusal',
@@ -117,6 +124,7 @@ export async function POST(req: Request) {
       result,
       question: asked,
       routedBy: route.routedBy,
+      fallbackReason: route.fallbackReason,
       datasetId: resolved.id,
     })
   }
@@ -149,6 +157,7 @@ export async function POST(req: Request) {
     result,
     question: asked,
     routedBy: route.routedBy,
+    fallbackReason: route.fallbackReason,
     routedTo: { tool: tool.name, args: route.args },
     datasetId: resolved.id,
   })

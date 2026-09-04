@@ -195,6 +195,13 @@ export type AnswerResult = ToolResult | RefusalResult
  */
 export type RoutedBy = 'model' | 'fallback' | 'guard'
 
+export type FallbackReason =
+  | 'no_credentials'
+  | 'timeout'
+  | 'rate_limit'
+  | 'service_error'
+  | 'auth_error'
+
 export function isRefusal(r: AnswerResult): r is RefusalResult {
   return r.tool === 'refusal'
 }

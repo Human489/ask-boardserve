@@ -8,7 +8,7 @@ import type { ConversationsState } from './useConversations'
 import type { StoredTurn } from '@/lib/conversations'
 import { pinKey, type PinsState } from './usePins'
 import { isRefusal } from '@/lib/types'
-import type { AnswerResult, RoutedBy } from '@/lib/types'
+import type { AnswerResult, FallbackReason, RoutedBy } from '@/lib/types'
 
 const EXAMPLES = [
   'Who is below our attendance threshold, and on which committee?',
@@ -24,6 +24,7 @@ interface AskSuccess {
   result: AnswerResult
   question: string
   routedBy: RoutedBy
+  fallbackReason?: FallbackReason
   /** Absent for a refusal: there is no tool behind it to re-run. */
   routedTo?: { tool: string; args: Record<string, unknown> }
 }
@@ -436,6 +437,7 @@ export default function Chat({
                   status: 'answered',
                   result: success.result,
                   routedBy: success.routedBy,
+                  fallbackReason: success.fallbackReason,
                   routedTo: success.routedTo,
                   error: undefined,
                 }

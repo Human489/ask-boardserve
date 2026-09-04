@@ -2,7 +2,7 @@ import { getConfig } from '@/lib/config'
 import { recordCall, recordFailure, usageFromResponse } from '@/lib/usage'
 import { MEETING_MINUTES, checkClockAnchored, checkPapersScope } from '@/lib/retrieval/scope'
 import { cached, CACHE_TTL_SECONDS } from '@/lib/aicache'
-import type { Dataset, RoutedBy, ToolDefinition } from '@/lib/types'
+import type { Dataset, FallbackReason, RoutedBy, ToolDefinition } from '@/lib/types'
 
 // Routing only. This file never computes a figure and never writes a headline:
 // it decides which tool runs, with which arguments, or that nothing can answer.
@@ -17,6 +17,7 @@ export interface ToolRoute {
   name: string
   args: Record<string, unknown>
   routedBy: 'model' | 'fallback'
+  fallbackReason?: FallbackReason
 }
 
 export interface RefusalRoute {
@@ -33,20 +34,23 @@ export interface RefusalRoute {
    * or the classifier claimed a decision neither made.
    */
   routedBy: RoutedBy
+  fallbackReason?: FallbackReason
 }
 
-export type Route = ToolRoute | RefusalRoute
+export interface ErrorRoute {
+  kind: 'error'
+  error: string
+  fallbackReason?: FallbackReason
+  routedBy: 'model'
+}
+
+export type Route = ToolRoute | RefusalRoute | ErrorRoute
 
 export interface HistoryTurn {
   role: 'user' | 'assistant'
   content: string
 }
 
-// Tuned for the model the brief names, which reasons before it answers and is
-// therefore slower than the instruct model this was first set for. At 8s a
-// routing call occasionally timed out and dropped the question to the offline
-// classifier — a correct answer by a worse route, for no reason but impatience.
-// The question path already shows a skeleton while it waits.
 /**
  * A follow-up fragment: a continuation marker, then very little.
  *
@@ -71,7 +75,12 @@ const FRAGMENT_OPENER = /^(and|what about|how about|just|only|same for|what if)\
 const NAMES_A_SUBJECT =
   /\b(attendance|attend|meeting|committee|board|director|trustee|action|overdue|defer|skill|gap|coverage|tenure|paper|minute|apolog|owner|threshold|risk)/i
 
-const TIMEOUT_MS = 20_000
+// Tuned for the model the brief names, which reasons before it answers and is
+// therefore slower than the instruct model this was first set for. Measured
+// latency over 20 live calls showed that a complex question with ~980 reasoning
+// tokens took 18.4s. 25s provides sufficient headroom without making live demos
+// wait unnecessarily long on hung calls.
+const TIMEOUT_MS = 25_000
 
 // ------------------------------------------------------------------ prompt
 
@@ -643,6 +652,9 @@ export function fallbackRoute(question: string, tools: ToolDefinition[]): Route 
 
 // ------------------------------------------------------------------ model
 
+let hasLoggedAuthError = false
+let lastModelFallbackReason: FallbackReason = 'service_error'
+
 async function modelRoute(
   question: string,
   tools: ToolDefinition[],
@@ -657,117 +669,175 @@ async function modelRoute(
   // for.
   const url = `https://api.cloudflare.com/client/v4/accounts/${cfg.cloudflareAccountId}/ai/run/${cfg.model}`
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  // Retries: a 429 should back off; a timeout or 5xx may retry once before falling back.
+  // A 401/403 is a misconfiguration and should be surfaced once and clearly, not per question.
+  lastModelFallbackReason = 'service_error'
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Authorization: `Bearer ${cfg.cloudflareApiToken}`,
-        'Content-Type': 'application/json',
-        'cf-aig-gateway-id': cfg.aiGatewayId,
-      },
-      body: JSON.stringify({
-        temperature: 0,
-        // The model named in the brief is a reasoning model: it emits reasoning
-        // tokens before the tool call. With no budget set, the endpoint default
-        // applied and reasoning sometimes consumed it before a tool call was
-        // ever produced — a 200 response carrying prose and no tool, which
-        // looked exactly like "the model declined to route" and dropped the
-        // question to the offline classifier. Measured: 10/12 spec questions
-        // routed by model without this, 12/12 with it. Generous rather than
-        // tight, because only generated tokens are billed and the tool call
-        // itself is under a hundred.
-        max_tokens: 1024,
-        messages: [
-          { role: 'system', content: systemPrompt(tools) },
-          // History gives pronouns something to resolve against ("and by committee?").
-          ...history.slice(-6).map((h) => ({ role: h.role, content: h.content })),
-          { role: 'user', content: question },
-        ],
-        tools: toOpenAiTools(tools),
-      }),
-    })
-    if (!res.ok) {
-      // Log loudly. Falling back silently means a broken gateway looks exactly
-      // like no credentials at all, and the only visible symptom is that every
-      // answer says it was routed by the offline classifier.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${cfg.cloudflareApiToken}`,
+          'Content-Type': 'application/json',
+          'cf-aig-gateway-id': cfg.aiGatewayId,
+        },
+        body: JSON.stringify({
+          temperature: 0,
+          // The model named in the brief is a reasoning model: it emits reasoning
+          // tokens before the tool call. With no budget set, the endpoint default
+          // applied and reasoning sometimes consumed it before a tool call was
+          // ever produced — a 200 response carrying prose and no tool, which
+          // looked exactly like "the model declined to route" and dropped the
+          // question to the offline classifier. Measured: 10/12 spec questions
+          // routed by model without this, 12/12 with it. Generous rather than
+          // tight, because only generated tokens are billed and the tool call
+          // itself is under a hundred.
+          max_tokens: 1024,
+          messages: [
+            { role: 'system', content: systemPrompt(tools) },
+            // History gives pronouns something to resolve against ("and by committee?").
+            ...history.slice(-6).map((h) => ({ role: h.role, content: h.content })),
+            { role: 'user', content: question },
+          ],
+          tools: toOpenAiTools(tools),
+        }),
+      })
+
+      if (!res.ok) {
+        recordFailure()
+
+        if (res.status === 401 || res.status === 403) {
+          if (!hasLoggedAuthError) {
+            hasLoggedAuthError = true
+            console.error(
+              `[router] AI Gateway authentication misconfiguration (${res.status}). ` +
+                'Check CF_ACCOUNT_ID and CF_API_TOKEN. Falling back to the offline classifier.',
+            )
+          }
+          lastModelFallbackReason = 'auth_error'
+          return null
+        }
+
+        if (res.status === 429) {
+          lastModelFallbackReason = 'rate_limit'
+          if (attempt === 1) {
+            const retryHeader = res.headers.get('retry-after')
+            const waitMs = retryHeader ? Math.min(Number(retryHeader) * 1000 || 1000, 3000) : 1000
+            console.warn(`[router] AI Gateway rate-limited (429); backing off for ${waitMs}ms before retry...`)
+            await new Promise((r) => setTimeout(r, waitMs))
+            continue
+          }
+          console.error('[router] AI Gateway rate-limited (429) after backoff. Falling back to the offline classifier.')
+          return null
+        }
+
+        if (res.status >= 500 && res.status < 600) {
+          lastModelFallbackReason = 'service_error'
+          if (attempt === 1) {
+            console.warn(`[router] AI Gateway returned ${res.status}; retrying once...`)
+            await new Promise((r) => setTimeout(r, 500))
+            continue
+          }
+          console.error(`[router] AI Gateway returned ${res.status} on retry. Falling back to the offline classifier.`)
+          return null
+        }
+
+        // Other non-200
+        const detail = await res.text().catch(() => '')
+        console.error(
+          `[router] AI Gateway returned ${res.status}. Falling back to the offline ` +
+            `classifier. ${detail.slice(0, 300)}`,
+        )
+        lastModelFallbackReason = 'service_error'
+        return null
+      }
+
+      // This endpoint wraps everything in `result`, and returns tool calls in two
+      // shapes: an OpenAI-style one under choices[], and a flatter one at the top
+      // level whose `arguments` is already an object rather than a JSON string.
+      // Read either.
+      const body = (await res.json()) as {
+        result?: {
+          usage?: Record<string, unknown>
+          tool_calls?: { name?: string; arguments?: unknown }[]
+          choices?: {
+            message?: { tool_calls?: { function?: { name?: string; arguments?: unknown } }[] }
+          }[]
+        }
+      }
+      // Workers AI reports token counts and the Neuron cost of this call on every
+      // response. Recording them here is the only usage visibility available:
+      // the account analytics API refuses this token.
+      const usage = usageFromResponse(body)
+      if (usage) {
+        recordCall(usage)
+        if (process.env.NODE_ENV !== 'production') {
+          console.info(
+            `[usage] ${usage.promptTokens} in / ${usage.completionTokens} out, ` +
+              `${usage.neurons.toFixed(2)} neurons`,
+          )
+        }
+      }
+
+      const result = body.result
+      const fn =
+        result?.choices?.[0]?.message?.tool_calls?.[0]?.function ?? result?.tool_calls?.[0]
+      if (!fn?.name) {
+        lastModelFallbackReason = 'service_error'
+        return null
+      }
+
+      let args: Record<string, unknown> = {}
+      if (typeof fn.arguments === 'string') {
+        try {
+          args = JSON.parse(fn.arguments) as Record<string, unknown>
+        } catch {
+          args = {}
+        }
+      } else if (fn.arguments && typeof fn.arguments === 'object') {
+        args = fn.arguments as Record<string, unknown>
+      }
+
+      if (fn.name === 'refuse') {
+        const reason =
+          typeof args.reason === 'string' && args.reason.trim()
+            ? args.reason.trim()
+            : 'The available data cannot answer this question.'
+        return { kind: 'refusal', reason, routedBy: 'model' }
+      }
+
+      const chosen = tools.find((t) => t.name === fn.name)
+      if (!chosen) {
+        lastModelFallbackReason = 'service_error'
+        return null
+      }
+
+      // Fill any argument the model omitted, so a tool never runs under-specified.
+      const filled = { ...inferArgs(chosen, ` ${question.toLowerCase()} `), ...coerceArgs(chosen, args) }
+      return { kind: 'tool', name: chosen.name, args: filled, routedBy: 'model' }
+    } catch (e) {
       recordFailure()
-      const detail = await res.text().catch(() => '')
+      const isTimeout = (e as Error)?.name === 'AbortError'
+      lastModelFallbackReason = isTimeout ? 'timeout' : 'service_error'
+      if (attempt === 1) {
+        console.warn(`[router] model routing failed (${isTimeout ? 'timed out' : String(e)}); retrying once...`)
+        continue
+      }
       console.error(
-        `[router] AI Gateway returned ${res.status}. Falling back to the offline ` +
-          `classifier. ${detail.slice(0, 300)}`,
+        `[router] model routing failed (${isTimeout ? 'timed out' : String(e)}) on retry; using the offline classifier.`,
       )
       return null
+    } finally {
+      clearTimeout(timer)
     }
-
-    // This endpoint wraps everything in `result`, and returns tool calls in two
-    // shapes: an OpenAI-style one under choices[], and a flatter one at the top
-    // level whose `arguments` is already an object rather than a JSON string.
-    // Read either.
-    const body = (await res.json()) as {
-      result?: {
-        usage?: Record<string, unknown>
-        tool_calls?: { name?: string; arguments?: unknown }[]
-        choices?: {
-          message?: { tool_calls?: { function?: { name?: string; arguments?: unknown } }[] }
-        }[]
-      }
-    }
-    // Workers AI reports token counts and the Neuron cost of this call on every
-    // response. Recording them here is the only usage visibility available:
-    // the account analytics API refuses this token.
-    const usage = usageFromResponse(body)
-    if (usage) {
-      recordCall(usage)
-      if (process.env.NODE_ENV !== 'production') {
-        console.info(
-          `[usage] ${usage.promptTokens} in / ${usage.completionTokens} out, ` +
-            `${usage.neurons.toFixed(2)} neurons`,
-        )
-      }
-    }
-
-    const result = body.result
-    const fn =
-      result?.choices?.[0]?.message?.tool_calls?.[0]?.function ?? result?.tool_calls?.[0]
-    if (!fn?.name) return null
-
-    let args: Record<string, unknown> = {}
-    if (typeof fn.arguments === 'string') {
-      try {
-        args = JSON.parse(fn.arguments) as Record<string, unknown>
-      } catch {
-        args = {}
-      }
-    } else if (fn.arguments && typeof fn.arguments === 'object') {
-      args = fn.arguments as Record<string, unknown>
-    }
-
-    if (fn.name === 'refuse') {
-      const reason =
-        typeof args.reason === 'string' && args.reason.trim()
-          ? args.reason.trim()
-          : 'The available data cannot answer this question.'
-      return { kind: 'refusal', reason, routedBy: 'model' }
-    }
-
-    const chosen = tools.find((t) => t.name === fn.name)
-    if (!chosen) return null
-
-    // Fill any argument the model omitted, so a tool never runs under-specified.
-    const filled = { ...inferArgs(chosen, ` ${question.toLowerCase()} `), ...coerceArgs(chosen, args) }
-    return { kind: 'tool', name: chosen.name, args: filled, routedBy: 'model' }
-  } catch (e) {
-    recordFailure()
-    const reason = (e as Error)?.name === 'AbortError' ? 'timed out' : String(e)
-    console.error(`[router] model routing failed (${reason}); using the offline classifier.`)
-    return null
-  } finally {
-    clearTimeout(timer)
   }
+
+  return null
 }
 
 export async function routeQuestion(
@@ -827,6 +897,8 @@ export async function routeQuestion(
     }
   }
 
+  let fallbackReason: FallbackReason = 'no_credentials'
+
   if (getConfig().hasModelCredentials) {
     // Cached on the question, the conversation it sits in, the tools offered
     // and the model. A repeat of the same question in the same context is the
@@ -861,10 +933,29 @@ export async function routeQuestion(
         dataset,
       )
     }
-    console.warn('[router] model routing unavailable; using the deterministic fallback')
+
+    fallbackReason = lastModelFallbackReason
+    console.warn(`[router] model routing unavailable (${fallbackReason}); using the deterministic fallback`)
   }
+
+  // If "never answer without the model" mode is opt-in requested via REQUIRE_MODEL:
+  if (getConfig().requireModel) {
+    return {
+      kind: 'error',
+      error: `Model routing is required (REQUIRE_MODEL=true) but model routing failed (${fallbackReason}).`,
+      fallbackReason,
+      routedBy: 'model',
+    }
+  }
+
+  const base = fallbackRoute(question, tools)
+  const routedFallback: Route = {
+    ...base,
+    fallbackReason,
+  }
+
   return guardPapersRoute(
-    guardBestAttendance(guardUnmeasured(fallbackRoute(question, tools), question), question),
+    guardBestAttendance(guardUnmeasured(routedFallback, question), question),
     question,
     tools,
     dataset,
@@ -945,11 +1036,12 @@ function guardBestAttendance(route: Route, question: string): Route {
 }
 
 function guardUnmeasured(route: Route, question: string): Route {
-  if (route.kind === 'refusal') return route
+  if (route.kind === 'refusal' || route.kind === 'error') return route
   if (!UNMEASURED_PATTERNS.test(question.toLowerCase())) return route
   return {
     kind: 'refusal',
     routedBy: route.routedBy,
+    fallbackReason: 'fallbackReason' in route ? route.fallbackReason : undefined,
     reason:
       'Nothing in the attendance records, action log or skills audit measures that. ' +
       'The dataset covers meeting attendance, board actions and a self-assessed skills ' +
@@ -1009,7 +1101,9 @@ function guardPapersRoute(
   // the papers, or refuses, say plainly that no tool computes this rather than
   // asking the papers a question they cannot hold the answer to.
   const retry = fallbackRoute(question, tools)
-  if (retry.kind === 'tool' && retry.name !== 'search_board_papers') return retry
+  if (retry.kind === 'tool' && retry.name !== 'search_board_papers') {
+    return { ...retry, fallbackReason: 'fallbackReason' in route ? route.fallbackReason : undefined }
+  }
 
   return {
     // Written here, by a check, whatever routed the question in the first place.

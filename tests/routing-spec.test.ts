@@ -222,7 +222,7 @@ for (const [question, expected] of MUST_STILL_ROUTE) {
         routed.kind === 'refusal' ? routed.reason : ''
       }`,
     )
-    if (routed.kind !== 'refusal') assert.equal(routed.name, expected)
+    if (routed.kind === 'tool') assert.equal(routed.name, expected)
   })
 }
 
@@ -251,7 +251,7 @@ for (const [question, expected] of WRONGLY_REFUSED) {
       'refusal',
       `refused a question a tool answers: ${routed.kind === 'refusal' ? routed.reason : ''}`,
     )
-    if (routed.kind !== 'refusal') assert.equal(routed.name, expected)
+    if (routed.kind === 'tool') assert.equal(routed.name, expected)
   })
 }
 

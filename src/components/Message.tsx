@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import ChartCard from './ChartCard'
 import { WarningMark } from './marks'
-import type { AnswerResult, RoutedBy } from '@/lib/types'
+import type { AnswerResult, FallbackReason, RoutedBy } from '@/lib/types'
 
 export interface TurnError {
   message: string
@@ -18,6 +18,7 @@ export interface Turn {
   status: 'pending' | 'answered' | 'failed'
   result?: AnswerResult
   routedBy?: RoutedBy
+  fallbackReason?: FallbackReason
   /** The tool and arguments that produced this answer, so it can be pinned. */
   routedTo?: { tool: string; args: Record<string, unknown> }
   error?: TurnError
@@ -111,6 +112,7 @@ export default function Message({
         <ChartCard
           result={turn.result}
           routedBy={turn.routedBy}
+          fallbackReason={turn.fallbackReason}
           actions={actions}
           organisation={organisation}
         />

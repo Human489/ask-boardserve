@@ -8,7 +8,7 @@ import BoardChart from './BoardChart'
 import ChartExport from './ChartExport'
 import { UnavailableMark } from './marks'
 import { isRefusal } from '@/lib/types'
-import type { AnswerResult, Provenance as ProvenanceSpec, RoutedBy, TableSpec } from '@/lib/types'
+import type { AnswerResult, FallbackReason, Provenance as ProvenanceSpec, RoutedBy, TableSpec } from '@/lib/types'
 
 function NoteList({ label, items }: { label: string; items: string[] }) {
   if (items.length === 0) return null
@@ -114,11 +114,35 @@ function AnswerTable({ spec }: { spec: TableSpec }) {
   )
 }
 
-function FallbackNotice() {
+function FallbackNotice({ reason }: { reason?: FallbackReason }) {
+  let explanation: string
+  switch (reason) {
+    case 'timeout':
+      explanation =
+        'the AI model routing service timed out, so the question was matched to a tool by keyword fallback.'
+      break
+    case 'rate_limit':
+      explanation =
+        'the AI model routing service was rate-limited, so the question was matched to a tool by keyword fallback.'
+      break
+    case 'service_error':
+      explanation =
+        'the AI model routing service was temporarily unavailable, so the question was matched to a tool by keyword fallback.'
+      break
+    case 'auth_error':
+      explanation =
+        'AI Gateway credentials failed authentication, so the question was matched to a tool by keyword fallback.'
+      break
+    case 'no_credentials':
+    default:
+      explanation =
+        'no model credentials are configured, so the question was matched to a tool by keyword rather than by a model.'
+      break
+  }
+
   return (
     <p className="routing-notice">
-      Routed by the offline keyword classifier — no model credentials are configured, so
-      the question was matched to a tool by keyword rather than by a model. The figures
+      Routed by the offline keyword classifier — {explanation} The figures
       themselves are unaffected; they are computed from the dataset either way.
     </p>
   )
@@ -127,6 +151,7 @@ function FallbackNotice() {
 export default function ChartCard({
   result,
   routedBy,
+  fallbackReason,
   actions,
   note,
   headingLevel = 2,
@@ -135,6 +160,7 @@ export default function ChartCard({
 }: {
   result: AnswerResult
   routedBy?: RoutedBy
+  fallbackReason?: FallbackReason
   /** The card's headline is a heading, and its level depends on what encloses
    *  it: in the transcript it sits directly under the page, on the dashboard it
    *  sits under the "Pinned charts" heading. A card whose headline is a sibling
@@ -194,7 +220,7 @@ export default function ChartCard({
             {result.alternative}
           </p>
         )}
-        {routedBy === 'fallback' && <FallbackNotice />}
+        {routedBy === 'fallback' && <FallbackNotice reason={fallbackReason} />}
         {actions && <div className="card-actions">{actions}</div>}
       </article>
     )
@@ -249,7 +275,7 @@ export default function ChartCard({
         </div>
       )}
 
-      {routedBy === 'fallback' && <FallbackNotice />}
+      {routedBy === 'fallback' && <FallbackNotice reason={fallbackReason} />}
     </>
   )
 
