@@ -33,7 +33,7 @@ for (const line of safeRead('.env.local').split('\n')) {
 const PASSCODE = process.env.APP_PASSCODE
 
 const STRUCTURED = [
-  'attendance_below_threshold',
+  'attendance_vs_threshold',
   'attendance_by_meeting',
   'attendance_by_committee',
   'meetings_missed',

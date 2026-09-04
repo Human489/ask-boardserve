@@ -102,8 +102,58 @@ test('exactly 3 records dataset-wide have status absent', () => {
 
 // ------------------------------------------------------------ Q1
 
-test('attendance_below_threshold flags the three directors below 80%', () => {
-  const r = run('attendance_below_threshold', { threshold: 80 })
+// DIRECTION AND BAND. "Who is above 90% attendance?" had nowhere correct to go
+// — the tool only knew "below" — so the model routed it to `meetings_missed`,
+// which answered confidently about the WORST attenders. Not a masked error: the
+// opposite question, answered as a finding.
+test('the same threshold reads both ways', () => {
+  const below = run('attendance_vs_threshold', { threshold: 80, direction: 'below' })
+  const above = run('attendance_vs_threshold', { threshold: 80, direction: 'above' })
+
+  const names = (r: ToolResult) => new Set(r.chart!.points.map((p) => p.label))
+  const shared = [...names(below)].filter((n) => names(above).has(n))
+  assert.deepEqual(shared, [], 'a director cannot be both above and below the same figure')
+
+  assert.match(above.headline, /above 80%/)
+  assert.ok(
+    above.assumptions.some((a) => /above 80%/.test(a)),
+    'the assumption must state the direction actually applied',
+  )
+  // The default is unchanged, so the spec's own question still behaves.
+  assert.match(run('attendance_vs_threshold', { threshold: 80 }).headline, /below 80%/)
+})
+
+test('a band excludes both sides of it, and does not widen', () => {
+  const r = run('attendance_vs_threshold', { threshold: 70, upper_threshold: 80 })
+  for (const point of r.chart?.points ?? []) {
+    assert.ok(
+      point.value >= 70 && point.value <= 80,
+      `${point.label} at ${point.value}% is outside the band`,
+    )
+  }
+  assert.ok(
+    r.assumptions.some((a) => /between 70% and 80%/.test(a)),
+    'the assumption must name the band',
+  )
+  // Widening exists because the DATA defines no threshold. A band is an
+  // explicit request for a range, so widening it would answer a question
+  // nobody asked.
+  assert.ok(
+    !r.assumptions.some((a) => /shown instead/.test(a)),
+    'a band must never widen',
+  )
+})
+
+test('an inverted band is raised rather than returning a silent nil', () => {
+  const r = run('attendance_vs_threshold', { threshold: 80, upper_threshold: 60 })
+  assert.ok(
+    r.assumptions.some((a) => /between 80% and 80%/.test(a)),
+    'the upper bound is raised to the lower, never inverted',
+  )
+})
+
+test('attendance_vs_threshold flags the three directors below 80%', () => {
+  const r = run('attendance_vs_threshold', { threshold: 80 })
   const flagged = r.chart!.points.filter((p) => p.highlight)
   assert.deepEqual(
     flagged.map((p) => [p.label, p.value]).sort(),
@@ -118,7 +168,7 @@ test('attendance_below_threshold flags the three directors below 80%', () => {
 })
 
 test('Oduya is 50% at Board and 100% at Finance and Audit', () => {
-  const r = run('attendance_below_threshold', { threshold: 80 })
+  const r = run('attendance_vs_threshold', { threshold: 80 })
   const board = tableRow(r, (row) => row[0] === 'Terence Oduya' && row[1] === 'Board')
   assert.equal(board.length, 1)
   assert.equal(board[0][4], 50)
@@ -128,7 +178,7 @@ test('Oduya is 50% at Board and 100% at Finance and Audit', () => {
 })
 
 test('a per-body scope uses that body only', () => {
-  const r = run('attendance_below_threshold', { threshold: 80, body: 'Board' })
+  const r = run('attendance_vs_threshold', { threshold: 80, body: 'Board' })
   const oduya = r.chart!.points.find((p) => p.label === 'Terence Oduya')
   assert.ok(oduya)
   assert.equal(oduya!.value, 50)
@@ -777,8 +827,8 @@ test('an unmatched body returns a nil answer that says so, not a vacuous one', (
   )
 
   const below = asComputed(
-    'attendance_below_threshold',
-    getTool('attendance_below_threshold')!.run(dataset, { body: missing }),
+    'attendance_vs_threshold',
+    getTool('attendance_vs_threshold')!.run(dataset, { body: missing }),
   )
   // "No director is below the threshold" and "there is no data here" are
   // opposite findings. This used to issue the first for the second, giving a
@@ -1264,20 +1314,20 @@ test('a model writing "null" as a string means it gave no argument', () => {
   //
   // The real answer is one omitted argument away, which is what makes this
   // worse than an error: it reads as a finding about the data.
-  const withNull = run('attendance_below_threshold', { body: 'null' })
-  const omitted = run('attendance_below_threshold')
+  const withNull = run('attendance_vs_threshold', { body: 'null' })
+  const omitted = run('attendance_vs_threshold')
   assert.equal(withNull.headline, omitted.headline)
 
   // Every spelling a model reaches for, and case-insensitively.
   for (const spelling of ['null', 'NULL', 'undefined', 'none', 'N/A', '  null  ']) {
-    const r = run('attendance_below_threshold', { body: spelling })
+    const r = run('attendance_vs_threshold', { body: spelling })
     assert.equal(r.headline, omitted.headline, `"${spelling}" should read as absent`)
   }
 
   // A real body name must still filter, or this fix would have eaten the
   // argument entirely.
   const real = dataset.attendance.meetings[0].body
-  const filtered = run('attendance_below_threshold', { body: real })
+  const filtered = run('attendance_vs_threshold', { body: real })
   assert.notEqual(filtered.headline, omitted.headline)
 })
 

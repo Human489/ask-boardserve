@@ -257,3 +257,68 @@ test('and it lets a measured question through on the same path', () => {
   )
   assert.equal(routed.kind, 'tool', 'wrongly refused a question the skills audit answers')
 })
+
+// "Who has the strongest attendance record?" was answered "3 directors tie on
+// 3 missed meetings each" — the WORST three, named as the finding.
+//
+// `meetings_missed` cannot answer it even in principle: its rows exist only
+// for directors who missed something, so a director with perfect attendance is
+// not in the ranking at all. The tool description now says so; this is the
+// check behind that request, because a description alone has already failed
+// here once.
+test('a question about the BEST attendance is not answered by the worst', () => {
+  for (const question of [
+    'Who has the strongest attendance record?',
+    'Which director has the best attendance?',
+    'Who is the most reliable attender?',
+  ]) {
+    const routed = guardPapersRouteForTest(
+      { kind: 'tool', name: 'meetings_missed', args: {}, routedBy: 'model' },
+      question,
+      TOOLS,
+      dataset,
+    )
+    assert.equal(routed.kind, 'tool', `should re-route, not refuse: ${question}`)
+    assert.equal(
+      routed.kind === 'tool' ? routed.name : '',
+      'attendance_vs_threshold',
+      `still ranking by misses: ${question}`,
+    )
+    assert.equal(
+      routed.kind === 'tool' ? routed.args.direction : '',
+      'above',
+      'and it must read the threshold upwards',
+    )
+  }
+})
+
+test('a question about which MEETING had the best attendance is left alone', () => {
+  // A different tool and a correct answer. Over-reaching here would break a
+  // question the product already answers well.
+  for (const question of [
+    'Which meeting had the best attendance?',
+    'Which meetings had unusually low attendance, and when?',
+  ]) {
+    const routed = guardPapersRouteForTest(
+      { kind: 'tool', name: 'attendance_by_meeting', args: {}, routedBy: 'model' },
+      question,
+      TOOLS,
+      dataset,
+    )
+    assert.equal(
+      routed.kind === 'tool' ? routed.name : '',
+      'attendance_by_meeting',
+      `wrongly re-routed: ${question}`,
+    )
+  }
+})
+
+test('the guard leaves an ordinary missed-meetings question alone', () => {
+  const routed = guardPapersRouteForTest(
+    { kind: 'tool', name: 'meetings_missed', args: {}, routedBy: 'model' },
+    'Which directors have missed the most meetings they were eligible to attend?',
+    TOOLS,
+    dataset,
+  )
+  assert.equal(routed.kind === 'tool' ? routed.name : '', 'meetings_missed')
+})

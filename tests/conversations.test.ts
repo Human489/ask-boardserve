@@ -21,7 +21,7 @@ import type { AnswerResult } from '../src/lib/types'
 
 function turn(question: string, headline = 'a computed headline'): StoredTurn {
   const result = {
-    tool: 'attendance_below_threshold',
+    tool: 'attendance_vs_threshold',
     headline,
     chart: null,
     table: null,

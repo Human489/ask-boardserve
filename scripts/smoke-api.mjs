@@ -102,7 +102,7 @@ async function post(path, body, token) {
 // a second, harder set. tests/routing-spec.test.ts holds the verbatim twelve.
 // What was wrong was the claim, not the questions.
 const STRUCTURED = [
-  ['Who is below our attendance threshold, and on which committee?', 'attendance_below_threshold'],
+  ['Who is below our attendance threshold, and on which committee?', 'attendance_vs_threshold'],
   ['Which meetings had unusually low attendance, and when?', 'attendance_by_meeting'],
   ['Which committees have the lowest attendance?', 'attendance_by_committee'],
   ['Which directors have missed the most meetings they were eligible to attend?', 'meetings_missed'],
@@ -264,7 +264,7 @@ async function main() {
     const headline = json?.result?.headline ?? ''
     check(
       'a follow-up inherits the subject of the previous question',
-      json?.result?.tool === 'attendance_below_threshold' && /90%/.test(headline),
+      json?.result?.tool === 'attendance_vs_threshold' && /90%/.test(headline),
       `got tool=${json?.result?.tool} headline=${headline.slice(0, 70)}`,
     )
     check(
@@ -305,7 +305,7 @@ async function main() {
       // Nothing in "and at 90%?" names attendance, directors or a threshold.
       // Reaching the previous question's tool means the subject came from
       // somewhere the reader never supplied.
-      tool !== 'attendance_below_threshold',
+      tool !== 'attendance_vs_threshold',
       `routed to ${tool} — the subject was carried in from nowhere: ${String(
         json?.result?.headline ?? '',
       ).slice(0, 70)}`,
@@ -340,7 +340,7 @@ async function main() {
 
     const pinned = await asJson('POST', {
       question: 'smoke: who is below our attendance threshold?',
-      tool: 'attendance_below_threshold',
+      tool: 'attendance_vs_threshold',
       args: { threshold: 80 },
     })
     check(
@@ -357,7 +357,7 @@ async function main() {
     )
     check(
       'the pin records the tool and arguments that produced it',
-      mine?.tool === 'attendance_below_threshold' && mine?.args?.threshold === 80,
+      mine?.tool === 'attendance_vs_threshold' && mine?.args?.threshold === 80,
       JSON.stringify({ tool: mine?.tool, args: mine?.args }),
     )
 
@@ -366,7 +366,7 @@ async function main() {
       // dashboard. The route recomputes, so an injected headline is discarded.
       const forged = await asJson('POST', {
         question: 'smoke: forged figures',
-        tool: 'attendance_below_threshold',
+        tool: 'attendance_vs_threshold',
         args: { threshold: 55 },
         result: { headline: 'FORGED', provenance: { asAt: '1999-01-01' } },
       })
@@ -382,7 +382,7 @@ async function main() {
     {
       const duplicate = await asJson('POST', {
         question: 'smoke: the same thing again',
-        tool: 'attendance_below_threshold',
+        tool: 'attendance_vs_threshold',
         args: { threshold: 80 },
       })
       check(
@@ -444,7 +444,7 @@ async function main() {
       question: 'smoke: who is below the attendance threshold?',
       result: { headline: 'a computed headline', provenance: { asAt: '2026-08-31' } },
       routedBy: 'model',
-      routedTo: { tool: 'attendance_below_threshold', args: { threshold: 80 } },
+      routedTo: { tool: 'attendance_vs_threshold', args: { threshold: 80 } },
     }
 
     {
@@ -472,7 +472,7 @@ async function main() {
       )
       check(
         'the stored turn keeps the tool and args, so a restored answer can be pinned',
-        turns[0]?.routedTo?.tool === 'attendance_below_threshold',
+        turns[0]?.routedTo?.tool === 'attendance_vs_threshold',
         `routedTo=${JSON.stringify(turns[0]?.routedTo)}`,
       )
     }
@@ -564,7 +564,7 @@ async function main() {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         question: 'smoke: something to share',
-        tool: 'attendance_below_threshold',
+        tool: 'attendance_vs_threshold',
         args: { threshold: 80 },
       }),
     })

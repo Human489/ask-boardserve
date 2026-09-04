@@ -22,7 +22,7 @@ import type { AnswerResult } from '../src/lib/types'
 // by a screen reader.
 
 const result: AnswerResult = {
-  tool: 'attendance_below_threshold',
+  tool: 'attendance_vs_threshold',
   headline: '3 directors are below 80%.',
   chart: {
     kind: 'bar',

@@ -71,18 +71,43 @@ function ratesByDirector(rows: AttendanceRecord[]): DirectorRate[] {
 // ------------------------------------------------------------ Q1
 
 export const attendanceBelowThreshold: ToolDefinition = {
-  name: 'attendance_below_threshold',
+  // Renamed from `attendance_below_threshold`, which named one DIRECTION.
+  // "Who is above 90% attendance?" had nowhere correct to go and the model
+  // sent it to `meetings_missed`, which answered confidently about the WORST
+  // attenders — the opposite question, stated as a finding.
+  name: 'attendance_vs_threshold',
   description:
-    'Directors whose overall attendance falls below a threshold, with a per-body ' +
-    'breakdown for each of them. Use for "who is below our attendance threshold" ' +
-    'or "who is not turning up".',
+    'Directors whose overall attendance sits below, above, or between attendance ' +
+    'percentages, with a per-body breakdown for each of them. Use for "who is below ' +
+    'our attendance threshold" and "who is not turning up" (direction "below", the ' +
+    'default), for "who is above 90%" and "who has strong attendance" (direction ' +
+    '"above"), and set upper_threshold as well for a band such as "between 70 and 80 ' +
+    'per cent".',
   parameters: {
     threshold: {
       type: 'number',
       description:
-        'Attendance percentage below which a director is flagged. Between 1 and 100. ' +
-        'Omit it unless the question names a figure; the default is the one the answer discloses.',
+        'The attendance percentage to compare against, 1 to 100. With direction ' +
+        '"below" a director is flagged under it; with "above", over it; with ' +
+        'upper_threshold set, this is the BOTTOM of the band. Omit it unless the ' +
+        'question names a figure; the default is the one the answer discloses.',
       default: 80,
+      min: 1,
+      max: 100,
+    },
+    direction: {
+      type: 'string',
+      description:
+        'Which side of the threshold to report: "below" (the default) or "above". ' +
+        'Ignored when upper_threshold is set.',
+      enum: ['below', 'above'],
+      default: 'below',
+    },
+    upper_threshold: {
+      type: 'number',
+      description:
+        'Top of a band, used with threshold as its bottom, for "between X and Y per ' +
+        'cent". Omit for a one-sided comparison.',
       min: 1,
       max: 100,
     },
@@ -94,6 +119,34 @@ export const attendanceBelowThreshold: ToolDefinition = {
   required: [],
   run(dataset, args): ToolResult {
     const threshold = num(args.threshold, 80)
+    // A band when an upper bound is given, otherwise one-sided. Absent rather
+    // than defaulted, because "no upper bound" is a different thing from any
+    // particular percentage.
+    const rawUpper = args.upper_threshold
+    const upper =
+      rawUpper === undefined || rawUpper === null
+        ? null
+        : Math.min(100, Math.max(threshold, num(rawUpper, threshold)))
+    // Typed check rather than String(): args arrive as unknown, and anything
+    // that is not a string would stringify to "[object Object]" and silently
+    // mean "below" — the wrong direction, chosen by a coercion.
+    const above =
+      upper === null &&
+      typeof args.direction === 'string' &&
+      args.direction.trim().toLowerCase() === 'above'
+
+    /** True for a rate this question asked about. */
+    const inScope = (rate: number): boolean =>
+      upper !== null ? rate >= threshold && rate <= upper : above ? rate > threshold : rate < threshold
+
+    /** The comparison in the words every sentence here uses. */
+    const compareLabel =
+      upper !== null
+        ? `between ${threshold}% and ${upper}%`
+        : above
+          ? `above ${threshold}%`
+          : `below ${threshold}%`
+
     const body = resolveBody(dataset, args.body)
     const rows = scope(dataset, body)
     const rates = ratesByDirector(rows)
@@ -101,11 +154,17 @@ export const attendanceBelowThreshold: ToolDefinition = {
     // No threshold is defined anywhere in the dataset, so a threshold that
     // flags fewer than two directors would produce a degenerate chart. Fall
     // back to the bottom quartile, and say so in the assumptions.
-    let flagged = rates.filter((d) => d.rate < threshold)
+    let flagged = rates.filter((d) => inScope(d.rate))
     let widened = false
-    if (flagged.length < 2 && rates.length > 0) {
+    // Widening only makes sense for a one-sided comparison against a threshold
+    // the DATA does not define. A band is an explicit request for a range, so
+    // widening it would answer a question nobody asked; an empty band returns
+    // its nil result and says so.
+    if (flagged.length < 2 && rates.length > 0 && upper === null) {
       const quartile = Math.max(2, Math.ceil(rates.length / 4))
-      flagged = rates.slice(0, quartile)
+      // `rates` is ascending, so the bottom quartile is the head and the top
+      // quartile is the tail — the symmetric fallback for "above".
+      flagged = above ? rates.slice(-quartile) : rates.slice(0, quartile)
       widened = true
     }
 
@@ -117,7 +176,7 @@ export const attendanceBelowThreshold: ToolDefinition = {
       const known = allBodies(dataset)
       const unknownBody = body !== undefined && !known.some((b) => b === body)
       return {
-        tool: 'attendance_below_threshold',
+        tool: 'attendance_vs_threshold',
         headline: unknownBody
           ? `No body called "${body}" appears in the attendance records, so no attendance rate can be computed for it. The bodies present are ${list(known)}.`
           : `No attendance rows${body ? ` for ${body}` : ''} were found, so no director's rate can be computed.`,
@@ -141,7 +200,7 @@ export const attendanceBelowThreshold: ToolDefinition = {
     const points: DataPoint[] = flagged.map((d) => ({
       label: d.name,
       value: d.rate,
-      highlight: d.rate < threshold,
+      highlight: inScope(d.rate),
       detail: `${d.attended} of ${d.eligible} meetings attended`,
     }))
 
@@ -183,16 +242,21 @@ export const attendanceBelowThreshold: ToolDefinition = {
     const scopeLabel = body ? ` at ${body}` : ''
     let headline: string
     if (flagged.length === 0) {
-      headline = `No director is below ${threshold}%${scopeLabel}; the lowest rate is ${
-        rates.length ? `${rates[0].rate}% (${rates[0].name})` : 'not computable'
-      }.`
+      // The nearest rate is the useful one, and which end that is depends on
+      // the question: for "below" it is the lowest, for "above" the highest.
+      const nearest = above ? rates[rates.length - 1] : rates[0]
+      headline = `No director is ${compareLabel}${scopeLabel}; the ${
+        above ? 'highest' : 'lowest'
+      } rate is ${nearest ? `${nearest.rate}% (${nearest.name})` : 'not computable'}.`
     } else {
-      const belowCount = rates.filter((d) => d.rate < threshold).length
+      const inScopeCount = rates.filter((d) => inScope(d.rate)).length
       const lead =
-        belowCount === 0
-          ? `No director is below ${threshold}%${scopeLabel}, so the chart shows the bottom ${flagged.length} instead`
-          : `${belowCount} director${belowCount === 1 ? ' is' : 's are'} below ${threshold}%${scopeLabel} — ${list(
-              rates.filter((d) => d.rate < threshold).map((d) => `${d.name} ${d.rate}%`),
+        inScopeCount === 0
+          ? `No director is ${compareLabel}${scopeLabel}, so the chart shows the ${
+              above ? 'top' : 'bottom'
+            } ${flagged.length} instead`
+          : `${inScopeCount} director${inScopeCount === 1 ? ' is' : 's are'} ${compareLabel}${scopeLabel} — ${list(
+              rates.filter((d) => inScope(d.rate)).map((d) => `${d.name} ${d.rate}%`),
             )}`
       headline = sharpest
         ? `${lead}, and ${sharpest.name}'s is concentrated at ${sharpest.low} level — ${sharpest.lowRate}% there against ${sharpest.highRate}% at ${sharpest.high}.`
@@ -213,7 +277,7 @@ export const attendanceBelowThreshold: ToolDefinition = {
     }
 
     return {
-      tool: 'attendance_below_threshold',
+      tool: 'attendance_vs_threshold',
       headline,
       chart: {
         kind: 'bar',
@@ -221,8 +285,8 @@ export const attendanceBelowThreshold: ToolDefinition = {
         // The title said so anyway, over bars all above the reference line —
         // the headline explained it, a pinned card or a screenshot did not.
         title: widened
-          ? `Lowest ${points.length} attendance rates${scopeLabel}`
-          : `Attendance below ${threshold}%${scopeLabel}`,
+          ? `${above ? 'Highest' : 'Lowest'} ${points.length} attendance rates${scopeLabel}`
+          : `Attendance ${compareLabel}${scopeLabel}`,
         xLabel: 'Director',
         yLabel: 'Attendance',
         unit: 'percent',
@@ -231,9 +295,14 @@ export const attendanceBelowThreshold: ToolDefinition = {
         // Kept on the widened path, because the threshold is still the thing
         // these rates are being read against — but labelled as a threshold
         // nobody is under rather than as the chart's subject.
+        // One line, at the boundary the question named. On a band it marks the
+        // BOTTOM of the band, which is the edge a reader is checking against;
+        // the title carries the top.
         reference: {
           value: threshold,
-          label: widened ? `${threshold}% threshold (none below)` : `${threshold}% threshold`,
+          label: widened
+            ? `${threshold}% threshold (none ${above ? 'above' : 'below'})`
+            : `${threshold}% threshold`,
         },
       },
       table: {
@@ -241,13 +310,19 @@ export const attendanceBelowThreshold: ToolDefinition = {
         rows: splitRows,
       },
       assumptions: [
-        `No attendance threshold is stated anywhere in the dataset; ${threshold}% was used.`,
+        // States the comparison actually applied, not the phrase the reader
+        // used: it is the line that tells them whether "above" or a band was
+        // honoured.
+        `Directors were selected as ${compareLabel}. No attendance threshold is stated anywhere in the dataset${
+          upper === null ? `; ${threshold}% was used` : ''
+        }.`,
         'Apologies count as non-attendance: only a status of "present" counts towards the rate.',
         ...(widened
           ? [
-              `Fewer than two directors fell below ${threshold}%, so the ${points.length} lowest ` +
-                `rates are shown instead — a quarter of the ${rates.length} assessed, rounded up, ` +
-                `and never fewer than two. None of them is below the threshold.`,
+              `Fewer than two directors were ${compareLabel}, so the ${points.length} ${
+                above ? 'highest' : 'lowest'
+              } rates are shown instead — a quarter of the ${rates.length} assessed, rounded up, ` +
+                `and never fewer than two. None of them is ${compareLabel}.`,
             ]
           : []),
       ],
@@ -676,9 +751,12 @@ export const attendanceByCommittee: ToolDefinition = {
 export const meetingsMissed: ToolDefinition = {
   name: 'meetings_missed',
   description:
-    'Directors ranked by meetings missed, splitting apologies (advance notice) from ' +
+    'Directors ranked by meetings MISSED, splitting apologies (advance notice) from ' +
     'absences (none), with the miss rate alongside the count. Use for "who has missed ' +
-    'the most meetings". Takes a director name to answer questions about one person.',
+    'the most meetings". Takes a director name to answer questions about one person. ' +
+    'Do NOT use it for who attends BEST: it lists only directors who missed ' +
+    'something, so a director with perfect attendance does not appear in it at all — ' +
+    'use attendance_vs_threshold with direction "above" for that.',
   parameters: {
     director: {
       type: 'string',

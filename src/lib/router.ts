@@ -254,12 +254,20 @@ const TENURE_PATTERNS =
  * names and English question words, not directors, committees or skills.
  */
 const TOOL_HINTS: Record<string, string[][]> = {
-  attendance_below_threshold: [
+  attendance_vs_threshold: [
     ['below', 'threshold'],
     ['threshold'],
     ['who', 'below'],
     ['under', 'attendance'],
     ['poor', 'attend'],
+    // The offline classifier knew only "below", so "who is above 90%" scored
+    // nothing here and fell through to a tool about the worst attenders.
+    ['above', 'attend'],
+    ['over', 'attend'],
+    ['above', '%'],
+    ['best', 'attend'],
+    ['strong', 'attend'],
+    ['between', 'attend'],
   ],
   attendance_by_meeting: [
     ['meeting', 'attendance'],
@@ -845,11 +853,18 @@ export async function routeQuestion(
       // chosen it again; a refusal is the one result worth paying to re-ask.
       (route) => route.kind !== 'refusal',
     )
-    if (routed) return guardPapersRoute(guardUnmeasured(routed, question), question, tools, dataset)
+    if (routed) {
+      return guardPapersRoute(
+        guardBestAttendance(guardUnmeasured(routed, question), question),
+        question,
+        tools,
+        dataset,
+      )
+    }
     console.warn('[router] model routing unavailable; using the deterministic fallback')
   }
   return guardPapersRoute(
-    guardUnmeasured(fallbackRoute(question, tools), question),
+    guardBestAttendance(guardUnmeasured(fallbackRoute(question, tools), question), question),
     question,
     tools,
     dataset,
@@ -875,7 +890,13 @@ export const guardPapersRouteForTest = (
   question: string,
   tools: ToolDefinition[],
   dataset?: Dataset,
-): Route => guardPapersRoute(guardUnmeasured(route, question), question, tools, dataset)
+): Route =>
+  guardPapersRoute(
+    guardBestAttendance(guardUnmeasured(route, question), question),
+    question,
+    tools,
+    dataset,
+  )
 
 /**
  * Refuses a question about something the data does not measure, WHATEVER the
@@ -891,6 +912,38 @@ export const guardPapersRouteForTest = (
  * "A prompt is a request; a check is a check." The tool descriptions already
  * ask the model not to do this. This makes it so.
  */
+/**
+ * Questions about who attends BEST, sent to the tool that ranks the worst.
+ *
+ * `meetings_missed` ranks by misses and its rows exist only for directors who
+ * missed something — so a director with perfect attendance is not in it, and
+ * it cannot answer "who has the strongest record" even in principle. The model
+ * chose it anyway: "Who has the strongest attendance record?" was answered
+ * "3 directors tie on 3 missed meetings each", naming the worst three as the
+ * finding.
+ *
+ * The tool description now says not to. This is the check behind the request,
+ * because a description alone has already failed here.
+ *
+ * Deliberately does NOT catch questions about MEETINGS ranked by attendance —
+ * "which meeting had the best attendance" is a different tool and a correct
+ * answer.
+ */
+const BEST_ATTENDANCE =
+  /\b(?:best|strongest|highest|top|most reliable)\b[^.?]{0,40}\battend|\battend[^.?]{0,40}\b(?:best|strongest|highest|most reliable)\b/i
+
+function guardBestAttendance(route: Route, question: string): Route {
+  if (route.kind !== 'tool' || route.name !== 'meetings_missed') return route
+  const q = question.toLowerCase()
+  if (!BEST_ATTENDANCE.test(q)) return route
+  if (/\bmeetings?\b/.test(q)) return route
+  return {
+    ...route,
+    name: 'attendance_vs_threshold',
+    args: { ...route.args, direction: 'above' },
+  }
+}
+
 function guardUnmeasured(route: Route, question: string): Route {
   if (route.kind === 'refusal') return route
   if (!UNMEASURED_PATTERNS.test(question.toLowerCase())) return route

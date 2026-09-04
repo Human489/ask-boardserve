@@ -36,7 +36,7 @@ npm run dev          # dev server on :3000
 npm run build        # production build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint src tests scripts
-npm test             # 394 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
+npm test             # 403 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
 npm run smoke        # end-to-end checks against a RUNNING server
 npm run eval         # the eval harness, against a RUNNING server
 npm run predeploy    # typecheck + lint + tests + eval, and writes the README
@@ -633,6 +633,58 @@ clone of their own.
   second set. What was actually wrong was the COMMENT above them claiming they
   were "exactly as the specification writes them". The comment was the lie, and
   it has been corrected rather than the questions.
+
+## Every numeric parameter was one-sided
+
+Found by being asked whether the tools are generic. They are parameterised —
+14 of 15 take arguments and the model sets them correctly — but **every numeric
+parameter was a MINIMUM or a LIMIT**: `min_deferrals`, `threshold`, `limit`,
+`top_n_gaps`, `within_months`, `within_days`. Nothing anywhere could express
+"exactly", "at most", or "between", and two tools answered the wrong question
+rather than refusing.
+
+**"Deferred exactly twice" was answered as "two or more".** On this dataset
+those are the same set, because nothing has slipped three times — so it looked
+right while reasoning wrongly, and the second-dataset test is exactly where
+that mask comes off. Fixed with `max_deferrals`, absent by default rather than
+clamped, because "no upper bound" is a different thing from any particular
+number. Its tests plant a third and a fourth deferral, since the committed data
+cannot tell a working filter from a coincidence.
+
+**"Who is above 90% attendance?" was answered with the WORST attenders.** The
+tool knew only "below", so the model sent the question to `meetings_missed`.
+Not masked — the opposite question, answered as a finding. Fixed with
+`direction` and `upper_threshold`. Widening to a quartile now follows the
+direction, and a BAND never widens: widening exists because the data defines no
+threshold, and a band is an explicit request for a range.
+
+**"Who has the strongest attendance record?" could not be fixed by a
+parameter.** `meetings_missed` ranks by misses and its rows exist only for
+directors who missed something, so a director with perfect attendance is not in
+it at all — it cannot answer that question even in principle. The tool
+description now says so, and `guardBestAttendance` in `router.ts` enforces it,
+because a description alone had already failed. It deliberately does not catch
+questions about which MEETING had the best attendance, which is a different
+tool and a correct answer.
+
+### Two tools were renamed, and renaming is safe
+
+`deferred_more_than_once` → `deferred_actions`, and
+`attendance_below_threshold` → `attendance_vs_threshold`. Both names described
+one DEFAULT rather than what the tool does.
+
+**Nothing resolves a stored tool name against the registry.** `pins.ts` only
+checks it is a string, and a pinned card renders its frozen `result`, so a
+rename orphans no saved card — only `pinKey`'s duplicate detection sees the
+name. I claimed the opposite earlier and was wrong; it is written down here
+because the wrong version is the intuitive one.
+
+**Still one-sided, and judged acceptable:** `limit`, `top_n_gaps`,
+`within_months` and `within_days` are horizons and top-N counts, where an upper
+bound has no meaning. And a superlative about a group ("which director has the
+best attendance") answers with the group above the threshold rather than naming
+one, because picking one requires a tie-break the project deliberately refuses
+to make silently.
 
 ## Limitations, and why they are limitations
 

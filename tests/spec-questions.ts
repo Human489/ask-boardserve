@@ -20,7 +20,7 @@
 export const SPEC_STRUCTURED: { q: string; tool: string }[] = [
   {
     q: 'Who is below our attendance threshold, and on which committees?',
-    tool: 'attendance_below_threshold',
+    tool: 'attendance_vs_threshold',
   },
   {
     q: "Were there meetings, or a period, where attendance was materially below the year's norm — and is any apparent movement bigger than one meeting's noise?",

@@ -112,7 +112,7 @@ for (const question of MUST_REFUSE_OFFLINE) {
 // provenance. Out-of-range numbers are now dropped so the tool's documented
 // default applies.
 test('out-of-range numeric arguments are dropped, not passed to the tool', () => {
-  const tool = TOOLS.find((t) => t.name === 'attendance_below_threshold')!
+  const tool = TOOLS.find((t) => t.name === 'attendance_vs_threshold')!
   assert.equal(coerceArgsForTest(tool, { threshold: 0 }).threshold, undefined)
   assert.equal(coerceArgsForTest(tool, { threshold: -5 }).threshold, undefined)
   assert.equal(coerceArgsForTest(tool, { threshold: 1000 }).threshold, undefined)

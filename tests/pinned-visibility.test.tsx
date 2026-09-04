@@ -29,13 +29,13 @@ import type { Pin } from '../src/lib/pins'
 const pin: Pin = {
   id: 'pin-1',
   question: 'Who is below our attendance threshold?',
-  tool: 'attendance_below_threshold',
+  tool: 'attendance_vs_threshold',
   args: {},
   routedBy: 'model',
   pinnedAt: '2026-08-31T10:00:00.000Z',
   datasetAsAt: '2026-08-31',
   result: {
-    tool: 'attendance_below_threshold',
+    tool: 'attendance_vs_threshold',
     headline: '3 directors are below 80%.',
     chart: {
       kind: 'bar',
