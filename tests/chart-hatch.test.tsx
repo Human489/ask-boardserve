@@ -1,6 +1,10 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import React from 'react'
+// FIRST: installs the globals recharts and react-dom/client need. Imports run
+// in source order, so moving this below them breaks every chart test here.
+import { container } from './jsdom-setup'
+import React, { act } from 'react'
+import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { Bar, BarChart, Cell } from 'recharts'
 
@@ -38,8 +42,27 @@ const data = [
   { label: 'B', value: 3 },
 ]
 
+/**
+ * Renders a chart into a DOM and returns its markup.
+ *
+ * NOT renderToStaticMarkup, which is what this used before recharts 3. Under
+ * 2.x that produced the entire SVG; under 3.x it produces an empty wrapper div,
+ * so every assertion below would have been made against an empty string.
+ */
+function renderChart(tree: React.ReactElement): string {
+  const root = createRoot(container)
+  act(() => {
+    root.render(tree)
+  })
+  const html = container.innerHTML
+  act(() => {
+    root.unmount()
+  })
+  return html
+}
+
 function render(child: React.ReactNode, fill: string): string {
-  return renderToStaticMarkup(
+  return renderChart(
     <BarChart width={300} height={200} data={data}>
       {child}
       <Bar dataKey="value" isAnimationActive={false}>
@@ -69,14 +92,27 @@ test('the hatch is a raw SVG element, not a component recharts would drop', () =
   assert.equal(element.type, 'defs')
 })
 
-test('wrapping the same defs in a component loses the pattern', () => {
-  // Pins the recharts behaviour itself, so the reason for the rule above cannot
-  // be quietly forgotten if someone "tidies" it back into a component.
+test('recharts 3 KEEPS a component-wrapped defs, which 2.x dropped', () => {
+  // This test used to assert the opposite, and pinned the recharts behaviour
+  // that caused the original bug: 2.x's renderByOrder kept only children whose
+  // type it recognised, so a function component vanished and the flagged bars
+  // pointed at a paint server that did not exist.
+  //
+  // recharts 3 fixed that upstream. Measured here rather than assumed, because
+  // the assertion is what tells the next person whether the rule above is still
+  // load-bearing — it is now belt and braces, not the thing standing between a
+  // reader and invisible bars.
+  //
+  // It is also why this file could not simply be deleted during the upgrade.
+  // Under 3.x, server-side rendering returns an empty string, and an empty
+  // string satisfies "does not include <pattern>" perfectly: the test went on
+  // passing while measuring nothing at all.
   function Wrapped() {
     return flaggedHatchDefs('wrapped', palette)
   }
   const markup = render(<Wrapped />, 'url(#wrapped)')
-  assert.ok(!markup.includes('<pattern'), 'a component child is dropped by recharts')
+  assert.ok(markup.includes('<pattern'), 'recharts 3 keeps a component child')
+  assert.ok(markup.length > 200, 'and the chart rendered at all')
 })
 
 // ---------------------------------------------------------------------------
@@ -86,7 +122,7 @@ test('wrapping the same defs in a component loses the pattern', () => {
 // and the legend repeated the failure rather than resolving it.
 
 test('the second series pattern reaches the rendered SVG', () => {
-  const markup = renderToStaticMarkup(
+  const markup = renderChart(
     <BarChart width={300} height={200} data={data}>
       {seriesTwoPatternDefs('series2-test', palette)}
       <Bar dataKey="value" isAnimationActive={false} fill="url(#series2-test)" />
