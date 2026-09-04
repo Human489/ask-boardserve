@@ -295,6 +295,9 @@ export const attendanceBelowThreshold: ToolDefinition = {
           rate: pct(own.filter(isPresent).length, own.length),
         }
       })
+      if (perBody.length > 1) {
+        splitRows.push([d.name, 'All bodies (overall)', d.attended, d.eligible, d.rate])
+      }
       for (const pb of perBody) {
         splitRows.push([d.name, pb.body, pb.attended, pb.eligible, pb.rate])
       }
@@ -315,6 +318,7 @@ export const attendanceBelowThreshold: ToolDefinition = {
     }
 
     const scopeLabel = body ? ` at ${body}` : ''
+    const timeSuffix = window.label !== 'across the whole record' ? ` (${window.label})` : ''
     let headline: string
     if (flagged.length === 0) {
       // The nearest rate is the useful one, and which end that is depends on
@@ -360,8 +364,8 @@ export const attendanceBelowThreshold: ToolDefinition = {
         // The title said so anyway, over bars all above the reference line —
         // the headline explained it, a pinned card or a screenshot did not.
         title: widened
-          ? `${above ? 'Highest' : 'Lowest'} ${points.length} attendance rates${scopeLabel}`
-          : `Attendance ${compareLabel}${scopeLabel}`,
+          ? `${above ? 'Highest' : 'Lowest'} ${points.length} attendance rates${scopeLabel}${timeSuffix}`
+          : `Attendance ${compareLabel}${scopeLabel}${timeSuffix}`,
         xLabel: 'Director',
         yLabel: 'Attendance',
         unit: 'percent',

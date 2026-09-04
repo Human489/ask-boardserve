@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import ChartCard from '@/components/ChartCard'
+import { pinTitle } from '@/components/PinnedDashboard'
 import { readShare } from '@/lib/shares'
 
 // The one page in this app with no passcode in front of it.
@@ -78,7 +79,10 @@ export default async function SharedDashboard({
 
       {share.pins.map((pin) => (
         <section className="share-pinned" key={pin.id}>
-          <h2 className="pinned-question">{pin.question}</h2>
+          <h2 className="pinned-question">
+            <span className="sr-only">Question: {pin.question} · </span>
+            {pinTitle(pin)}
+          </h2>
           <ChartCard
             result={pin.result}
             routedBy={pin.routedBy}

@@ -1522,6 +1522,22 @@ table.answer-table {
   color: var(--ink-2);
 }
 
+/* The pinned card's heading is now the descriptive chart title, so the identical
+   chart-title rendered inside the plot is visually hidden while preserving
+   accessible naming for screen readers. */
+.pinned .chart-title,
+.share-pinned .chart-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (max-width: 640px) {
   .masthead-row {
     flex-direction: column;

@@ -252,6 +252,14 @@ test('Oduya is 50% at Board and 100% at Finance and Audit', () => {
   assert.equal(fa[0][4], 100)
 })
 
+test('attendance_vs_threshold table includes an overall summary row matching the chart', () => {
+  const r = run('attendance_vs_threshold', { threshold: 80 })
+  const oduyaOverall = tableRow(r, (row) => row[0] === 'Terence Oduya' && row[1] === 'All bodies (overall)')
+  assert.equal(oduyaOverall.length, 1)
+  const oduyaPoint = r.chart!.points.find((p) => p.label === 'Terence Oduya')!
+  assert.equal(oduyaOverall[0][4], oduyaPoint.value)
+})
+
 test('a per-body scope uses that body only', () => {
   const r = run('attendance_vs_threshold', { threshold: 80, body: 'Board' })
   const oduya = r.chart!.points.find((p) => p.label === 'Terence Oduya')

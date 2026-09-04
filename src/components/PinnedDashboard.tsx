@@ -9,6 +9,7 @@ import ShareLinks from './ShareLinks'
 import { RemoveMark } from './marks'
 import type { PinsState } from './usePins'
 import type { Pin } from '@/lib/pins'
+import { isRefusal } from '@/lib/types'
 
 // The dashboard the secretary builds themselves, out of answers they already
 // trusted enough to keep.
@@ -16,6 +17,15 @@ import type { Pin } from '@/lib/pins'
 // Each card is the same ChartCard the transcript uses, deliberately: a pinned
 // chart that looked different from the answer it came from would invite the
 // question of whether it is still the same figure.
+
+export function pinTitle(pin: Pin): string {
+  if (pin.result.chart?.title) return pin.result.chart.title
+  if (isRefusal(pin.result)) return pin.result.headline
+  if (pin.result.tool) {
+    return pin.result.tool.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+  }
+  return 'Analysis'
+}
 
 function formatPinned(pin: Pin): string {
   const when = new Date(pin.pinnedAt)
@@ -173,18 +183,18 @@ export default function PinnedDashboard({
           const busy = busyKey === pin.id
           const inert = busy || busyKey !== null
           const questionId = `pinned-question-${pin.id}`
+          const title = pinTitle(pin)
           return (
             // Named by the question it answers, so it is exposed as a region a
             // screen reader can list and jump between rather than an anonymous
             // <section> that is not exposed at all.
             <section className="pinned" key={pin.id} aria-labelledby={questionId}>
-              {/* The question is the card's title: it is short, it is what a
-                  reader recognises the card by, and it was already the
-                  section's accessible name — so making it the visible heading
-                  is what finally makes those two the same string. */}
+              {/* The descriptive chart title is the card's heading, giving
+                  each pinned item a clear summary rather than repeating the
+                  prompt. The original prompt is preserved for screen readers. */}
               <h3 className="pinned-question" id={questionId}>
-                <span className="sr-only">Pinned from the question: </span>
-                {pin.question}
+                <span className="sr-only">Question: {pin.question} · </span>
+                {title}
               </h3>
               <ChartCard
                 result={pin.result}
