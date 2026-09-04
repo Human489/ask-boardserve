@@ -15,7 +15,14 @@ import type {
 const FIXED_SKILL_COLUMNS = ['director_id', 'director_name', 'role', 'tenure_years']
 
 function datasetDir(): string {
-  return process.env.DATASET_PATH ?? join(process.cwd(), 'dataset')
+  // Trimmed and length-checked rather than `??`, because an env var that is
+  // PRESENT AND EMPTY is not nullish: `DATASET_PATH=` resolves to '', which
+  // reads the process's working directory as a dataset and fails with a
+  // confusing "no dataset here" rather than falling back to the committed one.
+  // Adding the key with no value is an ordinary thing to do in a hosting
+  // dashboard, and this is now the path a cold visitor depends on.
+  const configured = process.env.DATASET_PATH?.trim()
+  return configured && configured.length > 0 ? configured : join(process.cwd(), 'dataset')
 }
 
 /** Minimal RFC-4180 line splitter: handles quoted fields containing commas. */

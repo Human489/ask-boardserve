@@ -85,15 +85,31 @@ responding to clicks. `rm -rf .next` and restart. This has happened three times.
 
 ## The dataset
 
-**Not in the repo — gitignored, and must never be committed.** Place it at
-`./dataset` or set `DATASET_PATH`.
+**ONE DATASET IS NOW COMMITTED, and it is the only one.** `./dataset` holds
+`attendance.json`, `actions.json`, `skills-audit.csv` and three `paper-*.md`
+board papers, in the repo. It used to be ignored outright; the instruction that
+changed it was "commit one dataset to the repo as the default so the deployed
+app works for someone opening it cold, then upload becomes the way to swap
+rather than the only way in." Before that, a first visit answered 409
+`needsDataset` for every question.
 
-That is the development source. The deployed app has no such directory, so a
-dataset gets in by being **uploaded as a .zip** and is kept in KV; see "Dataset
-sources" below. It holds `attendance.json`, `actions.json`,
-`skills-audit.csv` and three `paper-*.md` board papers.
+**That is safe only because both organisations in this exercise are
+FICTIONAL** — the dataset's own README says so. A real dataset goes straight
+back behind the ignore: attendance names identifiable people and records
+whether each turned up.
 
-`.gitignore` uses `/dataset/`, anchored. An unanchored `dataset/` also matches
+**The dataset's own README is still ignored**, because it describes both
+organisations and names the second by sector. Committing it would put
+dataset-b's identity in the repo.
+
+**A committed dataset is not automatically a DEPLOYED one.** Next traces a
+function's files by following imports, and the loader does not import the
+dataset — it reads a path built at request time. `outputFileTracingIncludes`
+in `next.config.ts` puts `./dataset/**` into every route; without it the files
+are in the repo, absent from the bundle, and every test still passes.
+
+`.gitignore` keeps `/dataset-*/`, anchored, so dataset-b cannot be committed by
+accident. Anchoring matters: an unanchored `dataset/` also matches
 `src/lib/dataset/`, which silently drops application code from commits.
 
 Do not open `dataset-b` (a second organisation, for the zero-code-change test)
