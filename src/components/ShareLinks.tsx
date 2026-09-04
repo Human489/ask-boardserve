@@ -44,6 +44,8 @@ export default function ShareLinks({
     busy: null,
   })
   const [justMade, setJustMade] = useState<string | null>(null)
+  const [selectedToken, setSelectedToken] = useState<string | null>(null)
+  const [copiedToken, setCopiedToken] = useState<string | null>(null)
   const busy = state.busy !== null
   /** Focus lands here when a revoked row is removed under it. */
   const heading = useRef<HTMLHeadingElement>(null)
@@ -67,25 +69,51 @@ export default function ShareLinks({
   const load = useCallback(async () => {
     const result = await request('GET')
     if (!result) return
+    const shares = Array.isArray(result.json?.shares) ? (result.json.shares as ShareSummary[]) : []
     setState((s) => ({
       ...s,
       loading: false,
-      shares: Array.isArray(result.json?.shares) ? (result.json.shares as ShareSummary[]) : [],
-      // A dataset that is not loaded yet is not worth shouting about.
+      shares,
       error: result.ok ? null : typeof result.json?.error === 'string' ? result.json.error : null,
     }))
+    if (shares.length > 0) {
+      setSelectedToken((curr) => curr || shares[0].token)
+    }
   }, [request])
 
   useEffect(() => {
     void load()
   }, [load])
 
+  const handleCopy = useCallback(
+    async (textToCopy: string, token: string) => {
+      try {
+        if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(textToCopy)
+        } else {
+          const textarea = document.createElement('textarea')
+          textarea.value = textToCopy
+          textarea.style.position = 'fixed'
+          textarea.style.opacity = '0'
+          document.body.appendChild(textarea)
+          textarea.focus()
+          textarea.select()
+          document.execCommand('copy')
+          document.body.removeChild(textarea)
+        }
+        setCopiedToken(token)
+        announce('Link copied to clipboard.')
+        setTimeout(() => {
+          setCopiedToken((c) => (c === token ? null : c))
+        }, 2500)
+      } catch {
+        announce('Could not copy link automatically. Please select and copy manually.')
+      }
+    },
+    [announce],
+  )
+
   const create = useCallback(async () => {
-    // aria-disabled is a claim, not an enforcement. Every other control in
-    // this app pairs it with a guard; this one did not, so double-pressing
-    // minted two live tokened URLs to named directors' attendance while the
-    // button said it was unavailable — and a screen-reader user was told it
-    // was unavailable and it fired anyway.
     if (busy || pinCount === 0) return
     setState((s) => ({ ...s, busy: 'new', error: null }))
     const result = await request('POST', {})
@@ -105,6 +133,7 @@ export default function ShareLinks({
       shares: Array.isArray(result.json?.shares) ? (result.json.shares as ShareSummary[]) : s.shares,
     }))
     setJustMade(token)
+    if (token) setSelectedToken(token)
     announce('A read-only link has been created.')
   }, [request, announce, busy, pinCount])
 
@@ -114,13 +143,18 @@ export default function ShareLinks({
       setState((s) => ({ ...s, busy: token, error: null }))
       const result = await request('DELETE', { token })
       if (!result) return
+      const updatedShares = Array.isArray(result.json?.shares) ? (result.json.shares as ShareSummary[]) : []
       setState((s) => ({
         ...s,
         busy: null,
-        shares: Array.isArray(result.json?.shares) ? (result.json.shares as ShareSummary[]) : s.shares,
+        shares: updatedShares,
         error: result.ok ? null : 'That link could not be withdrawn. Try again.',
       }))
       if (justMade === token) setJustMade(null)
+      setSelectedToken((curr) => {
+        if (curr !== token) return curr
+        return updatedShares.length > 0 ? updatedShares[0].token : null
+      })
       if (result.ok) announce('The link has been withdrawn and no longer works.')
     },
     [request, announce, justMade, busy],
@@ -128,6 +162,8 @@ export default function ShareLinks({
 
   const url = (token: string): string =>
     typeof window === 'undefined' ? `/share/${token}` : `${window.location.origin}/share/${token}`
+
+  const activeToken = justMade || selectedToken || (state.shares.length > 0 ? state.shares[0].token : null)
 
   return (
     <section className="shares">
@@ -153,19 +189,39 @@ export default function ShareLinks({
         <p className="shares-note">Pin a chart first — there is nothing to share yet.</p>
       )}
 
-      {justMade && (
-        // Shown once, immediately, because this is the only moment the reader
-        // needs the URL in full. It is listed afterwards without being splayed
-        // across the screen.
+      {activeToken && (
         <div className="shares-new">
-          <p className="shares-note">Copy this now. It shows board data to anyone who has it.</p>
-          <input
-            className="shares-url"
-            readOnly
-            aria-label="Shareable link. Copy this now."
-            value={url(justMade)}
-            onFocus={(e) => e.target.select()}
-          />
+          <p className="shares-note">
+            {justMade
+              ? 'Copy this now. It shows board data to anyone who has it.'
+              : 'Shareable link (read-only):'}
+          </p>
+          <div className="shares-url-bar">
+            <input
+              className="shares-url"
+              readOnly
+              aria-label="Shareable link. Copy this now."
+              value={url(activeToken)}
+              onFocus={(e) => e.target.select()}
+            />
+            <button
+              type="button"
+              className="shares-copy-btn"
+              onClick={() => void handleCopy(url(activeToken), activeToken)}
+              title="Copy link to clipboard"
+            >
+              {copiedToken === activeToken ? 'Copied!' : 'Copy link'}
+            </button>
+            <a
+              href={url(activeToken)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shares-open-link"
+              title="Open shared dashboard in new tab"
+            >
+              Open ↗
+            </a>
+          </div>
         </div>
       )}
 
@@ -179,21 +235,52 @@ export default function ShareLinks({
         <ul className="shares-list">
           {state.shares.map((share) => (
             <li key={share.token}>
-              <span className="shares-meta">
-                {share.pinCount} {share.pinCount === 1 ? 'chart' : 'charts'} ·{' '}
-                {expiryLabel(share.expiresAt)}
-              </span>
-              <button
-                type="button"
-                className="shares-revoke"
-                // The row is about to be removed with this button in it.
-                onClick={() => void revoke(share.token).then(() => heading.current?.focus())}
-                aria-disabled={state.busy !== null}
-              >
-                <RemoveMark />
-                <span className="sr-only">Withdraw this link</span>
-                Withdraw
-              </button>
+              <div className="shares-row-main">
+                <span className="shares-meta">
+                  {share.pinCount} {share.pinCount === 1 ? 'chart' : 'charts'} ·{' '}
+                  {expiryLabel(share.expiresAt)}
+                </span>
+                {activeToken === share.token && (
+                  <span className="shares-active-badge">Active</span>
+                )}
+              </div>
+              <div className="shares-row-actions">
+                <button
+                  type="button"
+                  className="shares-row-btn"
+                  onClick={() => void handleCopy(url(share.token), share.token)}
+                  title="Copy link"
+                >
+                  {copiedToken === share.token ? 'Copied!' : 'Copy'}
+                </button>
+                <button
+                  type="button"
+                  className="shares-row-btn"
+                  onClick={() => setSelectedToken(share.token)}
+                  title="View this link above"
+                >
+                  View
+                </button>
+                <a
+                  href={url(share.token)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shares-row-btn shares-row-open"
+                  title="Open link in new tab"
+                >
+                  Open ↗
+                </a>
+                <button
+                  type="button"
+                  className="shares-revoke"
+                  onClick={() => void revoke(share.token).then(() => heading.current?.focus())}
+                  aria-disabled={state.busy !== null}
+                >
+                  <RemoveMark />
+                  <span className="sr-only">Withdraw this link</span>
+                  Withdraw
+                </button>
+              </div>
             </li>
           ))}
         </ul>
