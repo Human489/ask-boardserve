@@ -1,4 +1,5 @@
 import { answerFromPassages } from '@/lib/retrieval/answer'
+import { checkPapersScope } from '@/lib/retrieval/scope'
 import { searchPapers } from '@/lib/retrieval/search'
 import { verifyAgainstPassages } from '@/lib/retrieval/verify'
 import type { AnswerResult, ToolDefinition } from '@/lib/types'
@@ -95,15 +96,66 @@ export const searchBoardPapers: ToolDefinition = {
     }
 
     if (!grounded.answered) {
+      // THE MODEL'S OWN PROSE IS NOT USED AS THE REASON.
+      //
+      // It was, and asked for the free reserves the model returned
+      // `answered: false` with "Free reserves at the year end were £4.61
+      // million" in its text — so the card said the papers do not answer this
+      // and then answered it, in the same breath, with a figure nothing had
+      // checked. CLAUDE.md has carried this as a known limitation for a while:
+      // a model-authored refusal reason is shown verbatim and the copy guard
+      // greps our own strings, so it cannot see it. This is that, happening.
+      //
+      // The reason is now written from what WE know — how many passages were
+      // read, out of how many papers, and which of the question's words appear
+      // in none of them. All of it is ours, all of it is checkable, and none
+      // of it can assert a figure.
+      const read = `${search.passages.length} passage${search.passages.length === 1 ? '' : 's'} from ${
+        dataset.papers.length
+      } board paper${dataset.papers.length === 1 ? '' : 's'}`
+      const missing =
+        search.missingTerms.length > 0
+          ? ` No retrieved passage mentions ${search.missingTerms.slice(0, 4).join(', ')}.`
+          : ''
+
+      // Only offer the structured files when the question actually names
+      // something they hold. Told that the attendance records and skills audit
+      // "may cover it instead", a reader asking about reserves was pointed at
+      // three sources that cannot answer them — the mirror of the invariant
+      // about never claiming data is absent when it is present.
+      // Where else to look, decided from the DATA rather than from a template.
+      //
+      // Two signals, because neither alone is enough. `checkPapersScope`
+      // returns matched vocabulary — director names, bodies, skills, action
+      // ids — but it short-circuits with an empty list whenever the question
+      // NAMES the papers, which is exactly the phrasing that lands here. So
+      // the question's own unmatched words are also checked against the action
+      // log's text, which is the case worth catching: the log records items
+      // that never went to a paper, and pointing a reader there is the most
+      // useful thing this refusal can do.
+      const scope = checkPapersScope(question, dataset)
+      const actionText = dataset.actions.actions
+        .map((a) => `${a.description} ${a.owner} ${a.status}`)
+        .join(' ')
+        .toLowerCase()
+      const inLog = search.missingTerms.find((t) => t.length > 4 && actionText.includes(t))
+
+      const alternative =
+        scope.matched.length > 0
+          ? `This names ${scope.matched.slice(0, 3).join(', ')}, which the attendance records, ` +
+            'action log or skills audit may hold — ask for it as a figure rather than as a ' +
+            'question about the papers.'
+          : inLog
+            ? `The action log does record "${inLog}", and it covers items that never went to a ` +
+              'paper — ask about overdue or outstanding actions instead.'
+            : `There are only ${dataset.papers.length} papers here and they do not minute every ` +
+              'meeting, so a subject the board discussed may simply not be written down in them.'
+
       return {
         tool: 'refusal',
         headline: 'The board papers do not answer this.',
-        reason: grounded.text,
-        alternative:
-          search.missingTerms.length > 0
-            ? `No paper mentions ${search.missingTerms.slice(0, 4).join(', ')}. The subject may ` +
-              'exist elsewhere in the data — the action log covers items the papers never went to.'
-            : 'The attendance records, action log and skills audit may cover it instead.',
+        reason: `${read} were read, and none of them states it.${missing}`,
+        alternative,
       }
     }
 

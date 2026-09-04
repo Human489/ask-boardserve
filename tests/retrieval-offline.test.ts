@@ -377,7 +377,11 @@ test('R3: a subject the action log holds but the papers do not is refused, witho
     assert.ok(isRefusal(result), 'the papers do not answer this, so the tool must refuse')
     if (!isRefusal(result)) return
 
-    // The judge's own words are the reason, not a template.
+    // The reason names the subject — but from OUR side now, not the judge's.
+    // This used to assert that the judge's own words were the reason, and that
+    // is what allowed a refusal to state a figure the model had invented: the
+    // reason is written from what we know, and the subject appears because it
+    // is one of the question's words that no retrieved passage contains.
     assert.ok(result.reason.includes(subject!), result.reason)
 
     // The invariant that matters: a refusal must not claim the DATA lacks the
@@ -597,5 +601,86 @@ test('a reply with no object in it stays a failure', async () => {
     '}{',
   ]) {
     assert.equal(extractJudgement(bad), null, `should not have parsed: ${bad.slice(0, 30)}`)
+  }
+})
+
+// A REFUSAL THAT CONTAINED THE ANSWER.
+//
+// Asked "what were the free reserves at the year end?", the model returned
+// `answered: false` with "Free reserves at the year end were £4.61 million" in
+// its text — and the card said "The board papers do not answer this" and then
+// stated the figure, which nothing had checked. CLAUDE.md carried this as a
+// known limitation: a model-authored refusal reason is shown verbatim, and the
+// copy guard in tests/sources.test.ts greps OUR strings, so it cannot see it.
+//
+// The reason is written from what we know now. This drives the exact model
+// behaviour that produced it.
+test('a refusal never repeats the model prose, so it cannot state a figure', async () => {
+  const real = loadDataset()
+  const { chunkPapers } = await import('../src/lib/retrieval/chunk')
+  const chunks = chunkPapers(real.papers).slice(0, 3)
+  installFetch({
+    matches: () =>
+      chunks.map((c, i) =>
+        match(real.organisation, 0.8 - i * 0.01, c.text, c.paperId, c.paperTitle, c.section),
+      ),
+    // answered:false, and an answer in the text anyway.
+    judge: () => ({
+      answered: false,
+      text: 'Free reserves at the year end (30 June) were £4.61 million.',
+      cite: [],
+    }),
+  })
+  try {
+    const { getTool } = await import('../src/lib/analytics/registry')
+    const result = await getTool('search_board_papers')!.run(real, {
+      question: 'What were the free reserves at the year end?',
+    })
+    assert.ok(isRefusal(result), 'answered:false must still refuse')
+    if (!isRefusal(result)) return
+
+    const shown = `${result.headline} ${result.reason} ${result.alternative ?? ''}`
+    assert.ok(
+      !shown.includes('4.61'),
+      `a refusal stated a figure: ${shown}`,
+    )
+    assert.ok(
+      !/£|\d+(\.\d+)?\s?(million|m\b|%)/i.test(result.reason),
+      `the reason asserts a quantity: ${result.reason}`,
+    )
+    // And it should say what was actually done, which is checkable.
+    assert.match(result.reason, /passages? from \d+ board papers? were read/)
+  } finally {
+    restoreFetch()
+  }
+})
+
+test('a refusal does not offer sources that cannot hold the answer', async () => {
+  // Told the attendance records and skills audit "may cover it instead", a
+  // reader asking about reserves was pointed at three sources that cannot
+  // answer them — the mirror of never claiming data is absent when it is not.
+  const real = loadDataset()
+  const { chunkPapers } = await import('../src/lib/retrieval/chunk')
+  const chunks = chunkPapers(real.papers).slice(0, 3)
+  installFetch({
+    matches: () =>
+      chunks.map((c, i) =>
+        match(real.organisation, 0.8 - i * 0.01, c.text, c.paperId, c.paperTitle, c.section),
+      ),
+    judge: () => ({ answered: false, text: 'The passages do not say.', cite: [] }),
+  })
+  try {
+    const { getTool } = await import('../src/lib/analytics/registry')
+    const result = await getTool('search_board_papers')!.run(real, {
+      question: 'What were the free reserves at the year end?',
+    })
+    assert.ok(isRefusal(result))
+    if (!isRefusal(result)) return
+    assert.ok(
+      !/attendance records/i.test(result.alternative ?? ''),
+      `offered a source that cannot answer it: ${result.alternative}`,
+    )
+  } finally {
+    restoreFetch()
   }
 })
