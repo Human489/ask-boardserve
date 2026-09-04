@@ -32,6 +32,12 @@ The eval figure quoted further down (130/130 over 5 runs) is the one number NOT
 re-measured since; it predates the recharts upgrade and the tool changes, and
 neither touched routing. **Re-run it before quoting it.**
 
+**Test everything against the DEPLOYED app, not only a dev server.** The worst
+defect in this project's history — every board-paper question refused in
+production, one of three tool families answering nothing — was invisible to
+419 unit tests, to smoke 62/62 and to the eval, because all three watch
+routing and routing was healthy. See "Audit three: against the live instance".
+
 **Outstanding work:**
 
 1. **A handover doc**, the last brief deliverable, not started. Everything
@@ -68,7 +74,7 @@ npm run dev          # dev server on :3000
 npm run build        # production build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint src tests scripts
-npm test             # 410 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
+npm test             # 419 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
 npm run smoke        # end-to-end checks against a RUNNING server
 npm run eval         # the eval harness, against a RUNNING server
 npm run predeploy    # typecheck + lint + tests + eval, and writes the README
@@ -756,6 +762,79 @@ just wrote is now the EXPECTED state. Its warning used to call that stale and
 advise deleting and recreating the index, which would have destroyed the other
 organisation's papers. It now only warns when the total is LOWER than the
 ingest produced, which is unambiguous.
+
+## Audit three: against the live instance
+
+Run against the deployed app rather than a dev server, which is how the
+biggest defect in this project's history was found.
+
+**EVERY BOARD-PAPER QUESTION WAS REFUSED IN PRODUCTION.** One of the three tool
+families answered nothing at all, and routing looked perfectly healthy the
+whole time, so no smoke or eval assertion could see it. Three separate causes,
+stacked:
+
+1. **No `max_tokens` on the grounding call.** The provider's default cap is
+   256; the router sets 1024 and works. This is a REASONING model, so it spends
+   output tokens thinking before it answers: measured `finish_reason: "length"`,
+   `completion_tokens: 256`, `content` null, the entire budget consumed by
+   `reasoning`.
+2. **A 12-second timeout that only became reachable once the first was fixed.**
+   It had never overrun because it was being truncated long before it was slow.
+   Real successful calls take ~10.5s end to end, already inside a whisker of
+   it. Raised to 25s, matching the router's budget for the same model on a
+   smaller prompt.
+3. **The reply is not always JSON.** `gpt-oss` leaks its own channel format
+   into `content` — `<|start|>assistant<|channel|>final <|constrain|>answer
+   <|constrain|>{...}` — with the JSON intact inside. `JSON.parse` on the whole
+   string failed, so after the first two fixes exactly half the questions
+   answered and half refused, which reads as flakiness rather than a bug.
+   `extractJudgement` takes the span from the first `{` to the last `}`: it
+   cannot invent a field, and a reply with no object stays a failure.
+
+Measured on one fixed set of six paper questions throughout: **0 of 6 answered
+before, 3 of 6 after the budget and timeout, 5 of 6 after the parse**, none
+withheld on figures. The sixth returns no object at all and is refused, which
+is correct.
+
+**A response-shape drift preceded all of it.** `answer.ts` read only
+`result.response` while the live endpoint sends
+`result.choices[0].message.content`; `router.ts` had already met both shapes
+and documents them. The test stub sent the flat shape — the one the code
+happened to handle — so the suite could not see it. The stub now takes the
+shape as a parameter and the same question runs through both.
+
+### What the reviews of other sessions' work found
+
+Three reviews ran over commits merged by other sessions. Seven defects, each
+re-verified before being acted on. The ones worth remembering as classes:
+
+- **A failed withdraw emptied the share list.** A non-ok DELETE carries no
+  `shares` array, that was coerced to `[]` and stored, and the reader was shown
+  zero links while every one of them was still live. Implying a link is dead
+  when it is alive is the dangerous direction.
+- **The exposure warning was dropped exactly where exposure grew.** The full
+  bearer URL used to appear only at the moment of minting, under "it shows
+  board data to anyone who has it". Auto-selecting an existing link paints that
+  URL on every visit, and on that path the warning had become "Shareable link
+  (read-only):". The warning belongs to the URL, not to the moment.
+- **A failure reason in module-global state.** `lastModelFallbackReason` was a
+  module `let` read after the call returned, so two questions in flight raced
+  and one reader could be told the service was down when the deployment was
+  misconfigured. One process serves many readers.
+- **An error route claimed `routedBy: 'model'`** — a route that exists because
+  the model produced nothing, sometimes without a call being attempted.
+  `routedBy` is the one field that must never flatter.
+- **A loosened assertion stopped measuring.** `kind !== 'refusal'` was changed
+  to `if (kind === 'tool')`, and an error route satisfies "not a refusal", so
+  the name check silently skipped.
+- **The resilience work shipped with no tests at all** — retries, failure
+  classification, the error route and a raised timeout could all be reverted
+  with the suite green, because nothing exercises `modelRoute`'s non-2xx paths.
+  The same blind spot that hid `guardUnmeasured` from the external audit.
+
+**And HANDOVER.md cited the wrong test file for four of its nine invariants.**
+That section is how a newcomer checks they have not broken something; following
+its citations produced "I cannot find it".
 
 ## Tool generality, and the axes that were missing
 
