@@ -110,10 +110,14 @@ test('routing never caches a refusal', () => {
   // The behaviour itself was verified against a running server.
   const source = readFileSync('src/lib/router.ts', 'utf8')
   const call = source.slice(source.indexOf('cached<Route>'))
-  // The first 900 characters of the call, which is well inside it and needs no
-  // newline escape — one of those was mangled into a real line break here
-  // once, which is the failure tests/sources.test.ts exists to catch.
-  const predicate = call.slice(0, 900)
+  // Bounded by the STATEMENT THAT FOLLOWS the call, not by a character count.
+  // It was the first 900 characters, and adding a comment plus a wrapper
+  // around the producer pushed the predicate past that window — so the test
+  // failed while the property it checks still held. A brittle matcher
+  // reporting a real behaviour as broken teaches people to ignore it, which is
+  // the second time that has happened in this suite.
+  const endsAt = call.indexOf('if (routed)')
+  const predicate = endsAt > -1 ? call.slice(0, endsAt) : call
   assert.match(
     predicate,
     /kind !== 'refusal'/,

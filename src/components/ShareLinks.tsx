@@ -95,11 +95,19 @@ export default function ShareLinks({
           textarea.value = textToCopy
           textarea.style.position = 'fixed'
           textarea.style.opacity = '0'
+          // Whatever was focused when Copy was pressed — the Copy button —
+          // has to get focus back. This appends a textarea, focuses it, then
+          // removes it: the focused element is destroyed by its own action and
+          // focus falls to <body>, which is the sixth instance of that failure
+          // in this project. A keyboard reader would be returned to the top of
+          // the document by pressing Copy.
+          const previous = document.activeElement as HTMLElement | null
           document.body.appendChild(textarea)
           textarea.focus()
           textarea.select()
           document.execCommand('copy')
           document.body.removeChild(textarea)
+          previous?.focus()
         }
         setCopiedToken(token)
         announce('Link copied to clipboard.')
@@ -143,17 +151,27 @@ export default function ShareLinks({
       setState((s) => ({ ...s, busy: token, error: null }))
       const result = await request('DELETE', { token })
       if (!result) return
-      const updatedShares = Array.isArray(result.json?.shares) ? (result.json.shares as ShareSummary[]) : []
+      // ONLY TRUST A LIST THE SERVER ACTUALLY SENT. A failed DELETE — a 500, a
+      // malformed body — carries no `shares` array, and this replaced the list
+      // with an empty one while showing "could not be withdrawn". The reader
+      // was told they had no links at the same moment as being told one could
+      // not be removed, and every one of them was still live and still
+      // serving named directors' attendance to anyone holding the URL.
+      // Implying a link is dead when it is alive is the dangerous direction.
+      const sent = Array.isArray(result.json?.shares)
+        ? (result.json.shares as ShareSummary[])
+        : null
       setState((s) => ({
         ...s,
         busy: null,
-        shares: updatedShares,
-        error: result.ok ? null : 'That link could not be withdrawn. Try again.',
+        shares: sent ?? s.shares,
+        error: result.ok ? null : 'That link could not be withdrawn. It is still live. Try again.',
       }))
       if (justMade === token) setJustMade(null)
       setSelectedToken((curr) => {
         if (curr !== token) return curr
-        return updatedShares.length > 0 ? updatedShares[0].token : null
+        const remaining = sent ?? []
+        return remaining.length > 0 ? remaining[0].token : null
       })
       if (result.ok) announce('The link has been withdrawn and no longer works.')
     },
@@ -191,16 +209,32 @@ export default function ShareLinks({
 
       {activeToken && (
         <div className="shares-new">
+          {/* THE WARNING BELONGS TO THE URL, not to the moment of minting.
+              It used to be shown only while `justMade` was set, because that
+              was the only time a full URL appeared. Auto-selecting an existing
+              link means the bearer URL is now painted on EVERY visit — and on
+              that path the sentence explaining what it exposes had been
+              replaced by "Shareable link (read-only):", which describes the
+              page rather than the risk. Anyone holding this URL reads named
+              directors' attendance with no passcode; that is true whenever
+              the box is on screen. */}
           <p className="shares-note">
             {justMade
               ? 'Copy this now. It shows board data to anyone who has it.'
-              : 'Shareable link (read-only):'}
+              : 'This link shows board data to anyone who has it, with no passcode.'}
           </p>
           <div className="shares-url-bar">
             <input
               className="shares-url"
               readOnly
-              aria-label="Shareable link. Copy this now."
+              // The label followed the same "just made" wording on both
+              // paths, telling a screen-reader user to copy something now
+              // that they may have created days ago.
+              aria-label={
+                justMade
+                  ? 'Shareable link. Copy this now.'
+                  : 'Shareable link, readable by anyone who has it'
+              }
               value={url(activeToken)}
               onFocus={(e) => e.target.select()}
             />

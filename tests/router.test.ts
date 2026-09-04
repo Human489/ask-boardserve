@@ -322,3 +322,115 @@ test('the guard leaves an ordinary missed-meetings question alone', () => {
   )
   assert.equal(routed.kind === 'tool' ? routed.name : '', 'meetings_missed')
 })
+
+// THE RESILIENCE WORK SHIPPED WITH NO TESTS AT ALL.
+//
+// Retries, failure classification, the REQUIRE_MODEL error route and a raised
+// timeout were added, and reverting every one of them left the whole suite
+// green — because no test exercises modelRoute's non-2xx paths. That is the
+// same blind spot that hid `guardUnmeasured` from an external audit: unit
+// tests run without credentials and take the offline path, so the model path
+// is never entered.
+//
+// These drive it by stubbing fetch, which is the only way in.
+test('a 401 is classified as a misconfiguration, not as a service blip', async () => {
+  const real = globalThis.fetch
+  process.env.CF_ACCOUNT_ID = 'test-account'
+  process.env.CF_API_TOKEN = 'test-token'
+  resetConfigCache()
+  globalThis.fetch = (async () =>
+    new Response('no', { status: 401 })) as unknown as typeof globalThis.fetch
+  try {
+    const routed = await routeQuestion('Who is below our attendance threshold?', TOOLS, [], dataset)
+    // It must still ANSWER, from the offline classifier — the fallback is the
+    // whole point and a transport failure is never a refusal.
+    assert.equal(routed.kind, 'tool', 'a 401 must fall back, not refuse')
+    assert.equal(routed.routedBy, 'fallback', 'and must say it was routed offline')
+    assert.equal(
+      routed.fallbackReason,
+      'auth_error',
+      'the reason must name the misconfiguration, not a generic service error',
+    )
+  } finally {
+    globalThis.fetch = real
+    delete process.env.CF_ACCOUNT_ID
+    delete process.env.CF_API_TOKEN
+    resetConfigCache()
+  }
+})
+
+test('a timeout is classified as a timeout, and still answers', async () => {
+  const real = globalThis.fetch
+  process.env.CF_ACCOUNT_ID = 'test-account'
+  process.env.CF_API_TOKEN = 'test-token'
+  resetConfigCache()
+  globalThis.fetch = (async () => {
+    const err = new Error('aborted')
+    err.name = 'AbortError'
+    throw err
+  }) as unknown as typeof globalThis.fetch
+  try {
+    const routed = await routeQuestion('Who is below our attendance threshold?', TOOLS, [], dataset)
+    assert.equal(routed.kind, 'tool')
+    assert.equal(routed.routedBy, 'fallback')
+    assert.equal(routed.fallbackReason, 'timeout')
+  } finally {
+    globalThis.fetch = real
+    delete process.env.CF_ACCOUNT_ID
+    delete process.env.CF_API_TOKEN
+    resetConfigCache()
+  }
+})
+
+test('REQUIRE_MODEL errors rather than answering, and does not claim the model routed it', async () => {
+  const real = globalThis.fetch
+  process.env.CF_ACCOUNT_ID = 'test-account'
+  process.env.CF_API_TOKEN = 'test-token'
+  process.env.REQUIRE_MODEL = 'true'
+  resetConfigCache()
+  globalThis.fetch = (async () =>
+    new Response('no', { status: 500 })) as unknown as typeof globalThis.fetch
+  try {
+    const routed = await routeQuestion('Who is below our attendance threshold?', TOOLS, [], dataset)
+    assert.equal(routed.kind, 'error', 'model-only mode must not fall back')
+    // The label is the point. The model produced nothing here, so saying
+    // 'model' would tell the client the opposite of what happened — and
+    // routedBy is the one field a reader uses to judge where an answer came
+    // from.
+    assert.equal(routed.routedBy, 'guard', 'an error route must not claim the model routed it')
+    if (routed.kind === 'error') {
+      assert.ok(
+        !/REQUIRE_MODEL/.test(routed.error),
+        'the reader is a company secretary; do not name our env vars at them',
+      )
+    }
+  } finally {
+    globalThis.fetch = real
+    delete process.env.CF_ACCOUNT_ID
+    delete process.env.CF_API_TOKEN
+    delete process.env.REQUIRE_MODEL
+    resetConfigCache()
+  }
+})
+
+test('model-only mode is opt-in: unset REQUIRE_MODEL still answers offline', async () => {
+  // If this ever became the default, every question would 503 the moment the
+  // gateway blinked.
+  const real = globalThis.fetch
+  process.env.CF_ACCOUNT_ID = 'test-account'
+  process.env.CF_API_TOKEN = 'test-token'
+  delete process.env.REQUIRE_MODEL
+  resetConfigCache()
+  globalThis.fetch = (async () =>
+    new Response('no', { status: 500 })) as unknown as typeof globalThis.fetch
+  try {
+    const routed = await routeQuestion('Who is below our attendance threshold?', TOOLS, [], dataset)
+    assert.equal(routed.kind, 'tool')
+    assert.equal(routed.routedBy, 'fallback')
+  } finally {
+    globalThis.fetch = real
+    delete process.env.CF_ACCOUNT_ID
+    delete process.env.CF_API_TOKEN
+    resetConfigCache()
+  }
+})

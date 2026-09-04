@@ -222,6 +222,13 @@ for (const [question, expected] of MUST_STILL_ROUTE) {
         routed.kind === 'refusal' ? routed.reason : ''
       }`,
     )
+    // `kind === 'tool'`, not `kind !== 'refusal'`: an ErrorRoute satisfies
+    // "not a refusal" too, so guarding the name check on the negative made
+    // this test SKIP its only real assertion instead of failing. Unreachable
+    // while REQUIRE_MODEL is unset, but it is exactly the shape of "a test
+    // that passes while measuring nothing" this suite exists to prevent — so
+    // the route kind is asserted rather than assumed.
+    assert.equal(routed.kind, 'tool', `expected a tool route, got ${routed.kind}`)
     if (routed.kind === 'tool') assert.equal(routed.name, expected)
   })
 }
@@ -251,6 +258,13 @@ for (const [question, expected] of WRONGLY_REFUSED) {
       'refusal',
       `refused a question a tool answers: ${routed.kind === 'refusal' ? routed.reason : ''}`,
     )
+    // `kind === 'tool'`, not `kind !== 'refusal'`: an ErrorRoute satisfies
+    // "not a refusal" too, so guarding the name check on the negative made
+    // this test SKIP its only real assertion instead of failing. Unreachable
+    // while REQUIRE_MODEL is unset, but it is exactly the shape of "a test
+    // that passes while measuring nothing" this suite exists to prevent — so
+    // the route kind is asserted rather than assumed.
+    assert.equal(routed.kind, 'tool', `expected a tool route, got ${routed.kind}`)
     if (routed.kind === 'tool') assert.equal(routed.name, expected)
   })
 }

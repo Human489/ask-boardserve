@@ -41,7 +41,15 @@ export interface ErrorRoute {
   kind: 'error'
   error: string
   fallbackReason?: FallbackReason
-  routedBy: 'model'
+  /**
+   * NOT 'model'. This route exists precisely because the model produced
+   * nothing, and in the `no_credentials` case no call was even attempted — so
+   * labelling it 'model' told the client the model had routed the question
+   * when it had not. In a product whose whole claim is that a reader can tell
+   * where an answer came from, `routedBy` is the one field that must never be
+   * flattering. 'guard' is what actually produced it.
+   */
+  routedBy: 'guard'
 }
 
 export type Route = ToolRoute | RefusalRoute | ErrorRoute
@@ -653,13 +661,28 @@ export function fallbackRoute(question: string, tools: ToolDefinition[]): Route 
 // ------------------------------------------------------------------ model
 
 let hasLoggedAuthError = false
-let lastModelFallbackReason: FallbackReason = 'service_error'
+
+/**
+ * Why the model path gave up, carried BACK from the call rather than stashed
+ * in module scope.
+ *
+ * It was a module-level `let`, reset at the top of `modelRoute` and read after
+ * it returned — so two questions in flight at once raced. A getting a 401
+ * while B overwrote the value with 'service_error' meant A's reader was told
+ * the service was temporarily unavailable when the deployment was actually
+ * misconfigured, and under REQUIRE_MODEL that wrong reason is the error text.
+ * One process serves many readers, so this was not theoretical.
+ */
+interface ModelAttempt {
+  route: Route | null
+  reason: FallbackReason
+}
 
 async function modelRoute(
   question: string,
   tools: ToolDefinition[],
   history: HistoryTurn[],
-): Promise<Route | null> {
+): Promise<ModelAttempt> {
   const cfg = getConfig()
   // The Workers AI REST endpoint, with the gateway applied via the
   // cf-aig-gateway-id header. The gateway.ai.cloudflare.com/{account}/{gateway}
@@ -671,7 +694,7 @@ async function modelRoute(
 
   // Retries: a 429 should back off; a timeout or 5xx may retry once before falling back.
   // A 401/403 is a misconfiguration and should be surfaced once and clearly, not per question.
-  lastModelFallbackReason = 'service_error'
+  let reason: FallbackReason = 'service_error'
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     const controller = new AbortController()
@@ -719,12 +742,12 @@ async function modelRoute(
                 'Check CF_ACCOUNT_ID and CF_API_TOKEN. Falling back to the offline classifier.',
             )
           }
-          lastModelFallbackReason = 'auth_error'
-          return null
+          reason = 'auth_error'
+          return { route: null, reason }
         }
 
         if (res.status === 429) {
-          lastModelFallbackReason = 'rate_limit'
+          reason = 'rate_limit'
           if (attempt === 1) {
             const retryHeader = res.headers.get('retry-after')
             const waitMs = retryHeader ? Math.min(Number(retryHeader) * 1000 || 1000, 3000) : 1000
@@ -733,18 +756,18 @@ async function modelRoute(
             continue
           }
           console.error('[router] AI Gateway rate-limited (429) after backoff. Falling back to the offline classifier.')
-          return null
+          return { route: null, reason }
         }
 
         if (res.status >= 500 && res.status < 600) {
-          lastModelFallbackReason = 'service_error'
+          reason = 'service_error'
           if (attempt === 1) {
             console.warn(`[router] AI Gateway returned ${res.status}; retrying once...`)
             await new Promise((r) => setTimeout(r, 500))
             continue
           }
           console.error(`[router] AI Gateway returned ${res.status} on retry. Falling back to the offline classifier.`)
-          return null
+          return { route: null, reason }
         }
 
         // Other non-200
@@ -753,8 +776,8 @@ async function modelRoute(
           `[router] AI Gateway returned ${res.status}. Falling back to the offline ` +
             `classifier. ${detail.slice(0, 300)}`,
         )
-        lastModelFallbackReason = 'service_error'
-        return null
+        reason = 'service_error'
+        return { route: null, reason }
       }
 
       // This endpoint wraps everything in `result`, and returns tool calls in two
@@ -788,8 +811,8 @@ async function modelRoute(
       const fn =
         result?.choices?.[0]?.message?.tool_calls?.[0]?.function ?? result?.tool_calls?.[0]
       if (!fn?.name) {
-        lastModelFallbackReason = 'service_error'
-        return null
+        reason = 'service_error'
+        return { route: null, reason }
       }
 
       let args: Record<string, unknown> = {}
@@ -804,26 +827,31 @@ async function modelRoute(
       }
 
       if (fn.name === 'refuse') {
-        const reason =
+        // Named apart from `reason`, which is this call's FAILURE reason. The
+        // model refusing is a successful call, not a failure.
+        const refusalReason =
           typeof args.reason === 'string' && args.reason.trim()
             ? args.reason.trim()
             : 'The available data cannot answer this question.'
-        return { kind: 'refusal', reason, routedBy: 'model' }
+        return {
+          route: { kind: 'refusal', reason: refusalReason, routedBy: 'model' },
+          reason,
+        }
       }
 
       const chosen = tools.find((t) => t.name === fn.name)
       if (!chosen) {
-        lastModelFallbackReason = 'service_error'
-        return null
+        reason = 'service_error'
+        return { route: null, reason }
       }
 
       // Fill any argument the model omitted, so a tool never runs under-specified.
       const filled = { ...inferArgs(chosen, ` ${question.toLowerCase()} `), ...coerceArgs(chosen, args) }
-      return { kind: 'tool', name: chosen.name, args: filled, routedBy: 'model' }
+      return { route: { kind: 'tool', name: chosen.name, args: filled, routedBy: 'model' }, reason }
     } catch (e) {
       recordFailure()
       const isTimeout = (e as Error)?.name === 'AbortError'
-      lastModelFallbackReason = isTimeout ? 'timeout' : 'service_error'
+      reason = isTimeout ? 'timeout' : 'service_error'
       if (attempt === 1) {
         console.warn(`[router] model routing failed (${isTimeout ? 'timed out' : String(e)}); retrying once...`)
         continue
@@ -831,13 +859,13 @@ async function modelRoute(
       console.error(
         `[router] model routing failed (${isTimeout ? 'timed out' : String(e)}) on retry; using the offline classifier.`,
       )
-      return null
+      return { route: null, reason }
     } finally {
       clearTimeout(timer)
     }
   }
 
-  return null
+  return { route: null, reason }
 }
 
 export async function routeQuestion(
@@ -907,6 +935,10 @@ export async function routeQuestion(
     // routedBy stays 'model' on a cache hit, which is accurate: the decision
     // was the model's, taken earlier. Calling it anything else would tell the
     // reader the offline classifier had been used when it had not.
+    // Captured from the producer rather than read off module scope. On a cache
+    // HIT the producer never runs and this keeps its default — which is safe
+    // because a hit means `routed` is non-null and we return before reading it.
+    let attemptReason: FallbackReason = 'service_error'
     const routed = await cached<Route>(
       'route',
       [
@@ -916,7 +948,11 @@ export async function routeQuestion(
         question,
       ].join(' :: '),
       CACHE_TTL_SECONDS,
-      () => modelRoute(question, tools, history),
+      async () => {
+        const attempt = await modelRoute(question, tools, history)
+        attemptReason = attempt.reason
+        return attempt.route
+      },
       // A REFUSAL IS NEVER CACHED. Routing is not deterministic, so a question
       // the dataset answers can be refused on one call in three — and caching
       // that hands the same refusal to every later reader for an hour, looking
@@ -934,7 +970,7 @@ export async function routeQuestion(
       )
     }
 
-    fallbackReason = lastModelFallbackReason
+    fallbackReason = attemptReason
     console.warn(`[router] model routing unavailable (${fallbackReason}); using the deterministic fallback`)
   }
 
@@ -942,9 +978,14 @@ export async function routeQuestion(
   if (getConfig().requireModel) {
     return {
       kind: 'error',
-      error: `Model routing is required (REQUIRE_MODEL=true) but model routing failed (${fallbackReason}).`,
+      // Names the setting rather than the env var: the reader is a company
+      // secretary, and "REQUIRE_MODEL=true" is a sentence about our
+      // deployment, not about their question.
+      error:
+        'This deployment is set to answer only when the routing model is reachable, ' +
+        'and it is not. Nothing was guessed. Try again in a moment.',
       fallbackReason,
-      routedBy: 'model',
+      routedBy: 'guard',
     }
   }
 
