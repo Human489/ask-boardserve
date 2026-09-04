@@ -86,21 +86,17 @@ export function RefreshMark() {
 }
 
 /**
- * The disclosure affordance on the conversation list.
+ * The conversation rail's toggle.
  *
- * Drawn rather than left to the browser: `<summary>` loses its native marker
- * the moment its `display` is anything but `list-item`, and this one is a flex
- * row. The result was a control that opened a panel with nothing at all to say
- * it could be opened — it read as a label sitting beside a link.
- *
- * Points right when closed and is rotated by CSS when open, so the direction
- * is a single transform rather than two icons that could drift apart.
+ * A panel rather than a chevron or a hamburger: the control shows and hides a
+ * region that is beside the content, and the icon says which region by drawing
+ * it. The filled edge is the rail itself.
  */
-export function ChevronMark() {
+export function PanelMark() {
   return (
     <svg
-      width="12"
-      height="12"
+      width="15"
+      height="15"
       viewBox="0 0 16 16"
       fill="none"
       stroke="currentColor"
@@ -109,7 +105,8 @@ export function ChevronMark() {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d="M6 3.5 10.5 8 6 12.5" />
+      <rect x="1.9" y="2.9" width="12.2" height="10.2" rx="1.8" />
+      <path d="M6.4 2.9v10.2" />
     </svg>
   )
 }

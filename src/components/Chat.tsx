@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Message from './Message'
 import type { Turn } from './Message'
-import { ChevronMark, PinMark, RemoveMark } from './marks'
+import { PanelMark, PinMark, RemoveMark } from './marks'
 import type { ConversationsState } from './useConversations'
 import type { StoredTurn } from '@/lib/conversations'
 import { pinKey, type PinsState } from './usePins'
@@ -194,6 +194,24 @@ export default function Chat({
   // twice the rate-limit budget spent.
   const turnsRef = useRef<Turn[]>([])
   const textarea = useRef<HTMLTextAreaElement>(null)
+  /**
+   * Whether the conversation rail is showing.
+   *
+   * `null` until mount, and that is the point: CSS owns the DEFAULT — shown at
+   * 1024px and up, hidden below it — so the first paint is already correct
+   * without this component knowing the viewport. Initialising it from
+   * matchMedia during render would either mismatch what the server rendered or
+   * flash the panel open on a phone.
+   *
+   * The effect then records the same value the CSS already chose, purely so
+   * `aria-expanded` on the toggle is true rather than a guess. Once the reader
+   * touches the control their choice wins at every width.
+   */
+  const [railShown, setRailShown] = useState<boolean | null>(null)
+  useEffect(() => {
+    setRailShown(window.matchMedia('(min-width: 1024px)').matches)
+  }, [])
+
   /** Focus lands here when a conversation row is removed under it. */
   const newConversationButton = useRef<HTMLButtonElement>(null)
 
@@ -544,13 +562,29 @@ export default function Chat({
     )
   }
 
+  const railClass =
+    'history' + (railShown === true ? ' is-shown' : railShown === false ? ' is-hidden' : '')
+
   const historyPanel = (
-    <div className="history">
-      {/* The bar's own content is centred on the transcript's measure. Left
-          flush to the page it started 226px to the left of the column it
-          belongs to, so the list of past questions and the answers they
-          produced read as two unrelated things. */}
-      <div className="history-inner">
+    // A PERSISTENT RAIL, not the disclosure this used to be.
+    //
+    // The old comment here argued the opposite — that a list of past questions
+    // beside every answer would compete with the answer, this being a surface
+    // where the answer is the point. That was overruled deliberately, on two
+    // grounds worth keeping: a reader comparing this run of a question with the
+    // last one needs both on screen at once, and every product a secretary
+    // already uses puts its history exactly here. Convention is not decoration
+    // when the alternative is a control nobody looks for.
+    <aside className={railClass} id="conversation-history" aria-labelledby="history-heading">
+      <div className="history-head">
+        <h2 className="history-heading" id="history-heading">
+          Conversations
+        </h2>
+        {conversations.list.length > 0 && (
+          <span className="history-count">{conversations.list.length} saved</span>
+        )}
+      </div>
+
       <button
         type="button"
         className="history-new"
@@ -561,55 +595,47 @@ export default function Chat({
         New conversation
       </button>
 
-      {conversations.list.length > 0 && (
-        // A disclosure rather than a permanent sidebar: this is an Operate
-        // surface where the answer is the point, and a list of past questions
-        // beside every answer would compete with it. Native <details>, so it
-        // is keyboard operable and announced as expandable with no script.
-        <details className="history-list">
-          <summary>
-            <ChevronMark />
-            Earlier conversations
-            <span className="history-count">
-              {conversations.list.length} saved
-            </span>
-          </summary>
-          <ul>
-            {conversations.list.map((saved) => {
-              const current = saved.id === activeId
-              return (
-                <li key={saved.id} className="history-row">
-                  <button
-                    type="button"
-                    className="history-open"
-                    onClick={() => void openConversation(saved.id)}
-                    aria-disabled={inFlight || current}
-                    aria-current={current ? 'true' : undefined}
-                  >
-                    <span className="history-title">{saved.title}</span>
-                    {/* Its own column rather than another clause in the meta
-                        line, so the timestamps stack into something the eye can
-                        run down — which is the whole point of showing them. */}
-                    <span className="history-when">{formatWhen(saved.updatedAt)}</span>
-                    <span className="history-meta">
-                      {saved.turnCount} {saved.turnCount === 1 ? 'question' : 'questions'}
-                      {current ? ' · showing' : ''}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="history-forget"
-                    onClick={() => void forgetConversation(saved.id, saved.title)}
-                    aria-disabled={inFlight || conversations.busyId === saved.id}
-                  >
-                    <RemoveMark />
-                    <span className="sr-only">Forget {saved.title}</span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        </details>
+      {conversations.list.length === 0 ? (
+        <p className="history-empty">
+          Answers you ask for are kept here, so you can come back to a line of
+          enquiry rather than starting it again.
+        </p>
+      ) : (
+        <ul>
+          {conversations.list.map((saved) => {
+            const current = saved.id === activeId
+            return (
+              <li key={saved.id} className="history-row">
+                <button
+                  type="button"
+                  className="history-open"
+                  onClick={() => void openConversation(saved.id)}
+                  aria-disabled={inFlight || current}
+                  aria-current={current ? 'true' : undefined}
+                >
+                  <span className="history-title">{saved.title}</span>
+                  {/* Its own line rather than another clause in the meta, so
+                      the timestamps stack into something the eye can run down
+                      — the rail is too narrow to give them a column. */}
+                  <span className="history-meta">
+                    {formatWhen(saved.updatedAt)} · {saved.turnCount}{' '}
+                    {saved.turnCount === 1 ? 'question' : 'questions'}
+                    {current ? ' · showing' : ''}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="history-forget"
+                  onClick={() => void forgetConversation(saved.id, saved.title)}
+                  aria-disabled={inFlight || conversations.busyId === saved.id}
+                >
+                  <RemoveMark />
+                  <span className="sr-only">Forget {saved.title}</span>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       )}
 
       {/* Said plainly rather than implied. Without KV a conversation lasts
@@ -626,13 +652,29 @@ export default function Chat({
           {conversations.error}
         </p>
       )}
-      </div>
-    </div>
+    </aside>
   )
 
   return (
     <div className="chat" hidden={hidden}>
+      {/* A direct child of .chat, not of .chat-main, so the grid can place it
+          BESIDE the rail on a desk and ABOVE it on a phone. Left inside the
+          main column it sat under the opened panel, which put the control that
+          opened the thing below the thing it opened. */}
+      <div className="chat-bar">
+        <button
+          type="button"
+          className="rail-toggle"
+          aria-expanded={railShown ?? true}
+          aria-controls="conversation-history"
+          onClick={() => setRailShown((open) => !(open ?? true))}
+        >
+          <PanelMark />
+          <span className="rail-toggle-label">Conversations</span>
+        </button>
+      </div>
       {historyPanel}
+      <div className="chat-main">
       <div className="transcript">
         {needsDataset ? (
           <div className="empty">
@@ -744,6 +786,7 @@ export default function Chat({
           Enter to send, Shift+Enter for a new line. Answers are computed from the loaded
           dataset only.
         </p>
+      </div>
       </div>
     </div>
   )

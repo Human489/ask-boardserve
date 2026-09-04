@@ -426,9 +426,16 @@ textarea {
   padding: 18px 24px;
 }
 
+/* Spans the app rather than centring on the transcript's measure.
+   It was centred on 780px, which agreed with everything while the answer
+   column was the only thing under it. The conversation rail broke that: the
+   column below now centres in the space BESIDE the rail, so a masthead
+   centred on the page sat 134px to its left and read as a different screen's
+   header. Full width puts the lockup above the rail and the theme control at
+   the far edge, which is where a rail layout expects both — and the gate,
+   which has no rail, reads the same way. */
 .masthead-inner {
-  max-width: var(--measure);
-  margin: 0 auto;
+  max-width: none;
 }
 
 /* The serif is the parent brand's most recognisable feature, so it carries the
@@ -960,9 +967,6 @@ table.answer-table {
     animation: none;
   }
 
-  .history-list > summary svg {
-    transition: none;
-  }
 }
 
 .sr-only {
@@ -1827,103 +1831,77 @@ table.answer-table {
 }
 
 /* ----------------------------------------------------- conversation history
-   A thin bar above the transcript, not a sidebar. This is an Operate surface
-   where the answer is the point; a permanent list of past questions beside
-   every answer would compete with the thing the reader came for.
+   A PERSISTENT LEFT RAIL. This was a thin disclosure bar above the transcript,
+   on the argument that a list of past questions beside every answer would
+   compete with the answer. That was overruled: a reader comparing this run of
+   a question with the last one needs both on screen at once, and a rail is
+   where every product a secretary already uses keeps its history.
 
-   The list itself is a native <details>, closed by default, for the same
-   reason the provenance note is: it is consulted, not read. */
+   Below 1024px there is no room beside the answer, so the rail becomes a
+   panel above it that the same control opens and closes. Not an overlay
+   drawer: a scrim, a focus trap and an escape key are a lot of machinery for a
+   list, and a panel that pushes the page down needs none of it to be
+   operable. */
+
+.chat {
+  /* A grid rather than a row, so the toggle can be placed beside the rail on a
+     desk and above it on a phone from one rule each. */
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    'rail bar'
+    'rail main';
+  flex: 1;
+  min-height: 0;
+}
+
+.chat-main {
+  grid-area: main;
+  display: flex;
+  flex-direction: column;
+  /* Without these the transcript's own content sets the floor: a long table
+     pushes the rail off the screen instead of scrolling inside its column, and
+     a long transcript pushes the composer off the bottom. */
+  min-width: 0;
+  min-height: 0;
+}
 
 .history {
-  border-bottom: 1px solid var(--hairline);
-  padding: 10px 24px;
-}
-
-/* Centred on the transcript's own measure. The bar's contents were flush to
-   the page gutter while the answers below were centred in 780px, so at 1280px
-   the list of past questions began 226px to the left of the column it belongs
-   to and read as chrome from a different screen. */
-.history-inner {
-  max-width: var(--measure);
-  margin: 0 auto;
+  grid-area: rail;
+  width: 268px;
+  border-right: 1px solid var(--hairline);
+  background: var(--surface-sunken);
+  padding: 16px 12px 20px;
   display: flex;
-  align-items: baseline;
-  gap: 14px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 10px;
+  /* The rail scrolls on its own, so a long history never moves the composer. */
+  overflow-y: auto;
 }
 
-.history-new {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--accent);
-  background: none;
-  border: none;
-  padding: 2px 0;
-  cursor: pointer;
-  border-radius: var(--radius-mark);
-}
-
-.history-new:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.history-new[aria-disabled='true'] {
-  color: var(--ink-muted);
-  cursor: default;
-  text-decoration: none;
-}
-
-.history-list {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.history-list > summary {
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--ink-2);
-  border-radius: var(--radius-mark);
-  /* The native marker is gone the moment display is not list-item, so this
-     only makes explicit what the flex row already did — and the drawn chevron
-     below is what actually restores the affordance. Both spellings, because
-     the older WebKit pseudo-element still ships. */
-  list-style: none;
-}
-
-.history-list > summary::-webkit-details-marker {
+/* CSS owns the default at each width; these two classes are the reader's
+   choice, and they win at every width once made. */
+.history.is-hidden {
   display: none;
 }
 
-/* Points right when closed, down when open. WITHOUT THIS THE CONTROL HAD NO
-   AFFORDANCE AT ALL: "Earlier conversations" sat beside "New conversation"
-   looking like a label next to a link, and nothing said one of them opened a
-   panel. */
-.history-list > summary svg {
-  flex: none;
+.history-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 4px;
+}
+
+.history-heading {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--ink-muted);
-  transition: transform 140ms ease-out;
-}
-
-.history-list[open] > summary svg {
-  transform: rotate(90deg);
-}
-
-.history-list > summary:hover svg {
-  color: var(--ink-2);
-}
-
-.history-list > summary:hover {
-  color: var(--ink);
-}
-
-.history-list > summary:focus-visible,
-.history-new:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
 }
 
 .history-count {
@@ -1933,38 +1911,58 @@ table.answer-table {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.history-list ul {
-  list-style: none;
-  margin: 10px 0 2px;
-  /* A ground of its own, so the open list reads as one object rather than as
-     rows floating on the page. Tonal layering rather than a shadow, which is
-     how every other container here is separated — and it is why a row's hover
-     lifts to --surface instead of sinking, the two being the wrong way round
-     once the list itself is the sunken surface. */
-  background: var(--surface-sunken);
-  border: 1px solid var(--hairline);
+/* The rail's one action, so it takes the quiet button rather than a link:
+   full width, card white on the sunken ground, hairline bounded. */
+.history-new {
+  width: 100%;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--hairline-strong);
   border-radius: var(--radius);
-  padding: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.history-new:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.history-new[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.history-new:focus-visible,
+.rail-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.history-empty {
+  margin: 2px 4px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+.history ul {
+  list-style: none;
+  margin: 2px 0 0;
+  padding: 0;
   display: grid;
   gap: 2px;
-  /* Capped to the transcript's own measure. Left to fill the page the rows
-     ran the full 1280px, which put the forget control some 680px from the
-     title it belonged to — a row that wide stops reading as a list entry and
-     starts reading as a spreadsheet line. */
-  max-width: var(--measure);
-  /* A history is unbounded in principle and capped at twenty in practice;
-     either way it scrolls inside itself rather than pushing the transcript
-     off the screen. */
-  max-height: 40vh;
-  overflow-y: auto;
 }
 
 .history-row {
   display: flex;
   align-items: stretch;
-  gap: 4px;
+  gap: 2px;
 }
 
 .history-open {
@@ -1974,18 +1972,14 @@ table.answer-table {
   background: none;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 7px 9px;
+  padding: 7px 8px;
   cursor: pointer;
-  /* Two columns: the question on the left, when it was last added to on the
-     right. The timestamps line up into a column the eye can run down, which is
-     what makes a list of near-identical titles navigable at all. */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 14px;
-  row-gap: 1px;
-  align-items: baseline;
+  gap: 2px;
 }
 
+/* The rail is the sunken surface, so a row lifts to card white on hover
+   rather than sinking — the usual direction inverted, deliberately. */
 .history-open:hover {
   background: var(--surface);
 }
@@ -1999,36 +1993,23 @@ table.answer-table {
 }
 
 .history-title {
-  grid-column: 1;
   font-size: 13px;
+  line-height: 1.35;
   color: var(--ink);
-  /* One line: a title is already trimmed to 60 characters server-side, and a
-     wrapping entry makes the list stop reading as a list. */
+  /* Two lines, then ellipsis. One line was right when the row was 770px wide
+     and is wrong at 210px: titles are derived from the first question, so the
+     first few words of two different questions are routinely identical and a
+     single truncated line showed five rows reading the same. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .history-meta {
-  grid-column: 1;
   font-size: 11.5px;
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
-}
-
-/* The caption step, exactly as the provenance VALUES use it — mono in this
-   system names a field, it does not set the value beside it. Taking mono here
-   would also have meant a 10.5px that is in no documented ramp, and the ramp
-   is the permitted set. Right-aligned so the column has a straight edge
-   whatever the month is called. */
-.history-when {
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: end;
-  font-size: 11.5px;
-  color: var(--ink-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .history-forget {
@@ -2036,9 +2017,8 @@ table.answer-table {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 36 rather than 30: this is the destructive control in the row, it is
-     reached by thumb on a phone, and it was the narrowest target in the app. */
-  width: 36px;
+  /* The destructive control in the row, and reached by thumb on a phone. */
+  width: 34px;
   background: none;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -2063,32 +2043,71 @@ table.answer-table {
 }
 
 .history-note {
-  flex: 1 1 100%;
-  margin: 4px 0 0;
+  margin: 4px 4px 0;
   font-size: 11.5px;
   line-height: 1.6;
   color: var(--ink-muted);
-  max-width: var(--measure-prose);
 }
 
 .history-error {
   color: var(--error-ink);
 }
 
-@media (max-width: 640px) {
+/* The strip that holds the rail's toggle. Deliberately holds nothing else:
+   it is the seam between the rail and the answer, not a second toolbar. */
+.chat-bar {
+  grid-area: bar;
+  padding: 8px 12px 0;
+}
+
+.rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.rail-toggle:hover {
+  color: var(--ink);
+  border-color: var(--hairline);
+}
+
+@media (max-width: 1023px) {
+  /* The toggle first, then the panel it opens, then the answer. */
+  .chat {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'bar'
+      'rail'
+      'main';
+  }
+
+  /* No room beside the answer: the rail becomes a panel above it, closed by
+     default, opened by the same control. */
   .history {
-    padding: 9px 16px;
+    display: none;
+    width: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--hairline);
+    padding: 12px 16px 16px;
+    max-height: 45vh;
   }
 
-  .history-inner {
-    gap: 10px;
+  .history.is-shown {
+    display: flex;
   }
 
-  /* Taller viewport, shorter list: at 812px the open panel filled the screen
-     and pushed the composer and the answer it belongs to out of sight
-     entirely. */
-  .history-list ul {
-    max-height: 33vh;
+  .history-title {
+    -webkit-line-clamp: 1;
   }
 }
 

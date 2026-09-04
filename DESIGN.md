@@ -309,7 +309,11 @@ A single centred column, 780px at its widest, with prose capped at 72ch inside
 it and the finding sentence at 46ch — deliberately narrower than its own card,
 so the eye returns quickly on the line that matters most.
 
-Three regions stack: masthead, scrolling answer region, composer pinned below.
+The masthead spans the app rather than the measure, because the conversation
+rail sits beneath it: a masthead centred on 780px sat 134px left of an answer
+column that now centres in the space BESIDE the rail. Under it, the Ask view is
+a grid — rail, then a thin bar holding the rail's toggle, then the scrolling
+answer region with the composer pinned below it.
 The composer takes the page ground rather than the card white, so it reads as
 part of the page. Example questions use `repeat(auto-fit, minmax(300px, 1fr))`,
 which is two columns on a desk and one on a phone with no breakpoint declared.
@@ -458,37 +462,38 @@ because the wordmark beside it already says the product's name.
 
 ### Conversation History
 
-A thin bar above the transcript, not a sidebar: this is an Operate surface
-where the answer is the point, and a permanent list of past questions beside
-every answer would compete with it. The bar's contents are centred on the
-transcript's own measure, so the list and the answers it produced read as one
-column rather than two unrelated screens.
+**A persistent left rail**, 268px, on the sunken surface with a hairline
+against the answer column.
 
-- **Closed:** one line — a "New conversation" text button in the accent, then a
-  native `<details>` summary carrying a drawn chevron, the label, and a mono
-  count.
-- **The chevron is not optional.** `<summary>` loses its native marker the
-  moment its `display` is anything but `list-item`, and this one is a flex row.
-  Without a drawn one the control had no affordance at all: it read as a label
-  sitting beside a link.
-- **Open:** the rows sit on a sunken ground inside a hairline and an 8px
-  radius, so the list is one object rather than rows floating on the page.
-  Because the container is the sunken tone, a row's hover LIFTS to card white;
-  the usual direction is inverted here and deliberately so.
-- **Every row carries a timestamp**, right-aligned in its own column at the
-  caption step. Titles are derived from the first question, so asking the same
-  question twice produces two rows reading identically — seven saved
-  conversations showed five identical titles and nothing else to separate them.
-  It is a real wall clock, unlike every figure in this product, because it
+This was a thin disclosure bar above the transcript, and this file argued for
+it: a list of past questions beside every answer would compete with the answer,
+on a surface where the answer is the point. **That was overruled deliberately.**
+A secretary comparing this run of a question with the last one needs both on
+screen at once, and a rail is where every product they already use keeps its
+history. Convention is not decoration when the alternative is a control nobody
+looks for.
+
+- **Contents, in order:** a mono label heading with the saved count, the one
+  action ("New conversation", the quiet button at full width), then the rows.
+- **A row is two lines** — the question clamped to two, then the timestamp and
+  question count beneath. Titles are derived from the first question, so the
+  opening words of two different questions are routinely identical; the
+  timestamp is what tells them apart, and it is a real wall clock because it
   records when the READER saved something rather than anything measured from
-  the dataset's as-at date. Absolute, not relative: "2 hours ago" changes while
-  the panel sits open.
+  the dataset's as-at date.
+- **The rail is the sunken surface, so a row LIFTS to card white on hover** —
+  the usual direction inverted, because the container is already the lower tone.
 - **The showing conversation** takes the accent tint and an accent border, and
-  says "· showing" in its meta line, so the state is in the text and not only
-  in the fill.
-- **The list scrolls inside itself** — 40vh, and 33vh under 640px where the
-  open panel otherwise filled a phone screen and pushed the composer out of
-  sight.
+  says "· showing" in its meta, so the state is in the text and not only in the
+  fill.
+- **Below 1024px it becomes a panel above the answer**, closed by default,
+  opened by the same control. Not an overlay drawer: a scrim, a focus trap and
+  an escape key are a lot of machinery for a list, and a panel that pushes the
+  page down needs none of them to be operable.
+- **The toggle carries `aria-expanded` and `aria-controls`.** CSS owns the
+  default at each width so the first paint is right without JavaScript knowing
+  the viewport; the component records that value after mount purely so
+  `aria-expanded` is true rather than a guess.
 
 ### Provenance Block
 
