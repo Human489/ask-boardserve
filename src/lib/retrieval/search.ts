@@ -154,18 +154,39 @@ export async function searchPapers(
   // Over-fetch so there is something to diversify from.
   const matches = await queryVectors(vector, Math.max(topK * 3, 15))
 
-  const topScore = matches[0]?.score ?? 0
-  const floorRaw = matches[0]?.metadata?.corpusFloor
+  // EVERY MATCH IS FILTERED TO THE ACTIVE ORGANISATION, not just sampled.
+  //
+  // This checked `matches[0]` alone and used the whole result set. One index
+  // holds many organisations — `ingest-papers.mjs` upserts under ids
+  // namespaced `<organisation>::<chunk>`, so ingesting a second dataset ADDS
+  // to the first rather than replacing it — so as soon as two are indexed, a
+  // question whose top hit was this organisation's could carry another
+  // organisation's passages in positions 2..n. Those went to the model as
+  // context, were cited to the reader, and passed verify.ts, because the
+  // figures genuinely do appear in the paper they came from. Silent, and
+  // through every guard.
+  //
+  // A vector with no datasetId predates the namespacing and is treated as
+  // FOREIGN rather than assumed to be ours: the cost of dropping it is a
+  // refusal, and the cost of keeping it is another board's paper.
+  const isMine = (m: (typeof matches)[number]): boolean =>
+    typeof m.metadata?.datasetId === 'string' && m.metadata.datasetId === dataset.organisation
+  const mine = matches.filter(isMine)
+
+  const topScore = mine[0]?.score ?? 0
+  // The floor is computed per corpus at ingest, so it has to come from a
+  // vector belonging to THIS corpus.
+  const floorRaw = mine[0]?.metadata?.corpusFloor
   const floor = typeof floorRaw === 'number' ? floorRaw : FALLBACK_FLOOR
 
-  // The index is per-dataset. If it holds another organisation's papers, that is
-  // a misconfiguration, and answering from them would be the worst possible
-  // failure for board data — so it is surfaced rather than silently used.
-  const indexedDataset = matches[0]?.metadata?.datasetId
+  // A mismatch is now "the index has something, and none of it is ours" —
+  // which is the misconfiguration worth refusing over. Answering one board's
+  // question from another's papers would be the worst possible failure for
+  // board data, so it is surfaced rather than silently used.
+  const foreign = matches.find((m) => !isMine(m))
+  const foreignId = foreign?.metadata?.datasetId
   const datasetMismatch =
-    typeof indexedDataset === 'string' && indexedDataset !== dataset.organisation
-      ? indexedDataset
-      : null
+    mine.length === 0 && typeof foreignId === 'string' ? foreignId : null
 
   // Metadata comes back from the index as unknown values. String() on a
   // non-string yields "[object Object]", which would become a passage's text or
@@ -174,7 +195,7 @@ export async function searchPapers(
   const text = (value: unknown, fallback: string): string =>
     typeof value === 'string' ? value : fallback
 
-  const aboveFloor = matches
+  const aboveFloor = mine
     .filter((m) => m.score >= floor)
     .map((m) => ({ ...m, paperId: text(m.metadata?.paperId, 'unknown') }))
   const selected = withBreadth(aboveFloor, topK, topK + Math.max(dataset.papers.length - 1, 0))

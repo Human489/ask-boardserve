@@ -441,3 +441,57 @@ test('a paper index holding another organisation is refused, not answered from',
     restoreFetch()
   }
 })
+
+// THE MIXED INDEX, which is the case the second-dataset test creates.
+//
+// `ingest-papers.mjs` upserts under ids namespaced `<organisation>::<chunk>`,
+// so ingesting a second dataset ADDS to the index rather than replacing it.
+// The mismatch check sampled `matches[0]` and then used the whole result set —
+// so a question whose top hit belonged to the active organisation could carry
+// another organisation's passages behind it. Those reached the model as
+// context, were cited to the reader, and passed verify.ts, because the figures
+// genuinely appear in the paper they came from.
+test('another organisation cannot ride along behind a good top match', async () => {
+  const real = loadDataset()
+  installFetch({
+    matches: () => [
+      match(real.organisation, 0.92, 'Something this board actually discussed.', 'paper-01', 'P', 'S'),
+      match('Some Other Trust', 0.91, 'A FOREIGN BOARD PAPER PASSAGE.', 'paper-09', 'Q', 'T'),
+      match('Some Other Trust', 0.9, 'ANOTHER FOREIGN PASSAGE.', 'paper-09', 'Q', 'U'),
+    ],
+  })
+  try {
+    const { searchPapers } = await import('../src/lib/retrieval/search')
+    const search = await searchPapers(real, 'what do the papers say about the estate')
+    assert.equal(search.datasetMismatch, null, 'our own papers are present, so this is no mismatch')
+    assert.ok(search.passages.length > 0, 'and our own passage survives')
+    for (const passage of search.passages) {
+      assert.ok(
+        !/FOREIGN/.test(passage.text),
+        `another organisation's passage reached the answer: ${passage.text}`,
+      )
+    }
+  } finally {
+    restoreFetch()
+  }
+})
+
+test('a vector with no organisation on it is treated as foreign', async () => {
+  // Such a vector predates the namespacing. Dropping it costs a refusal;
+  // keeping it costs another board's paper.
+  const real = loadDataset()
+  installFetch({
+    matches: () => [
+      { id: 'legacy::1', score: 0.95, metadata: { text: 'UNLABELLED PASSAGE.', paperId: 'p', paperTitle: 'T', section: 'S' } },
+    ],
+  })
+  try {
+    const { searchPapers } = await import('../src/lib/retrieval/search')
+    const search = await searchPapers(real, 'what do the papers say about the estate')
+    for (const passage of search.passages) {
+      assert.ok(!/UNLABELLED/.test(passage.text), 'an unlabelled vector must not be used')
+    }
+  } finally {
+    restoreFetch()
+  }
+})

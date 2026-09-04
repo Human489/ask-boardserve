@@ -36,7 +36,7 @@ npm run dev          # dev server on :3000
 npm run build        # production build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint src tests scripts
-npm test             # 408 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
+npm test             # 410 unit tests (tsx --test tests/*.test.ts tests/*.test.tsx)
 npm run smoke        # end-to-end checks against a RUNNING server
 npm run eval         # the eval harness, against a RUNNING server
 npm run predeploy    # typecheck + lint + tests + eval, and writes the README
@@ -90,6 +90,22 @@ With `datasets:v1:active` gone the loader falls through to `./dataset`, so the
 app still answers. Verified after a full wipe: `attendance_below_threshold`
 answered from the committed dataset, as-at 2026-08-31, with pins, conversations
 and shares all empty.
+
+**The paper index holds MANY organisations, not one.** `ingest-papers.mjs`
+upserts under ids namespaced `<organisation>::<chunk>`, so ingesting a second
+dataset ADDS to the index rather than replacing it. `search.ts` therefore
+filters every match by `datasetId` — it used to sample `matches[0]` and then
+use the whole result set, so a question whose top hit was the active
+organisation could carry another organisation's passages behind it: cited to
+the reader, fed to the model, and passing `verify.ts`, because the figures
+genuinely do appear in the paper they came from. A vector carrying no
+`datasetId` is treated as foreign, because dropping it costs a refusal and
+keeping it costs another board's paper.
+
+A consequence worth knowing before switching datasets: **paper questions only
+work for organisations that have been ingested.** An organisation with no
+vectors in the index gets the mismatch refusal, which is correct, and the fix
+is to run `ingest-papers.mjs` for it — which does not disturb the other.
 
 `probe-unseen.ts` is the one worth re-running after any router change. The eval
 harness runs the customer's own questions, which the router was built against,
