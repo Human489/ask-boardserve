@@ -110,7 +110,7 @@ const STRUCTURED = [
   ['Which overdue actions have been outstanding the longest?', 'longest_overdue'],
   ['Which committee is carrying the most unresolved work?', 'unresolved_by_committee'],
   ['How are outstanding actions distributed across owners or committees?', 'actions_distribution'],
-  ['What has been deferred more than once?', 'deferred_more_than_once'],
+  ['What has been deferred more than once?', 'deferred_actions'],
   ['Where are our biggest skill gaps?', 'skills_gaps'],
   ['Which directors provide the strongest coverage for the areas where the board has gaps?', 'gap_coverage'],
   ['Which committees have the greatest skills gaps?', 'committee_skills_gaps'],

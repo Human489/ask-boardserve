@@ -41,7 +41,7 @@ const STRUCTURED = [
   'longest_overdue',
   'unresolved_by_committee',
   'actions_distribution',
-  'deferred_more_than_once',
+  'deferred_actions',
   'skills_gaps',
   'gap_coverage',
   'committee_skills_gaps',

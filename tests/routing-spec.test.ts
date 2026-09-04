@@ -240,7 +240,7 @@ const WRONGLY_REFUSED: [string, string][] = [
   ['Just show me the skills gaps', 'skills_gaps'],
   ['How about the skills gaps?', 'skills_gaps'],
   // 'defer' was absent from the unambiguous set, so this scored half a point.
-  ['What has been deferred?', 'deferred_more_than_once'],
+  ['What has been deferred?', 'deferred_actions'],
 ]
 
 for (const [question, expected] of WRONGLY_REFUSED) {

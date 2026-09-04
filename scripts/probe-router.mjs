@@ -72,7 +72,7 @@ const tools = [
         properties: {
           filter: {
             type: 'string',
-            enum: ['overdue', 'unresolved', 'deferred_more_than_once', 'due_in_window', 'all'],
+            enum: ['overdue', 'unresolved', 'deferred_actions', 'due_in_window', 'all'],
           },
           group_by: { type: 'string', enum: ['owner', 'committee', 'none'] },
         },
@@ -144,7 +144,7 @@ const cases = [
   { q: 'What actions are overdue, and who owns them?', expect: 'actions_query', args: { filter: 'overdue', group_by: 'owner' } },
   { q: 'Which overdue actions have been outstanding the longest?', expect: 'actions_query', args: { filter: 'overdue' } },
   { q: 'Which committee is carrying the most unresolved work?', expect: 'actions_query', args: { filter: 'unresolved', group_by: 'committee' } },
-  { q: 'What has been deferred more than once?', expect: 'actions_query', args: { filter: 'deferred_more_than_once' } },
+  { q: 'What has been deferred more than once?', expect: 'actions_query', args: { filter: 'deferred_actions' } },
 
   { q: 'Where are our biggest skill gaps?', expect: 'skills_matrix', args: { mode: 'gaps' } },
   { q: 'Which directors provide the strongest coverage for the areas where the board has gaps?', expect: 'skills_matrix', args: { mode: 'director_coverage' } },

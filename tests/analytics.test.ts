@@ -26,6 +26,30 @@ function run(name: string, args: Record<string, unknown> = {}): ToolResult {
   return asComputed(name, tool!.run(dataset, args))
 }
 
+/**
+ * The same dataset with its action log rewritten.
+ *
+ * Some properties cannot be tested against the committed data because the data
+ * does not exercise them: nothing here has been deferred three times, which is
+ * exactly why "exactly twice" could be answered as "two or more" and look
+ * correct. Planting the case is the only way to tell a working filter from a
+ * coincidence.
+ */
+function withActions(
+  rewrite: (actions: Dataset['actions']['actions']) => Dataset['actions']['actions'],
+): Dataset {
+  return {
+    ...dataset,
+    actions: { ...dataset.actions, actions: rewrite(dataset.actions.actions) },
+  }
+}
+
+function runOn(ds: Dataset, name: string, args: Record<string, unknown> = {}): ToolResult {
+  const tool = getTool(name)
+  assert.ok(tool, `tool ${name} is registered`)
+  return asComputed(name, tool!.run(ds, args))
+}
+
 function tableRow(r: ToolResult, predicate: (row: (string | number | null)[]) => boolean) {
   assert.ok(r.table, 'result has a table')
   return r.table!.rows.filter(predicate)
@@ -305,8 +329,8 @@ test('actions_distribution reads owner_type from the data', () => {
 
 // ------------------------------------------------------------ Q9
 
-test('deferred_more_than_once returns exactly SAH-A014 and SAH-A024', () => {
-  const r = run('deferred_more_than_once', { min_deferrals: 2 })
+test('deferred_actions returns exactly SAH-A014 and SAH-A024', () => {
+  const r = run('deferred_actions', { min_deferrals: 2 })
   assert.deepEqual(
     r.table!.rows.map((row) => row[0]).sort(),
     ['SAH-A014', 'SAH-A024'],
@@ -316,8 +340,69 @@ test('deferred_more_than_once returns exactly SAH-A014 and SAH-A024', () => {
   assert.match(r.headline, /2 actions have been deferred 2 or more times/)
 })
 
-test('deferred_more_than_once reads naturally when nothing qualifies', () => {
-  const r = run('deferred_more_than_once', { min_deferrals: 3 })
+// THE UPPER BOUND, and the reason it exists: "deferred exactly twice" used to
+// be answered as "two or more". On THIS dataset those are the same set,
+// because nothing has slipped three times — so the answer looked right while
+// reasoning wrongly, and on a dataset where something had, it would have been
+// included and read perfectly plausibly. Every numeric parameter across all
+// fifteen tools was a minimum or a limit; none could say "exactly" or "at
+// most". These tests are written against a planted third deferral so the
+// distinction cannot be masked by the data the way the bug was.
+test('an exact count excludes anything deferred MORE than that', () => {
+  const planted = withActions((actions) =>
+    actions.map((a) => (a.action_id === 'SAH-A014' ? { ...a, times_deferred: 3 } : a)),
+  )
+
+  const orMore = runOn(planted, 'deferred_actions', { min_deferrals: 2 })
+  assert.deepEqual(
+    orMore.table!.rows.map((row) => row[0]).sort(),
+    ['SAH-A014', 'SAH-A024'],
+    'two or more still includes the three-time action',
+  )
+
+  const exactly = runOn(planted, 'deferred_actions', { min_deferrals: 2, max_deferrals: 2 })
+  assert.deepEqual(
+    exactly.table!.rows.map((row) => row[0]),
+    ['SAH-A024'],
+    'exactly two must NOT include the action deferred three times',
+  )
+  // With a single hit the headline states the ACTUAL count rather than the
+  // band, which is more specific and is left alone. The band belongs in the
+  // assumption either way — that is the invariant that assumptions describe
+  // what the code did, and it is the line telling a reader whether "exactly"
+  // was honoured.
+  assert.match(exactly.headline, /deferred 2 times/)
+  assert.ok(
+    exactly.assumptions.some((a) => /exactly 2 times/.test(a)),
+    'the assumption must state the band actually applied',
+  )
+})
+
+test('a band reads as a band, and excludes both ends beyond it', () => {
+  const planted = withActions((actions) =>
+    actions.map((a) => (a.action_id === 'SAH-A014' ? { ...a, times_deferred: 4 } : a)),
+  )
+  const r = runOn(planted, 'deferred_actions', { min_deferrals: 2, max_deferrals: 3 })
+  assert.deepEqual(
+    r.table!.rows.map((row) => row[0]),
+    ['SAH-A024'],
+    'the four-time action is above the band',
+  )
+  assert.ok(
+    r.assumptions.some((a) => /between 2 and 3 times/.test(a)),
+    'the assumption must name the band',
+  )
+})
+
+test('an upper bound below the lower bound is raised, never inverted', () => {
+  // An inverted band would silently return nothing and read as a clean record.
+  const r = run('deferred_actions', { min_deferrals: 2, max_deferrals: 1 })
+  assert.match(r.headline, /exactly 2 times/)
+  assert.deepEqual(r.table!.rows.map((row) => row[0]).sort(), ['SAH-A014', 'SAH-A024'])
+})
+
+test('deferred_actions reads naturally when nothing qualifies', () => {
+  const r = run('deferred_actions', { min_deferrals: 3 })
   assert.equal(r.table!.rows.length, 0)
   assert.match(r.headline, /Nothing has been deferred 3 or more times/)
 })
@@ -597,7 +682,7 @@ test('no organisation-specific value is hard-coded anywhere an answer is produce
 })
 
 test('every tool returns non-empty caveats, including on a nil result', () => {
-  // deferred_more_than_once returned an empty caveats array when nothing met
+  // deferred_actions returned an empty caveats array when nothing met
   // the threshold, so the answer rendered with no "worth knowing" block at all
   // — reading as though the figure needed no qualification rather than as a
   // nil return.
@@ -607,7 +692,7 @@ test('every tool returns non-empty caveats, including on a nil result', () => {
     assert.ok(result.caveats.length > 0, `${tool.name} returned no caveats`)
     assert.ok(result.assumptions.length > 0, `${tool.name} returned no assumptions`)
   }
-  const nil = asComputed('deferred_more_than_once', getTool('deferred_more_than_once')!.run(dataset, { min_deferrals: 3 }))
+  const nil = asComputed('deferred_actions', getTool('deferred_actions')!.run(dataset, { min_deferrals: 3 }))
   assert.equal(nil.table?.rows.length ?? 0, 0, 'expected a nil result for this threshold')
   assert.ok(nil.caveats.length > 0, 'a nil result still needs its caveat')
 })

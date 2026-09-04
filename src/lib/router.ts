@@ -324,7 +324,7 @@ const TOOL_HINTS: Record<string, string[][]> = {
     ['concentrated', 'one'],
     ['spread'],
   ],
-  deferred_more_than_once: [
+  deferred_actions: [
     ['defer'],
     ['defer', 'once'],
     ['more than once'],

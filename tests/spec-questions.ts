@@ -41,7 +41,7 @@ export const SPEC_STRUCTURED: { q: string; tool: string }[] = [
     q: 'How is outstanding work distributed, and is it concentrated in any one owner, or on the board rather than the executive?',
     tool: 'actions_distribution',
   },
-  { q: 'What has been deferred more than once?', tool: 'deferred_more_than_once' },
+  { q: 'What has been deferred more than once?', tool: 'deferred_actions' },
   {
     q: 'Which skills have the fewest directors at 4 or above, how many are at 2 or below, and how concentrated is our coverage?',
     tool: 'skills_gaps',

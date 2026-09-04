@@ -729,15 +729,37 @@ export const actionsDistribution: ToolDefinition = {
 // ------------------------------------------------------------ Q9
 
 export const deferredMoreThanOnce: ToolDefinition = {
-  name: 'deferred_more_than_once',
+  // Renamed from `deferred_more_than_once`, which named one DEFAULT rather
+  // than what the tool does: it has always been a band query with the lower
+  // bound exposed. Safe to rename because nothing resolves a stored tool name
+  // against this registry — `pins.ts` only checks it is a string, and a pinned
+  // card renders its frozen result — so no saved card is orphaned.
+  name: 'deferred_actions',
   description:
-    'Actions whose due date has been formally moved more than once. Use for "what keeps ' +
-    'slipping" or "what has been deferred repeatedly".',
+    'Actions whose due date has been formally moved, filtered by how many times. ' +
+    'Use for "what keeps slipping", "what has been deferred repeatedly", and for an ' +
+    'EXACT or BANDED count: set min_deferrals and max_deferrals to the same number ' +
+    'for "deferred exactly twice", or a range for "deferred two or three times". ' +
+    'Leave max_deferrals unset for "N or more".',
   parameters: {
     min_deferrals: {
       type: 'number',
-      description: 'Minimum number of recorded deferrals to include.',
+      description: 'Fewest recorded deferrals to include. 1 means "deferred at all".',
       default: 2,
+      min: 1,
+      max: 20,
+    },
+    // WITHOUT THIS, "deferred exactly twice" WAS ANSWERED AS "two or more".
+    // On this dataset those are the same set, because nothing has slipped
+    // three times — so the answer looked right and was reasoning wrongly. On a
+    // dataset where something had, it would have included it and read
+    // perfectly plausibly. Every numeric parameter in this tool set was a
+    // minimum or a limit; none could express "exactly" or "at most".
+    max_deferrals: {
+      type: 'number',
+      description:
+        'Most recorded deferrals to include. Set equal to min_deferrals for an exact ' +
+        'count. Omit for no upper bound.',
       min: 1,
       max: 20,
     },
@@ -745,11 +767,28 @@ export const deferredMoreThanOnce: ToolDefinition = {
   required: [],
   run(dataset, args): ToolResult {
     const min = Math.max(1, Math.round(num(args.min_deferrals, 2)))
+    // Absent rather than defaulted: "no upper bound" is a different thing from
+    // any particular number, and clamping an absent value to 20 would make the
+    // headline claim a band the reader never asked for.
+    const rawMax = args.max_deferrals
+    const max =
+      rawMax === undefined || rawMax === null
+        ? null
+        : Math.max(min, Math.min(20, Math.round(num(rawMax, min))))
+    const exact = max !== null && max === min
+
+    /** The band, in the words the headline and the assumption both use. */
+    const band = exact
+      ? `exactly ${min} time${min === 1 ? '' : 's'}`
+      : max !== null
+        ? `between ${min} and ${max} times`
+        : `${min} or more times`
+
     const asAt = dataset.asAt
     const all = dataset.actions.actions
 
     const hits = all
-      .filter((a) => a.times_deferred >= min)
+      .filter((a) => a.times_deferred >= min && (max === null || a.times_deferred <= max))
       .sort(
         (a, b) => b.times_deferred - a.times_deferred || a.action_id.localeCompare(b.action_id),
       )
@@ -759,12 +798,12 @@ export const deferredMoreThanOnce: ToolDefinition = {
 
     let headline: string
     if (hits.length === 0) {
-      headline = `Nothing has been deferred ${min} or more times; the most any action has slipped is ${maxDeferrals}.`
+      headline = `Nothing has been deferred ${band}; the most any action has slipped is ${maxDeferrals}.`
     } else if (hits.length === 1) {
       const a = hits[0]
       headline = `One action has been deferred ${a.times_deferred} times — ${a.action_id}, ${a.description} — owned by ${a.owner} and still logged "${a.status}".`
     } else {
-      headline = `${hits.length} actions have been deferred ${min} or more times (${list(
+      headline = `${hits.length} actions have been deferred ${band} (${list(
         hits.map((a) => `${a.action_id} at ${a.times_deferred}`),
       )}), ${stillOpen} of them still unresolved, and nothing in the log has slipped more than ${maxDeferrals} times.`
     }
@@ -773,12 +812,12 @@ export const deferredMoreThanOnce: ToolDefinition = {
     const chartWorthwhile = hits.length >= 5
 
     return {
-      tool: 'deferred_more_than_once',
+      tool: 'deferred_actions',
       headline,
       chart: chartWorthwhile
         ? {
             kind: 'bar',
-            title: `Actions deferred ${min} or more times`,
+            title: `Actions deferred ${band}`,
             xLabel: 'Action',
             yLabel: 'Deferrals',
             unit: 'count',
@@ -814,7 +853,10 @@ export const deferredMoreThanOnce: ToolDefinition = {
         ]),
       },
       assumptions: [
-        `"Deferred more than once" is read as times_deferred of ${min} or more.`,
+        // States the band actually applied, not the phrase the reader used. A
+        // wrong assumption sentence is worse than none, and this is the line
+        // that tells them whether "exactly" was honoured.
+        `Counted as a recorded deferral count of ${band}.`,
         'The log records how often a due date moved, but not who agreed to move it or why.',
       ],
       caveats: [
@@ -825,7 +867,7 @@ export const deferredMoreThanOnce: ToolDefinition = {
           ? [
               `A nil return is not the same as a clean record: all ${all.length} actions were checked, and ${
                 all.filter((a) => a.times_deferred > 0).length
-              } have had a due date moved at least once — just never ${min} times or more.`,
+              } have had a due date moved at least once — just none ${band}.`,
             ]
           : []),
         ...(hits.length > 0 && hits.length < 5
