@@ -559,3 +559,43 @@ for (const shape of ['openai', 'flat'] as const) {
     }
   })
 }
+
+// The judge's reply is not always pure JSON.
+//
+// `@cf/openai/gpt-oss-120b` leaks its own channel format into `content` on
+// some questions — `<|start|>assistant<|channel|>final <|constrain|>answer
+// <|constrain|>{...}` — with the JSON intact inside it. JSON.parse on the
+// whole string failed, the judge returned null, and roughly HALF of all paper
+// questions were refused as unreadable while the other half answered. That
+// half-and-half is why it read as flakiness rather than as a bug.
+test('a judgement is read out of a reply that is not purely JSON', async () => {
+  const { extractJudgement } = await import('../src/lib/retrieval/answer')
+  const body = '{"answered":true,"text":"The papers set out the position.","cite":[1]}'
+
+  // Pure JSON still works.
+  assert.deepEqual(extractJudgement(body), JSON.parse(body))
+
+  // The shape actually observed on the live endpoint.
+  const wrapped =
+    '<|start|>assistant<|channel|>final <|constrain|>answer<|constrain|>' + body
+  assert.deepEqual(extractJudgement(wrapped), JSON.parse(body))
+
+  // Whitespace, a trailing marker, and both at once.
+  assert.deepEqual(extractJudgement(`\n  ${body}  \n`), JSON.parse(body))
+  assert.deepEqual(extractJudgement(`${body}<|return|>`), JSON.parse(body))
+})
+
+test('a reply with no object in it stays a failure', async () => {
+  // The extractor must not rescue prose into a judgement. Every field it
+  // returns has to have come from the model's own object.
+  const { extractJudgement } = await import('../src/lib/retrieval/answer')
+  for (const bad of [
+    '',
+    'I think the papers probably say something about the estate.',
+    '<|start|>assistant<|channel|>analysis',
+    '{ not json at all',
+    '}{',
+  ]) {
+    assert.equal(extractJudgement(bad), null, `should not have parsed: ${bad.slice(0, 30)}`)
+  }
+})

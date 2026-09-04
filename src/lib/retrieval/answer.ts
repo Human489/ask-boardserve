@@ -13,7 +13,23 @@ import type { Passage, SearchResult } from '@/lib/retrieval/search'
 // The model is told, explicitly, that refusing is a correct outcome. Left to
 // infer it, a model handed five passages will summarise them whatever they say.
 
-const TIMEOUT_MS = 12_000
+/**
+ * 25 seconds, matching the router's budget for the same model.
+ *
+ * It was 12s, chosen when this call had no `max_tokens` and was therefore
+ * capped at the provider's 256 output tokens — which is why it never
+ * overran: it was being truncated long before it was slow. Giving the model
+ * room to finish reasoning made the call take the time it actually needs, and
+ * 12s then cut off the majority of questions.
+ *
+ * Measured end to end through /api/ask, not guessed: a question that succeeds
+ * takes about 10.5s, which was already inside a whisker of the old cap, and
+ * the broader questions were aborting at 12s. The router allows 25s for the
+ * same model doing a comparable amount of thinking on a SMALLER prompt, so
+ * this is the asymmetry being corrected rather than a number being raised
+ * until things pass.
+ */
+const TIMEOUT_MS = 25_000
 
 export interface GroundedAnswer {
   answered: boolean
@@ -110,6 +126,40 @@ export async function answerFromPassages(
   )
 }
 
+/**
+ * The JSON object out of a reply that is not purely JSON.
+ *
+ * `@cf/openai/gpt-oss-120b` leaks its own channel format into `content` on
+ * some questions, so the reply arrives as
+ * `<|start|>assistant<|channel|>final <|constrain|>answer<|constrain|>{...}`
+ * with the JSON intact inside it. `JSON.parse` on the whole string fails, the
+ * judge returned null, and roughly half of all paper questions were refused
+ * as unreadable while the other half answered — which is why this looked like
+ * flakiness rather than a bug.
+ *
+ * Deliberately narrow: it takes the span from the FIRST `{` to the LAST `}`
+ * and parses that. It cannot invent a field, because everything it returns
+ * came from the model's own object; and it cannot rescue a reply that has no
+ * object in it, which stays a failure. Stripping the markers by name was the
+ * alternative and was rejected — a provider that changes its wrapper would
+ * silently break it again, while braces are part of JSON itself.
+ */
+export function extractJudgement(raw: string): unknown {
+  const trimmed = raw.trim()
+  try {
+    return JSON.parse(trimmed)
+  } catch {
+    const open = trimmed.indexOf('{')
+    const close = trimmed.lastIndexOf('}')
+    if (open === -1 || close <= open) return null
+    try {
+      return JSON.parse(trimmed.slice(open, close + 1))
+    } catch {
+      return null
+    }
+  }
+}
+
 async function judgeUncached(
   question: string,
   search: SearchResult,
@@ -132,6 +182,21 @@ async function judgeUncached(
         },
         body: JSON.stringify({
           temperature: 0,
+          // WITHOUT THIS, NO PAPER QUESTION COULD EVER BE ANSWERED.
+          //
+          // The provider's default output cap is 256 tokens. The router sets
+          // 1024 and works; this call set nothing, and the model is a
+          // REASONING model — it spends output tokens thinking before it
+          // answers. Measured on a real question: finish_reason "length",
+          // completion_tokens exactly 256, `content` null and the whole budget
+          // consumed by `reasoning`. So the judge returned nothing, the tool
+          // reported the passages as unreadable, and every question about the
+          // board papers was refused in production while routing looked fine.
+          //
+          // Matched to the router's budget rather than guessed: the reply is a
+          // sentence or two of JSON, and what needs the headroom is the
+          // thinking in front of it.
+          max_tokens: 1024,
           // Enforced server-side, so the reply cannot arrive as prose. Parsing a
           // free-form answer was tried first and failed on most questions.
           response_format: {
@@ -185,15 +250,28 @@ async function judgeUncached(
       // "[object Object]", which then fails JSON.parse and is reported as a
       // shape error — the right outcome, but by accident rather than by check.
       if (typeof response !== 'string') {
+        // A TRUNCATED REPLY IS NOT A SHAPE PROBLEM, and calling it one sent me
+        // looking in the wrong place for an hour. `finish_reason: "length"`
+        // with a null content means the model ran out of output budget while
+        // reasoning, which is a cap to raise rather than a payload to parse.
+        const finish = (body.result as { choices?: { finish_reason?: unknown }[] })?.choices?.[0]
+          ?.finish_reason
+        if (finish === 'length') {
+          console.error(
+            '[retrieval] the grounding model ran out of output tokens before it answered ' +
+              '(finish_reason: length) — raise max_tokens',
+          )
+        } else {
+          console.error('[retrieval] grounding call did not return the requested shape')
+        }
+        return null
+      }
+      const extracted = extractJudgement(response)
+      if (!extracted || typeof extracted !== 'object') {
         console.error('[retrieval] grounding call did not return the requested shape')
         return null
       }
-      try {
-        parsed = JSON.parse(response) as ModelJudgement
-      } catch {
-        console.error('[retrieval] grounding call did not return the requested shape')
-        return null
-      }
+      parsed = extracted
     }
 
     const text = typeof parsed.text === 'string' ? parsed.text.trim() : ''
